@@ -73,6 +73,18 @@ const SettingsPanel = () => {
             </div>
 
             <div className="flex flex-col gap-2">
+                <label className="text-stone-500 uppercase text-xs font-bold tracking-wider">Icecast User (DJ)</label>
+                <input
+                    name="icecastUser"
+                    type="text"
+                    value={streamConfig.icecastUser}
+                    onChange={handleChange}
+                    placeholder="source"
+                    className="bg-stone-950 border border-stone-800 rounded p-2 text-stone-300 focus:border-blue-500 focus:outline-none"
+                />
+            </div>
+
+            <div className="flex flex-col gap-2">
                 <label className="text-stone-500 uppercase text-xs font-bold tracking-wider">Password</label>
                 <input
                     name="password"

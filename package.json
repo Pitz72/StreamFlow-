@@ -1,7 +1,7 @@
 {
   "name": "streamflow",
   "private": true,
-  "version": "0.0.3",
+  "version": "0.0.8",
   "description": "Desktop Audio Streaming Client",
   "author": "Runtime StreamFlow",
   "main": "dist/main/main.js",
@@ -11,7 +11,7 @@
     "build:main": "tsc -p tsconfig.main.json",
     "lint": "eslint .",
     "preview": "vite preview",
-    "electron:dev": "concurrently -k \"cross-env BROWSER=none npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
+    "electron:dev": "concurrently -k \"cross-env BROWSER=none npm run dev\" \"wait-on http://localhost:5173 && cross-env NODE_ENV=development ELECTRON_DISABLE_SECURITY_WARNINGS=true electron .\"",
     "electron:build": "npm run build && npm run build:main && electron-builder"
   },
   "dependencies": {

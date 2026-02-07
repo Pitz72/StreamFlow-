@@ -8,7 +8,8 @@ interface StreamConfig {
     port: string;
     password: string;
     mount: string;
-    bitrate?: string; // e.g., '128'
+    icecastUser?: string;
+    bitrate?: string;
 }
 
 export class StreamManager {
@@ -35,31 +36,42 @@ export class StreamManager {
             this.stop();
         }
 
-        const { inputDeviceName, host, port, password, mount, bitrate = '128' } = config;
-        const icecastUrl = `icecast://source:${password}@${host}:${port}${mount}`;
+        const { inputDeviceName, host, port, password, mount, icecastUser, bitrate = '128' } = config;
 
-        console.log(`Starting stream with device: ${inputDeviceName} to ${host}:${port}${mount}`);
+        // 1. PULIZIA NOME DEVICE (Windows dshow fix)
+        // Adapted regex from user snippet + preserving previous robust ones if needed.
+        // User snippet: .replace(/^(Default|Communications) - /, '')
+        let cleanDevice = inputDeviceName
+            .replace(/^(Communications|Default) - /, '')
+            .replace(/\s\([0-9a-fA-F]{4}:[0-9a-fA-F]{4}\)$/, '');
+
+        // 2. PROTOCOLLO HTTP PUT (BUTT Emulation)
+        const user = icecastUser || 'source';
+        const safeUser = encodeURIComponent(user);
+        const safePass = encodeURIComponent(password);
+
+        // Costruiamo l'URL HTTP.
+        // NOTA: Se il mount è "/" o vuoto, assicuriamo che ci sia almeno lo slash finale.
+        const cleanMount = (mount === '' || mount === '/') ? '/' : mount;
+        const targetUrl = `http://${safeUser}:${safePass}@${host}:${port}${cleanMount}`;
+
+        // Log per debug (mascherato)
+        console.log(`[StreamManager] MODE: HTTP PUT (BUTT Emulation)`);
+        console.log(`[StreamManager] Device Cleaned: "${cleanDevice}"`);
+        const logUrl = `http://${safeUser}:***@${host}:${port}${cleanMount}`;
+        console.log(`[StreamManager] Target URL: ${logUrl}`);
+
         this.sendStatus('connecting');
-
-        // Argomenti FFmpeg per Windows (dshow)
-        // Nota: Se inputDeviceName è 'default', ffmpeg potrebbe aver bisogno del nome reale. 
-        // L'UI dovrebbe mandare il nome reale. Se manda 'default', qui dovremmo gestire un fallback o errore.
-        // Assumiamo che il frontend mandi il nome corretto o che 'audio="default"' funzioni (su windows dshow spesso vuole il nome esatto).
-        // Se il deviceId è un ID hash (dal browser), non funzionerà direttamente con dshow.
-        // TODO: Mappare deviceId browser -> deviceName dshow se necessario. 
-        // Per ora proviamo a passare il label come nome device.
-
-        let deviceName = inputDeviceName;
-        // Basic cleanup for dshow names if needed
 
         const args = [
             '-f', 'dshow',
-            '-i', `audio=${deviceName}`,
+            '-i', `audio=${cleanDevice}`,
             '-acodec', 'libmp3lame',
             '-ab', `${bitrate}k`,
-            '-content_type', 'audio/mpeg',
+            '-content_type', 'audio/mpeg', // Header fondamentale per HTTP
             '-f', 'mp3',
-            icecastUrl
+            '-method', 'PUT',              // Metodo fondamentale per HTTP
+            targetUrl
         ];
 
         console.log('Spawning FFmpeg:', ffmpegPath, args.join(' '));
@@ -74,16 +86,14 @@ export class StreamManager {
         if (this.ffmpegProcess.stderr) {
             this.ffmpegProcess.stderr.on('data', (data) => {
                 const message = data.toString();
-                console.log('FFmpeg stderr:', message);
+                // User logic: Filtriamo i log troppo verbosi
+                if (!message.includes('frame=') && !message.includes('size=')) {
+                    console.log('FFmpeg stderr:', message);
+                }
 
-                // Heuristics to detect connection success/failure
+                // Restore connection detection logic
                 if (message.includes('Connection established') || message.includes('Writing audio frame')) {
-                    // This might be too spammy if "Writing audio frame" appears often. 
-                    // Ideally look for "Icecast connection established" or similar info message.
-                    // Or just assume connected if process doesn't exit immediately.
-                    // Let's rely on not crashing + "Connection established" if visible.
-                    // Actually standard ffmpeg output for icecast success isn't always explicit "Connected".
-                    // But let's look for common errors.
+                    // Success detection could go here
                 }
 
                 if (message.includes('Connection refused') || message.includes('401 Unauthorized') || message.includes('I/O error')) {

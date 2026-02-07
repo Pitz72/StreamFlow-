@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import Timer from './components/Timer'
 import VuMeter from './components/VuMeter'
 import OnAirButton from './components/OnAirButton'
@@ -6,8 +6,15 @@ import SettingsPanel from './components/SettingsPanel'
 import { useStore } from './store/useStore'
 
 function App() {
-    const [isStreaming, setIsStreaming] = useState(false)
-    const { streamConfig, selectedDeviceId, selectedDeviceLabel: _selectedDeviceLabel } = useStore() // Also grab selectedDeviceId
+    // const [isStreaming, setIsStreaming] = useState(false) // Removed in favor of global store
+    const {
+        streamConfig,
+        selectedDeviceId,
+        selectedDeviceLabel,
+        isStreaming,
+        setIsStreaming,
+        setStreamStatus
+    } = useStore()
 
     // Listen for status updates from Main process
     useEffect(() => {
@@ -16,6 +23,8 @@ function App() {
             // @ts-ignore
             window.electronAPI.onStreamStatus((status, message) => {
                 console.log("Stream Status:", status, message);
+                setStreamStatus(status); // Update global status
+
                 if (status === 'connected') {
                     setIsStreaming(true);
                 } else if (status === 'disconnected' || status === 'error') {
@@ -28,24 +37,23 @@ function App() {
                 }
             });
         }
-    }, []);
+    }, [setIsStreaming, setStreamStatus]);
 
     const toggleStream = () => {
         // @ts-ignore
         if (window.electronAPI) {
             if (!isStreaming) {
+                // Validate Device Selection
+                if (selectedDeviceId === 'default' || !selectedDeviceLabel || selectedDeviceLabel === 'default') {
+                    alert('Please select a specific Audio Input Device in Settings.');
+                    return;
+                }
+
                 // Get the real device LABEL or ID to pass to backend. 
                 // Creating the config object to send to IPC
                 const startConfig = {
                     ...streamConfig,
-                    inputDeviceName: selectedDeviceId === 'default' ? 'default' : selectedDeviceId
-                    // NOTE: If deviceId is a hash, this might fail on backend dshow. 
-                    // The backend ffmpeg-manager logic handles 'audio="device_name"'. 
-                    // For now we pass what we have. Ideally we need the Label.
-                    // But 'selectedDeviceId' in store holds the deviceId (hash on weird browsers, or guid). 
-                    // useAudioDevices hook gets labels. 
-                    // We might need to look up the label here or in the store. 
-                    // Let's rely on the user selecting a standard input or 'default'.
+                    inputDeviceName: selectedDeviceLabel // Send the Label (Name) which dshow needs
                 };
 
                 // Note: The backend expects 'inputDeviceName'. If we pass an ID, dshow might not like it.
@@ -91,7 +99,7 @@ function App() {
                         <div className={`w-3 h-3 rounded-full ${isStreaming ? 'bg-red-500 animate-pulse' : 'bg-stone-600'}`}></div>
                         <span className="text-xl font-bold tracking-wider text-stone-300">RUNTIME STREAMFLOW</span>
                     </div>
-                    <div className="text-stone-500 text-sm">v0.0.1</div>
+                    <div className="text-stone-500 text-sm">v0.0.8</div>
                 </header>
 
                 {/* Center Control Panel */}
