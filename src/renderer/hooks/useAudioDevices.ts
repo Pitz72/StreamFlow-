@@ -9,34 +9,30 @@ export const useAudioDevices = () => {
     const [devices, setDevices] = useState<AudioDevice[]>([]);
 
     useEffect(() => {
-        const getDevices = async () => {
+        const fetchNativeDevices = async () => {
             try {
-                // Request permission first to get labels
-                await navigator.mediaDevices.getUserMedia({ audio: true });
+                // Chiamata all'IPC nativo che lancia ffmpeg -list_devices
+                if (window.electronAPI && window.electronAPI.getAudioDevices) {
+                    const deviceNames = await window.electronAPI.getAudioDevices();
 
-                const allDevices = await navigator.mediaDevices.enumerateDevices();
-                const audioInputs = allDevices
-                    .filter(device => device.kind === 'audioinput')
-                    .map(device => ({
-                        deviceId: device.deviceId,
-                        label: device.label || `Microphone ${device.deviceId.slice(0, 5)}...`
+                    const audioInputs = deviceNames.map(name => ({
+                        // Usa il nome esatto hardware come ID univoco a livello OS
+                        deviceId: name,
+                        label: name
                     }));
 
-                setDevices(audioInputs);
+                    setDevices(audioInputs);
+                } else {
+                    console.error("Electron API for getAudioDevices is missing.");
+                }
             } catch (err) {
-                console.error("Error enumerating devices:", err);
-                // Fallback or empty list
+                console.error("Error fetching native devices:", err);
             }
         };
 
-        getDevices();
+        fetchNativeDevices();
 
-        // Listen for device changes (plug/unplug)
-        navigator.mediaDevices.addEventListener('devicechange', getDevices);
-
-        return () => {
-            navigator.mediaDevices.removeEventListener('devicechange', getDevices);
-        };
+        // Optional: Polling o event listening nativo (per ora il fetch on mount è sufficiente)
     }, []);
 
     return { devices };

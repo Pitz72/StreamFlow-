@@ -21,6 +21,9 @@ interface AppState {
     streamStatus: 'disconnected' | 'connecting' | 'connected' | 'error';
     setIsStreaming: (isStreaming: boolean) => void;
     setStreamStatus: (status: 'disconnected' | 'connecting' | 'connected' | 'error') => void;
+    // Error notification (non-blocking toast)
+    errorMessage: string | null;
+    setErrorMessage: (message: string | null) => void;
 }
 
 export const useStore = create<AppState>()(
@@ -45,10 +48,12 @@ export const useStore = create<AppState>()(
             streamStatus: 'disconnected',
             setIsStreaming: (isStreaming) => set({ isStreaming }),
             setStreamStatus: (status) => set({ streamStatus: status }),
+            // Error notification
+            errorMessage: null,
+            setErrorMessage: (message) => set({ errorMessage: message }),
         }),
         {
             name: 'streamflow-storage',
-            // Persist ONLY settings, exclude runtime state
             partialize: (state) => ({
                 selectedDeviceId: state.selectedDeviceId,
                 selectedDeviceLabel: state.selectedDeviceLabel,

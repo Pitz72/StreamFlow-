@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 interface TimerProps {
     isRunning: boolean;
@@ -6,24 +6,33 @@ interface TimerProps {
 
 const Timer = ({ isRunning }: TimerProps) => {
     const [seconds, setSeconds] = useState(0);
+    const startTimeRef = useRef<number | null>(null);
 
     useEffect(() => {
         let interval: ReturnType<typeof setInterval>;
+
         if (isRunning) {
+            // Se partiamo da zero e non c'è uno startTime memorizzato, lo salviamo
+            if (startTimeRef.current === null) {
+                startTimeRef.current = Date.now();
+            }
+
             interval = setInterval(() => {
-                setSeconds(s => s + 1);
-            }, 1000);
+                const now = Date.now();
+                // Calcoliamo i secondi reali passati (timestamp difference) per evitare drift
+                const diff = Math.floor((now - startTimeRef.current!) / 1000);
+                setSeconds(diff);
+            }, 500); // 500ms al posto di 1000ms fornisce maggiore reattività allo scatto visivo
         } else {
-            // Optional: Reset on stop? Or pause?
-            // For this requirement "00:00:00" suggests reset or start from 0.
-            // Let's reset for now when stopped, or keep it paused.
-            // User requirement is just "Un grande timer '00:00:00'".
-            if (!isRunning && seconds > 0) {
+            // Quando si ferma, azzeriamo tutto
+            if (seconds > 0) {
                 setSeconds(0);
+                startTimeRef.current = null;
             }
         }
+
         return () => clearInterval(interval);
-    }, [isRunning]);
+    }, [isRunning, seconds]);
 
     const formatTime = (totalSeconds: number) => {
         const h = Math.floor(totalSeconds / 3600);

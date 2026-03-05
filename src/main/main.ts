@@ -19,7 +19,6 @@ function createWindow() {
 
     if (process.env.NODE_ENV === 'development') {
         mainWindow.loadURL('http://localhost:5173');
-        // mainWindow.webContents.openDevTools();
     } else {
         mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
     }
@@ -29,7 +28,7 @@ function createWindow() {
     });
 }
 
-import { initializeIpc } from './ipcp';
+import { initializeIpc, cleanupIpc } from './ipcp';
 
 app.whenReady().then(() => {
     createWindow();
@@ -45,4 +44,16 @@ app.whenReady().then(() => {
             }
         }
     });
+});
+
+// Quit when all windows are closed (Windows/Linux behavior)
+app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+        app.quit();
+    }
+});
+
+// Cleanup FFmpeg process before quitting to prevent orphan processes
+app.on('before-quit', () => {
+    cleanupIpc();
 });

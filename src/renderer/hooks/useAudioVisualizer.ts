@@ -20,11 +20,26 @@ export const useAudioVisualizer = (deviceId: string) => {
                 // 1. Create Audio Context
                 audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
 
-                // 2. Get Stream
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    audio: {
-                        deviceId: deviceId === 'default' ? undefined : { exact: deviceId }
+                // Dobbiamo tradurre il DSHOW name (deviceId) nell'Hash di Chrome per getUserMedia
+                let targetDeviceId: any = undefined;
+                if (deviceId && deviceId !== 'default') {
+                    const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    const allDevices = await navigator.mediaDevices.enumerateDevices();
+                    tempStream.getTracks().forEach(t => t.stop()); // libero il mic
+
+                    const matched = allDevices.find(d =>
+                        d.kind === 'audioinput' &&
+                        (d.label.includes(deviceId) || deviceId.includes(d.label.replace(/^(Default|Communications) - /, '').trim()))
+                    );
+
+                    if (matched) {
+                        targetDeviceId = { exact: matched.deviceId };
                     }
+                }
+
+                // 2. Get Stream con ID Chrome (se matchato) o default
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: targetDeviceId ? { deviceId: targetDeviceId } : true
                 });
 
                 // 3. Create Source and Analyser

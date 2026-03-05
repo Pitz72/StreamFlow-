@@ -1,7 +1,7 @@
 {
   "name": "streamflow",
   "private": true,
-  "version": "0.0.8",
+  "version": "0.2.4-rc",
   "description": "Desktop Audio Streaming Client",
   "author": "Runtime StreamFlow",
   "main": "dist/main/main.js",
@@ -11,18 +11,13 @@
     "build:main": "tsc -p tsconfig.main.json",
     "lint": "eslint .",
     "preview": "vite preview",
-    "electron:dev": "concurrently -k \"cross-env BROWSER=none npm run dev\" \"wait-on http://localhost:5173 && cross-env NODE_ENV=development ELECTRON_DISABLE_SECURITY_WARNINGS=true electron .\"",
+    "electron:dev": "npm run build:main && concurrently -k \"cross-env BROWSER=none npm run dev\" \"wait-on http://localhost:5173 && cross-env NODE_ENV=development ELECTRON_DISABLE_SECURITY_WARNINGS=true electron .\"",
     "electron:build": "npm run build && npm run build:main && electron-builder"
   },
   "dependencies": {
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
     "ffmpeg-static": "^5.3.0",
-    "lucide-react": "^0.563.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "tailwind-merge": "^3.4.0",
-    "tailwindcss-animate": "^1.0.7",
     "zustand": "^5.0.11"
   },
   "devDependencies": {
@@ -57,6 +52,9 @@
       "dist/main/**/*",
       "dist/renderer/**/*",
       "dist/preload/**/*"
+    ],
+    "asarUnpack": [
+      "**/node_modules/ffmpeg-static/**"
     ],
     "win": {
       "target": "nsis"

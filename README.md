@@ -1,73 +1,52 @@
-# React + TypeScript + Vite
+# Runtime StreamFlow 🎙️
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+**StreamFlow** è un client desktop professionale per lo streaming audio su server Icecast/Shoutcast, progettato per la massima semplicità ed efficienza. Costruito con le tecnologie web più moderne per garantire stabilità e performance.
 
-Currently, two official plugins are available:
+## 🚀 Caratteristiche principali
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Streaming HTTP PUT**: Emulazione fedele del protocollo `BUTT` per massima compatibilità con AzuraCast e DJ Mode.
+- **Audio Visualizer**: VU Meter in tempo reale basati su Web Audio API.
+- **Supporto Windows DirectShow**: Selezione accurata e pulita dei dispositivi audio di sistema.
+- **Design Moderno**: Interfaccia in Dark Mode con feedback visivo immediato (ON AIR status).
+- **Leggero e Multi-processore**: Sfrutta la potenza di FFmpeg per l'encoding audio (MP3 128k 44.1kHz).
 
-## React Compiler
+## 🛠️ Stack Tecnologico
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Frontend**: React 19, TypeScript, Tailwind CSS, Lucide React.
+- **Backend/Desktop**: Electron 40, Node.js.
+- **Engine Audio**: FFmpeg (via ffmpeg-static).
+- **State Management**: Zustand (con persistenza selettiva).
 
-## Expanding the ESLint configuration
+## 📦 Installazione e Avvio Rapido
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### Prerequisiti
+- Node.js (v20+)
+- npm
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### Sviluppo
+```bash
+# 1. Installa le dipendenze
+npm install
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# 2. Avvia in modalità sviluppo
+npm run electron:dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### Build (Produzione)
+```bash
+# Genera l'installer per Windows (.exe)
+npm run electron:build
 ```
+
+## 📖 Documentazione
+
+Tutta la documentazione dettagliata è disponibile nella cartella [`docs/`](./docs/):
+
+- [**Indice Documentazione**](./docs/INDEX.md): Punto di partenza centrale.
+- [**Changelog Unificato**](./docs/CHANGELOG.md): Cronologia di tutte le versioni.
+- [**Architettura**](./docs/ARCHITECTURE.md): Dettagli tecnici sul funzionamento interno.
+- [**Guida Setup**](./docs/SETUP.md): Istruzioni approfondite per gli sviluppatori.
+
+---
+
+*Sviluppato da **Runtime StreamFlow** - Versione attuale: **0.1.0***

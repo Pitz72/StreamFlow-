@@ -3,6 +3,13 @@ import { StreamManager } from './streaming/ffmpeg-manager';
 
 let streamManager: StreamManager | null = null;
 
+export const cleanupIpc = () => {
+    if (streamManager) {
+        streamManager.stop();
+        streamManager = null;
+    }
+};
+
 export const initializeIpc = (mainWindow: BrowserWindow) => {
     streamManager = new StreamManager(mainWindow);
 
@@ -16,5 +23,9 @@ export const initializeIpc = (mainWindow: BrowserWindow) => {
         if (streamManager) {
             streamManager.stop();
         }
+    });
+
+    ipcMain.handle('get-audio-devices', async () => {
+        return await StreamManager.getWindowsAudioDevices();
     });
 };
