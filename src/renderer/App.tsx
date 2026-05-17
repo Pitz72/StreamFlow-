@@ -22,7 +22,6 @@ function App() {
     useEffect(() => {
         if (window.electronAPI && window.electronAPI.onStreamStatus) {
             const unsubscribe = window.electronAPI.onStreamStatus((status, message) => {
-                console.log("Stream Status:", status, message);
                 setStreamStatus(status);
 
                 if (status === 'connected') {
@@ -53,6 +52,19 @@ function App() {
                     setErrorMessage('Please select a specific Audio Input Device in Settings.');
                     return;
                 }
+                if (!streamConfig.host.trim()) {
+                    setErrorMessage('Host is required.');
+                    return;
+                }
+                const portNum = parseInt(streamConfig.port, 10);
+                if (!streamConfig.port.trim() || isNaN(portNum) || portNum < 1 || portNum > 65535) {
+                    setErrorMessage('Port must be a number between 1 and 65535.');
+                    return;
+                }
+                if (!streamConfig.password.trim()) {
+                    setErrorMessage('Password is required.');
+                    return;
+                }
 
                 const startConfig = {
                     ...streamConfig,
@@ -77,7 +89,7 @@ function App() {
                         <div className={`w-3 h-3 rounded-full ${isStreaming ? 'bg-red-500 animate-pulse' : 'bg-stone-600'}`}></div>
                         <span className="text-xl font-bold tracking-wider text-stone-300">RUNTIME STREAMFLOW</span>
                     </div>
-                    <div className="text-stone-500 text-sm">v0.3.1</div>
+                    <div className="text-stone-500 text-sm">v0.3.2</div>
                 </header>
 
                 {/* Center Control Panel */}

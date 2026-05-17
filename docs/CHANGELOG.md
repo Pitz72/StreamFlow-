@@ -5,6 +5,18 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.3.2] — 2026-05-17
+
+### Added
+- **Bitrate configurabile (M2)**: Il bitrate MP3 non è più hardcoded a 128kbps. Aggiunto campo `bitrate` a `StreamConfig` e select UI in `SettingsPanel` con valori 64/96/128/192/256/320 kbps. Il valore è persistito nel localStorage.
+
+### Fixed
+- **console.log in produzione (M4)**: Rimossi tutti i `console.log` non essenziali da `App.tsx` e `ffmpeg-manager.ts`. Mantenuti i soli `console.error` per errori fatali.
+- **VuMeter prop `active` ignorata (M1)**: La prop `active: boolean` era dichiarata ma non usata nel body di `VuMeter.tsx`. Ora controlla l'intensità visiva del componente (border, opacità, colore label) in base allo stato ON AIR. Il meter continua a leggere l'input anche a stream fermo (mic check intenzionale).
+- **Nessuna validazione input pre-FFmpeg (M3)**: `toggleStream()` in `App.tsx` ora valida `host`, `port` (1–65535) e `password` prima di invocare `startStream()`. Errori mostrati tramite toast esistente.
+
+---
+
 ## [0.3.1] — 2026-05-17
 
 ### Fixed

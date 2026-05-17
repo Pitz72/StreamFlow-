@@ -13,6 +13,7 @@ interface StreamConfig {
     password: string;
     mount: string;
     icecastUser?: string;
+    bitrate?: string;
 }
 
 export class StreamManager {
@@ -75,7 +76,7 @@ export class StreamManager {
         // Stop preventivo aggressivo
         this.stop();
 
-        const { inputDeviceName, host, port, password, mount, icecastUser } = config;
+        const { inputDeviceName, host, port, password, mount, icecastUser, bitrate } = config;
 
         // I NOMI DISPOSITIVO ARRIVANO ORA DIRETTAMENTE DA DSHOW VIA IPC.
         // NON È PIÙ NECESSARIA NESSUNA PULIZIA REGEX PER COMPENSARE A CHROME.
@@ -94,17 +95,13 @@ export class StreamManager {
         // Mascheriamo la password per il log
         const logUrl = `http://${safeUser}:***@${host}:${port}${cleanMount}`;
 
-        console.log(`[StreamManager] Starting Stream (HTTP RAW + Header Fix)`);
-        console.log(`[StreamManager] Device: "${cleanDevice}"`);
-        console.log(`[StreamManager] Target: ${logUrl}`);
-
         this.sendStatus('connecting');
 
         const args = [
             '-f', 'dshow',
             '-i', `audio=${cleanDevice}`,
             '-acodec', 'libmp3lame',
-            '-ab', '128k',
+            '-ab', `${bitrate || '128'}k`,
             '-ar', '44100',                 // Sample rate fisso
             '-content_type', 'audio/mpeg',
             '-f', 'mp3',
@@ -114,8 +111,6 @@ export class StreamManager {
             '-headers', 'User-Agent: FMLE/3.0\r\nExpect:\r\nIce-Public: 1\r\n',
             targetUrl
         ];
-
-        console.log('Spawning FFmpeg:', ffmpegPath, args.join(' '));
 
         if (!ffmpegPath) {
             this.sendStatus('error', 'FFmpeg binary not found');
@@ -140,7 +135,6 @@ export class StreamManager {
                 const message = data.toString();
                 // Salviamo le ultime righe per un traceback se dovesse crashare
                 if (!message.includes('frame=') && !message.includes('size=') && !message.includes('time=')) {
-                    console.log(`FFmpeg: ${message.trim()}`);
                     lastErrorLog += message;
                     if (lastErrorLog.length > 2000) lastErrorLog = lastErrorLog.substring(lastErrorLog.length - 2000);
                 }
@@ -164,7 +158,6 @@ export class StreamManager {
             });
 
             this.ffmpegProcess.on('close', (code) => {
-                console.log(`[StreamManager] Process exited with code ${code}`);
                 cancelConnectionTimeout();
                 this.ffmpegProcess = null;
                 if (code !== 0 && code !== null) { // code is null if killed by signal
@@ -196,7 +189,6 @@ export class StreamManager {
 
     public stop() {
         if (this.ffmpegProcess) {
-            console.log('[StreamManager] Killing process tree...');
             // Su Windows, kill() normale spesso lascia orfani. Usiamo taskkill.
             if (process.platform === 'win32' && this.ffmpegProcess.pid) {
                 try {

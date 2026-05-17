@@ -7,6 +7,7 @@ interface StreamConfig {
     password: string;
     mount: string;
     icecastUser: string;
+    bitrate: string;
 }
 
 interface AppState {
@@ -38,7 +39,8 @@ export const useStore = create<AppState>()(
                 port: '8000',
                 password: '',
                 mount: '/live',
-                icecastUser: 'source'
+                icecastUser: 'source',
+                bitrate: '128'
             },
             setStreamConfig: (config) => set((state) => ({
                 streamConfig: { ...state.streamConfig, ...config }
@@ -62,6 +64,7 @@ export const useStore = create<AppState>()(
                     port: state.streamConfig.port,
                     mount: state.streamConfig.mount,
                     icecastUser: state.streamConfig.icecastUser,
+                    bitrate: state.streamConfig.bitrate,
                     password: '', // never persisted to localStorage
                 },
             }),

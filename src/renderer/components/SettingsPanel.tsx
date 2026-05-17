@@ -118,6 +118,23 @@ const SettingsPanel = () => {
                 />
             </div>
 
+            <div className="flex flex-col gap-2">
+                <label className="text-stone-500 uppercase text-xs font-bold tracking-wider">Bitrate</label>
+                <select
+                    name="bitrate"
+                    value={streamConfig.bitrate}
+                    onChange={(e) => setStreamConfig({ bitrate: e.target.value })}
+                    className="bg-stone-950 border border-stone-800 rounded p-2 text-stone-300 focus:border-blue-500 focus:outline-none"
+                >
+                    <option value="64">64 kbps</option>
+                    <option value="96">96 kbps</option>
+                    <option value="128">128 kbps</option>
+                    <option value="192">192 kbps</option>
+                    <option value="256">256 kbps</option>
+                    <option value="320">320 kbps</option>
+                </select>
+            </div>
+
             <div className="mt-auto">
                 <div className="bg-stone-800/50 p-3 rounded text-xs text-stone-500">
                     Status: <span className={statusColors[streamStatus] || 'text-stone-400'}>{statusLabels[streamStatus] || 'Unknown'}</span>
