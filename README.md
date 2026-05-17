@@ -1,52 +1,46 @@
-# Runtime StreamFlow 🎙️
+# Runtime StreamFlow
 
-**StreamFlow** è un client desktop professionale per lo streaming audio su server Icecast/Shoutcast, progettato per la massima semplicità ed efficienza. Costruito con le tecnologie web più moderne per garantire stabilità e performance.
+**StreamFlow** è un client desktop professionale per lo streaming audio verso server Icecast/Shoutcast e AzuraCast. Combina un motore di encoding robusto (FFmpeg) con un'interfaccia moderna in dark mode, pensato come alternativa a BUTT (Broadcast Using This Tool) per broadcaster e DJ radiofonici.
 
-## 🚀 Caratteristiche principali
+## Caratteristiche
 
-- **Streaming HTTP PUT**: Emulazione fedele del protocollo `BUTT` per massima compatibilità con AzuraCast e DJ Mode.
-- **Audio Visualizer**: VU Meter in tempo reale basati su Web Audio API.
-- **Supporto Windows DirectShow**: Selezione accurata e pulita dei dispositivi audio di sistema.
-- **Design Moderno**: Interfaccia in Dark Mode con feedback visivo immediato (ON AIR status).
-- **Leggero e Multi-processore**: Sfrutta la potenza di FFmpeg per l'encoding audio (MP3 128k 44.1kHz).
+- **Streaming HTTP PUT** — protocollo compatibile con AzuraCast, Icecast 2, e DJ Mode
+- **VU Meter stereo real-time** — canali L/R indipendenti via Web Audio API a 60 FPS
+- **Selezione dispositivo audio** — enumerazione diretta via FFmpeg DirectShow (Windows)
+- **Timer di sessione** — HH:MM:SS con calcolo timestamp-based preciso al millisecondo
+- **Notifiche errore non bloccanti** — toast con messaggio FFmpeg raw per diagnostica immediata
+- **Persistenza configurazione** — credenziali e device salvati tra le sessioni
 
-## 🛠️ Stack Tecnologico
+## Stack Tecnologico
 
-- **Frontend**: React 19, TypeScript, Tailwind CSS, Lucide React.
-- **Backend/Desktop**: Electron 40, Node.js.
-- **Engine Audio**: FFmpeg (via ffmpeg-static).
-- **State Management**: Zustand (con persistenza selettiva).
+| Layer | Tecnologia |
+|---|---|
+| Desktop | Electron 40 |
+| Frontend | React 19, TypeScript, Tailwind CSS |
+| State | Zustand 5 (con persist middleware) |
+| Audio engine | FFmpeg via ffmpeg-static |
+| Build | Vite 7, electron-builder |
 
-## 📦 Installazione e Avvio Rapido
+## Avvio Rapido
 
-### Prerequisiti
-- Node.js (v20+)
-- npm
-
-### Sviluppo
 ```bash
-# 1. Installa le dipendenze
 npm install
-
-# 2. Avvia in modalità sviluppo
 npm run electron:dev
 ```
 
-### Build (Produzione)
+## Build Produzione
+
 ```bash
-# Genera l'installer per Windows (.exe)
 npm run electron:build
+# Output: builds/ — installer NSIS per Windows
 ```
 
-## 📖 Documentazione
+## Documentazione
 
-Tutta la documentazione dettagliata è disponibile nella cartella [`docs/`](./docs/):
-
-- [**Indice Documentazione**](./docs/INDEX.md): Punto di partenza centrale.
-- [**Changelog Unificato**](./docs/CHANGELOG.md): Cronologia di tutte le versioni.
-- [**Architettura**](./docs/ARCHITECTURE.md): Dettagli tecnici sul funzionamento interno.
-- [**Guida Setup**](./docs/SETUP.md): Istruzioni approfondite per gli sviluppatori.
+- [Architettura](./docs/ARCHITECTURE.md) — struttura multi-processo, flusso audio, IPC
+- [Setup sviluppo](./docs/SETUP.md) — prerequisiti, comandi, troubleshooting
+- [Changelog](./docs/CHANGELOG.md) — cronologia versioni dalla 0.0.1
 
 ---
 
-*Sviluppato da **Runtime StreamFlow** - Versione attuale: **0.1.0***
+Versione attuale: **0.3.0** — Sviluppato da Runtime Radio

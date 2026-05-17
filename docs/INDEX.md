@@ -1,20 +1,27 @@
-# Indice Documentazione StreamFlow
+# Documentazione StreamFlow
 
-Benvenuti nella documentazione tecnica di **Runtime StreamFlow**. Questo documento funge da hub centrale per orientarsi tra i vari moduli e le guide del progetto.
+Hub centrale della documentazione tecnica di **Runtime StreamFlow** (v0.2.4-rc).
 
-## 📖 Guide e Risorse
+## Guide
 
-- [**Guida Setup**](./SETUP.md): Requisiti e istruzioni per configurare l'ambiente di sviluppo, eseguire il progetto e generare le build.
-- [**Architettura di Sistema**](./ARCHITECTURE.md): Descrizione del funzionamento interno, del flusso audio e della struttura dei file.
+| Documento | Contenuto |
+|---|---|
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | Struttura multi-processo, flusso audio, IPC bridge, state machine |
+| [SETUP.md](./SETUP.md) | Prerequisiti, comandi di sviluppo, build, troubleshooting |
 
-## 📋 Cronologia Modifiche
+## Cronologia
 
-- [**Changelog Unificato**](./CHANGELOG.md): Una visione d'insieme di tutte le versioni rilasciate, dalle origini ad oggi.
-- [**Archivio Log Dettagliati**](./log/): Una raccolta di tutti i log delle sessioni di sviluppo individuali.
-  - [Ultimo Log (v0.1.0)](./log/0.1.0.md)
-  - [Log Iniziale (v0.0.1)](./log/0.0.1.md)
+| Documento | Contenuto |
+|---|---|
+| [CHANGELOG.md](./CHANGELOG.md) | Tutte le versioni dalla 0.0.1 alla 0.2.4-rc |
+| [log/](./log/) | Log tecnici dettagliati per ogni singola sessione di sviluppo |
+
+## Archivio
+
+| Documento | Contenuto |
+|---|---|
+| [archive/RELAZIONE_AUDIT.md](./archive/RELAZIONE_AUDIT.md) | Analisi dello stato del progetto al 5 Mar 2026 (v0.1.6) — documento storico |
 
 ---
 
-> [!TIP]
-> Per una panoramica rapida del progetto, consulta il [README.md](../README.md) nella root del repository.
+> Per una panoramica del progetto, vedi il [README](../README.md) nella root.

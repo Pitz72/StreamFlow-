@@ -11,6 +11,7 @@ function App() {
         selectedDeviceId,
         selectedDeviceLabel,
         isStreaming,
+        streamStatus,
         setIsStreaming,
         setStreamStatus,
         errorMessage,
@@ -76,7 +77,7 @@ function App() {
                         <div className={`w-3 h-3 rounded-full ${isStreaming ? 'bg-red-500 animate-pulse' : 'bg-stone-600'}`}></div>
                         <span className="text-xl font-bold tracking-wider text-stone-300">RUNTIME STREAMFLOW</span>
                     </div>
-                    <div className="text-stone-500 text-sm">v0.2.4-rc</div>
+                    <div className="text-stone-500 text-sm">v0.3.0</div>
                 </header>
 
                 {/* Center Control Panel */}
@@ -93,7 +94,11 @@ function App() {
                         <VuMeter label="L" active={isStreaming} />
 
                         {/* BIG BUTTON */}
-                        <OnAirButton isOn={isStreaming} onClick={toggleStream} />
+                        <OnAirButton
+                            isOn={isStreaming}
+                            onClick={toggleStream}
+                            disabled={streamStatus === 'connecting'}
+                        />
 
                         {/* Right Channel */}
                         <VuMeter label="R" active={isStreaming} />

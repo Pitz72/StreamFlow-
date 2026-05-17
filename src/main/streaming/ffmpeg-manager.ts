@@ -127,6 +127,14 @@ export class StreamManager {
         if (this.ffmpegProcess.stderr) {
             let connectionConfirmed = false;
             let lastErrorLog = '';
+            let connectionTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
+            const cancelConnectionTimeout = () => {
+                if (connectionTimeoutId !== null) {
+                    clearTimeout(connectionTimeoutId);
+                    connectionTimeoutId = null;
+                }
+            };
 
             this.ffmpegProcess.stderr.on('data', (data) => {
                 const message = data.toString();
@@ -139,20 +147,25 @@ export class StreamManager {
 
                 // Connection error detection (immediate feedback)
                 if (message.includes('Connection refused') || message.includes('401 Unauthorized') || message.includes('I/O error')) {
-                    connectionConfirmed = true;
-                    this.sendStatus('error', message.trim().substring(0, 150));
+                    if (!connectionConfirmed) {
+                        connectionConfirmed = true;
+                        cancelConnectionTimeout();
+                        this.sendStatus('error', message.trim().substring(0, 150));
+                    }
                     return;
                 }
 
                 // Connection success: FFmpeg reports progress (size/time) only when actively streaming
                 if (!connectionConfirmed && (message.includes('size=') || message.includes('time='))) {
                     connectionConfirmed = true;
+                    cancelConnectionTimeout();
                     this.sendStatus('connected');
                 }
             });
 
             this.ffmpegProcess.on('close', (code) => {
                 console.log(`[StreamManager] Process exited with code ${code}`);
+                cancelConnectionTimeout();
                 this.ffmpegProcess = null;
                 if (code !== 0 && code !== null) { // code is null if killed by signal
                     // Estraiamo le ultime 3 righe per prendere l'errore reale, ad es. "Connection reset" + "Conversion failed"
@@ -163,15 +176,17 @@ export class StreamManager {
                     this.sendStatus('disconnected');
                 }
             });
-        }
 
-        // Safety timeout: if no stderr output confirms status after 5s, check if process is alive
-        setTimeout(() => {
-            if (this.ffmpegProcess && !this.ffmpegProcess.killed) {
-                // Process alive but no confirmation yet — likely buffering or slow handshake
-                this.sendStatus('connected');
-            }
-        }, 5000);
+            // Safety timeout: se nessun output stderr conferma lo stato entro 5s e il processo è vivo,
+            // assumiamo connessione avvenuta (handshake lento o server silenzioso).
+            // Viene cancellato immediatamente se arriva conferma o errore da stderr.
+            connectionTimeoutId = setTimeout(() => {
+                if (this.ffmpegProcess && !this.ffmpegProcess.killed && !connectionConfirmed) {
+                    connectionConfirmed = true;
+                    this.sendStatus('connected');
+                }
+            }, 5000);
+        }
 
         this.ffmpegProcess.on('error', (err) => {
             console.error('Failed to start FFmpeg process:', err);

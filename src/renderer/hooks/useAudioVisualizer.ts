@@ -10,93 +10,94 @@ export const useAudioVisualizer = (deviceId: string) => {
     useEffect(() => {
         if (!deviceId) return;
 
+        // Flag di cancellazione: se l'effect viene pulito prima che initAudio termini
+        // (cambio dispositivo rapido), tutte le operazioni async successive vengono abortite.
+        let cancelled = false;
+
         const initAudio = async () => {
             try {
-                // Close previous context if exists
+                // Chiudi il context precedente prima di aprirne uno nuovo
                 if (audioContextRef.current) {
                     await audioContextRef.current.close();
+                    audioContextRef.current = null;
                 }
+                if (cancelled) return;
 
-                // 1. Create Audio Context
                 audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
 
-                // Dobbiamo tradurre il DSHOW name (deviceId) nell'Hash di Chrome per getUserMedia
-                let targetDeviceId: any = undefined;
+                // Traduci il nome DSHOW (deviceId) nell'hash Chrome per getUserMedia
+                let targetDeviceId: { exact: string } | undefined = undefined;
                 if (deviceId && deviceId !== 'default') {
                     const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    if (cancelled) {
+                        tempStream.getTracks().forEach(t => t.stop());
+                        return;
+                    }
                     const allDevices = await navigator.mediaDevices.enumerateDevices();
-                    tempStream.getTracks().forEach(t => t.stop()); // libero il mic
+                    tempStream.getTracks().forEach(t => t.stop());
+                    if (cancelled) return;
 
                     const matched = allDevices.find(d =>
                         d.kind === 'audioinput' &&
                         (d.label.includes(deviceId) || deviceId.includes(d.label.replace(/^(Default|Communications) - /, '').trim()))
                     );
-
                     if (matched) {
                         targetDeviceId = { exact: matched.deviceId };
                     }
                 }
 
-                // 2. Get Stream con ID Chrome (se matchato) o default
                 const stream = await navigator.mediaDevices.getUserMedia({
                     audio: targetDeviceId ? { deviceId: targetDeviceId } : true
                 });
+                if (cancelled) {
+                    stream.getTracks().forEach(t => t.stop());
+                    return;
+                }
 
-                // 3. Create Source and Analyser
                 sourceRef.current = audioContextRef.current.createMediaStreamSource(stream);
                 analyserRef.current = audioContextRef.current.createAnalyser();
-                analyserRef.current.fftSize = 256; // Smaller fft for faster reaction
-
+                analyserRef.current.fftSize = 256;
                 sourceRef.current.connect(analyserRef.current);
 
-                // 4. Analysis Loop
                 const bufferLength = analyserRef.current.frequencyBinCount;
                 const dataArray = new Uint8Array(bufferLength);
 
                 const animate = () => {
-                    if (!analyserRef.current) return;
+                    if (!analyserRef.current || cancelled) return;
 
                     analyserRef.current.getByteFrequencyData(dataArray);
-
-                    // Calculate RMS (Root Mean Square) for volume
                     let sum = 0;
-                    for (let i = 0; i < bufferLength; i++) {
-                        sum += dataArray[i];
-                    }
+                    for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
                     const average = sum / bufferLength;
-
-                    // Normalize to 0-100 roughly
-                    // audio levels are logarithmic, but for simple vu meter linear approx or slight scaling is ok
-                    // raw values are 0-255. 
-                    const normalizedVolume = Math.min(100, (average / 128) * 100 * 1.5); // 1.5 multiplier for gain visual
+                    const normalizedVolume = Math.min(100, (average / 128) * 100 * 1.5);
 
                     setVolume(normalizedVolume);
-
                     requestRef.current = requestAnimationFrame(animate);
                 };
 
                 animate();
 
             } catch (err) {
-                console.error("Error initializing audio visualizer:", err);
-            }
-        };
-
-        const cleanup = () => {
-            if (requestRef.current) cancelAnimationFrame(requestRef.current);
-            if (audioContextRef.current) {
-                audioContextRef.current.close();
-                audioContextRef.current = null;
-            }
-            // Stop tracks to release microphone
-            if (sourceRef.current && sourceRef.current.mediaStream) {
-                sourceRef.current.mediaStream.getTracks().forEach(track => track.stop());
+                if (!cancelled) {
+                    console.error('Error initializing audio visualizer:', err);
+                }
             }
         };
 
         initAudio();
 
-        return cleanup;
+        return () => {
+            cancelled = true;
+            if (requestRef.current) cancelAnimationFrame(requestRef.current);
+            if (sourceRef.current?.mediaStream) {
+                sourceRef.current.mediaStream.getTracks().forEach(track => track.stop());
+            }
+            if (audioContextRef.current) {
+                audioContextRef.current.close();
+                audioContextRef.current = null;
+            }
+            setVolume(0);
+        };
     }, [deviceId]);
 
     return volume;

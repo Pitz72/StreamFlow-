@@ -28,3 +28,6 @@ builds/
 release/
 .cache/
 
+# Claude Code internals
+.claude/
+

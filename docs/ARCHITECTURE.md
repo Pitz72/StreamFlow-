@@ -1,54 +1,143 @@
-# Architettura di StreamFlow
+# Architettura StreamFlow
 
-StreamFlow è basato su un'architettura multi-processo fornita da Electron, che separa la logica di sistema (Backend) dall'interfaccia utente (Frontend).
+StreamFlow è strutturato su tre processi Electron separati che comunicano via IPC. Questa separazione garantisce sicurezza (il renderer non ha accesso diretto al filesystem o ai processi di sistema) e stabilità (un crash nel renderer non abbatte il processo di streaming).
 
-## 🏗️ Struttura a 3 Layer
+## Struttura a 3 Layer
 
-Il progetto è organizzato in tre aree principali:
-
-1.  **Main Process (`src/main/`)**:
-    - Gestisce il ciclo di vita dell'applicazione.
-    - Controlla il motore di streaming via FFmpeg (`streaming/ffmpeg-manager.ts`).
-    - Gestisce la comunicazione IPC (Inter-Process Communication).
-2.  **Preload Script (`src/preload/`)**:
-    - Funge da bridge sicuro tra il Main Process e il Renderer.
-    - Espone le API necessarie al frontend tramite `contextBridge`.
-3.  **Renderer Process (`src/renderer/`)**:
-    - Sviluppato in React 19.
-    - Gestisce l'interfaccia utente, la visualizzazione audio e la configurazione dell'utente.
-    - Utilizza **Zustand** per la gestione dello stato globale.
-
-## 🌊 Flusso Audio e Streaming
-
-Il cuore di StreamFlow è il processo di encoding e trasmissione:
-
-```mermaid
-graph LR
-    A["Audio Input (dshow)"] --> B["FFmpeg Encoder"]
-    B --> C["HTTP PUT Request"]
-    C --> D["Icecast/AzuraCast"]
-    
-    subgraph "Main Process"
-    B
-    end
-    
-    subgraph "Server"
-    D
-    end
+```
+┌─────────────────────────────────────────┐
+│  RENDERER PROCESS  (React 19)           │
+│  src/renderer/                          │
+│  • App.tsx — root, orchestrazione UI    │
+│  • components/ — OnAirButton, VuMeter,  │
+│    SettingsPanel, Timer, Toast          │
+│  • hooks/ — useAudioDevices,            │
+│    useAudioVisualizer                   │
+│  • store/ — Zustand (persist)           │
+└──────────────┬──────────────────────────┘
+               │ contextBridge (window.electronAPI)
+┌──────────────▼──────────────────────────┐
+│  PRELOAD SCRIPT  (Bridge sicuro)        │
+│  src/preload/index.ts                   │
+│  • startStream(config)                  │
+│  • stopStream()                         │
+│  • getAudioDevices()                    │
+│  • onStreamStatus(cb) → unsubscribe()   │
+└──────────────┬──────────────────────────┘
+               │ ipcMain / ipcRenderer
+┌──────────────▼──────────────────────────┐
+│  MAIN PROCESS  (Node.js backend)        │
+│  src/main/                              │
+│  • main.ts — lifecycle Electron         │
+│  • ipc.ts — handler IPC                 │
+│  • streaming/ffmpeg-manager.ts          │
+│    StreamManager: spawn/kill FFmpeg     │
+└─────────────────────────────────────────┘
 ```
 
-### Dettagli Tecnici Core:
-- **Protocollo**: HTTP PUT (per emulare il comportamento DJ di BUTT).
-- **Encoding**: MP3, 128kbps CBR, 44100Hz (canali come da sorgente input).
-- **VU Meter**: Volume mono (media RMS) visualizzato su entrambi i canali L/R.
-- **Backend Task Management**: Utilizzo di `taskkill` su Windows per garantire la chiusura pulita di FFmpeg.
+**Configurazione sicurezza Electron:**
+- `contextIsolation: true`
+- `nodeIntegration: false`
+- `sandbox: false` (necessario per spawn FFmpeg)
 
-## 💾 Gestione dello Stato
+## Flusso Audio
 
-Lo stato dell'applicazione è gestito tramite Zustand con il middleware `persist`:
-- **Persistenti**: Credenziali (user, pass, host), mount point, ID dispositivo audio.
-- **Volatili**: Stato ON AIR, tempo di streaming, stato connessione (esclusi tramite `partialize`).
+```
+Dispositivo audio (Windows DirectShow)
+          │
+          │  -f dshow -i "Nome Dispositivo"
+          ▼
+    FFmpeg (child process)
+          │
+          │  -acodec libmp3lame -ab 128k -ar 44100
+          ▼
+    HTTP PUT → Icecast / AzuraCast
+```
 
----
+**Parametri FFmpeg rilevanti:**
+```
+-f dshow
+-acodec libmp3lame -ab 128k -ar 44100
+-content_type audio/mpeg
+-method PUT
+-chunked_post 0
+-headers "User-Agent: FMLE/3.0\r\nExpect:\r\nIce-Public: 1\r\n"
+```
 
-> Per una guida su come modificare questi componenti, consulta [SETUP.md](./SETUP.md).
+- `chunked_post 0` — necessario per compatibilità con Icecast/AzuraCast moderni
+- `Expect:` vuoto — rimuove l'header `Expect: 100-continue` che causa connection reset
+- `User-Agent: FMLE/3.0` — emula Flash Media Live Encoder per massima compatibilità server
+
+## State Machine dello Streaming
+
+```
+        [disconnected]
+              │
+     startStream(config)
+              │
+              ▼
+        [connecting]
+         │         │
+   FFmpeg scrive   timeout / errore stderr
+   bytes sullo     │
+   stream          ▼
+         │      [error] ──→ toast con ultime 3 righe stderr
+         ▼
+      [connected]  ←──── ON AIR
+         │
+     stopStream()
+         │
+         ▼
+    [disconnected]
+```
+
+La transizione `connecting → connected` avviene solo quando FFmpeg conferma l'invio di dati effettivi (evento `size`/`time` nello stderr), non su un timeout cieco.
+
+## Gestione Stato (Zustand)
+
+Lo store Zustand usa `partialize` per separare stato persistente da stato volatile:
+
+**Persistito in localStorage:**
+- `selectedDeviceId`, `selectedDeviceLabel`
+- `streamConfig` — host, port, username, password, mount
+
+**Volatile (azzerato al riavvio):**
+- `isStreaming`, `streamStatus`
+- `errorMessage`
+
+## Visualizzatore Audio (VU Meter)
+
+Il VU Meter usa Web Audio API nel renderer, indipendente da FFmpeg:
+
+```
+getUserMedia(deviceId)
+      │
+      ▼
+AudioContext → AnalyserNode
+      │
+      │  getFloatTimeDomainData() → RMS
+      ▼
+Canali L e R indipendenti → 60 FPS via requestAnimationFrame
+```
+
+Il mapping tra nome dispositivo DirectShow (fornito da FFmpeg nel main process) e `deviceId` Chrome (necessario per `getUserMedia`) avviene tramite text-match sul label del dispositivo enumerato da `navigator.mediaDevices.enumerateDevices()`.
+
+## Enumerazione Dispositivi Audio
+
+```
+Main Process: ffmpeg -list_devices true -f dshow -i dummy
+      │
+      │  parse stderr → estrai righe con tag "(audio)"
+      ▼
+IPC → Renderer → dropdown SettingsPanel
+```
+
+L'output stderr viene bufferizzato atomicamente e processato solo all'evento `close` del processo FFmpeg, per evitare parsing su chunk parziali.
+
+## Cleanup Processi
+
+Alla chiusura dell'app o allo stop dello stream:
+
+- **Windows**: `taskkill /pid <PID> /f /t` — termina FFmpeg e tutti i processi figlio
+- **Unix**: `process.kill(pid, 'SIGKILL')`
+- **before-quit**: listener Electron che garantisce il cleanup anche su chiusura finestra con stream attivo
