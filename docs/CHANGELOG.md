@@ -5,6 +5,16 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.5.1] — 2026-05-17
+
+### Fixed
+- **AzuraCast/Liquidsoap harbor (bug bloccante)**: lo streaming verso AzuraCast falliva sistematicamente con `-10053 WSAECONNABORTED` perché il Wizard configurava porta Icecast (8000) e mount listener (es. `/radio.mp3`), mentre il DJ deve connettersi all'**input harbor di Liquidsoap** (porta separata, default 8005, mount default `/`). Tre fix combinati:
+  - `azuracast-api.ts`: `fetchStationDetail` ora interroga `GET /api/admin/station/{id}` per leggere `backend_config.dj_port` e `backend_config.dj_mount_point` (richiede API Key con permesso "Manage Station Broadcasting"). Se la chiamata admin fallisce (401/403), usa i default AzuraCast (8005 / `/`) e marca `harborInferred: true`.
+  - `AzuraCastWizard.tsx`: prima di "Applica" l'utente vede sempre porta e mount in campi editabili (pre-compilati con i valori letti o di default). Banner verde quando i valori sono letti dall'API admin, banner giallo con istruzioni quando sono default. INFO_TEXT aggiornato per richiedere il permesso giusto.
+  - `ffmpeg-manager.ts`: riconosce il pattern "auth OK + RST immediato senza streaming" (sintomo classico di mount/porta errati) e mostra un messaggio di errore esplicito che guida l'utente a verificare la configurazione harbor. Aggiunto log diagnostico host/port/mount all'avvio del processo.
+
+---
+
 ## [0.5.0] — 2026-05-17
 
 ### Added

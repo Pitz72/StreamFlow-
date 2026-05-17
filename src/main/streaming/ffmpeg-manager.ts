@@ -95,6 +95,8 @@ export class StreamManager {
 
         this.sendStatus('connecting');
 
+        console.log(`[StreamManager] Connecting → ${host}:${port}${cleanMount} as user="${user}"`);
+
         const args = [
             '-f', 'dshow',
             '-i', `audio=${cleanDevice}`,
@@ -118,6 +120,7 @@ export class StreamManager {
 
         if (this.ffmpegProcess.stderr) {
             let connectionConfirmed = false;
+            let streamingStarted = false;
             let lastErrorLog = '';
             let connectionTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
@@ -153,10 +156,13 @@ export class StreamManager {
                 }
 
                 // Connection success: FFmpeg reports progress (size/time) only when actively streaming
-                if (!connectionConfirmed && (message.includes('size=') || message.includes('time='))) {
-                    connectionConfirmed = true;
-                    cancelConnectionTimeout();
-                    this.sendStatus('connected');
+                if (message.includes('size=') || message.includes('time=')) {
+                    streamingStarted = true;
+                    if (!connectionConfirmed) {
+                        connectionConfirmed = true;
+                        cancelConnectionTimeout();
+                        this.sendStatus('connected');
+                    }
                 }
             });
 
@@ -170,10 +176,22 @@ export class StreamManager {
                     // cleanup noise di FFmpeg (Error muxing, Error writing trailer, ecc.)
                     const HTTP_ERROR = /\b(40[0-9]|Connection refused|Unauthorized|access denied|No route|Name or service)\b/i;
                     const firstMeaningful = errorLines.find(l => HTTP_ERROR.test(l));
-                    const errorReason = firstMeaningful
-                        ? firstMeaningful.substring(0, 150)
-                        : errorLines.slice(-3).join(' | ');
-                    this.sendStatus('error', `FFmpeg: ${errorReason || 'Exited with code ' + code}`);
+
+                    // Pattern "harbor occupied / wrong port": auth accettata, poi RST
+                    // immediato dal server senza che lo streaming sia mai partito.
+                    // Sintomi: -10053 / WSAECONNABORTED / "Error muxing" e mai un "time="
+                    const dropPattern = /(10053|WSAECONNABORTED|Error muxing|Connection reset)/i;
+                    const earlyDrop = !streamingStarted && dropPattern.test(lastErrorLog);
+
+                    let errorReason: string;
+                    if (earlyDrop) {
+                        errorReason = `Server ha chiuso la connessione subito dopo l'auth. Probabile causa: mount/porta sbagliati (stai puntando a Icecast invece che al harbor Liquidsoap?). Verifica che porta=${port} e mount=${cleanMount} corrispondano a "Icecast Clients" nel pannello AzuraCast → Broadcasting → How do I connect?`;
+                    } else if (firstMeaningful) {
+                        errorReason = firstMeaningful.substring(0, 200);
+                    } else {
+                        errorReason = errorLines.slice(-3).join(' | ') || `Exited with code ${code}`;
+                    }
+                    this.sendStatus('error', `FFmpeg: ${errorReason}`);
                 } else {
                     this.sendStatus('disconnected');
                 }

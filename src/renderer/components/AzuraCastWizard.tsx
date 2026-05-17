@@ -7,11 +7,18 @@ const INFO_TEXT = `Come trovare le credenziali AzuraCast:
 
 1. Accedi al pannello di amministrazione AzuraCast
 2. Vai su "Il mio account" → "API Keys"
-3. Crea una nuova chiave con permesso "Manage Stations"
+3. Crea una nuova chiave. Per il rilevamento automatico
+   della porta DJ serve il permesso
+   "Manage Station Broadcasting" sulla stazione
+   (o ruolo di amministratore globale).
 4. Copia la chiave e incollala nel campo API Key
 
 URL: indirizzo del tuo server AzuraCast
 (es. https://radio.example.com)
+
+Se la API Key non ha il permesso admin, il wizard
+userà i default (porta 8005, mount /) — verifica
+i valori in AzuraCast → Broadcasting → How do I connect?
 
 La password DJ va inserita manualmente
 per motivi di sicurezza.`;
@@ -32,6 +39,9 @@ const AzuraCastWizard = () => {
 
     const [detail, setDetail] = useState<AzStationDetail | null>(null);
     const [selectedStreamerUsername, setSelectedStreamerUsername] = useState('');
+    // Port e mount harbor editabili — l'utente li può correggere prima di "Applica".
+    const [editPort, setEditPort] = useState('8005');
+    const [editMount, setEditMount] = useState('/');
 
     const loadStations = async () => {
         if (!url.trim() || !apiKey.trim()) {
@@ -67,15 +77,18 @@ const AzuraCastWizard = () => {
         }
         setDetail(res.detail);
         setSelectedStreamerUsername(res.detail.streamers[0]?.username ?? '');
+        setEditPort(res.detail.port);
+        setEditMount(res.detail.mount);
         setState('select-streamer');
     };
 
     const apply = () => {
         if (!detail || !selectedStationId) return;
+        const cleanMount = editMount.trim() || '/';
         setStreamConfig({
             host: detail.host,
-            port: detail.port,
-            mount: detail.mount,
+            port: editPort.trim() || '8005',
+            mount: cleanMount.startsWith('/') ? cleanMount : `/${cleanMount}`,
             icecastUser: selectedStreamerUsername || 'source',
         });
         setAzuraCastContext(url.trim(), apiKey.trim(), selectedStationId);
@@ -207,9 +220,38 @@ const AzuraCastWizard = () => {
             {/* Step 3: Select streamer + apply */}
             {state === 'select-streamer' && detail && (
                 <div className="flex flex-col gap-2">
+                    <div className="text-xs text-stone-500 uppercase tracking-wider">DJ connection (Liquidsoap harbor)</div>
                     <div className="text-xs text-stone-400 bg-stone-900 rounded px-2 py-1.5 font-mono">
-                        {detail.host}:{detail.port}{detail.mount}
+                        {detail.host}:{editPort}{editMount.startsWith('/') ? editMount : `/${editMount}`}
                     </div>
+                    <div className="flex gap-2">
+                        <div className="flex flex-col gap-1 flex-1">
+                            <label className="text-stone-500 text-xs">Porta DJ</label>
+                            <input
+                                type="text"
+                                value={editPort}
+                                onChange={(e) => setEditPort(e.target.value)}
+                                className="bg-stone-900 border border-stone-700 rounded px-2 py-1.5 text-stone-300 text-xs focus:border-blue-500 focus:outline-none font-mono"
+                            />
+                        </div>
+                        <div className="flex flex-col gap-1 flex-1">
+                            <label className="text-stone-500 text-xs">Mount DJ</label>
+                            <input
+                                type="text"
+                                value={editMount}
+                                onChange={(e) => setEditMount(e.target.value)}
+                                className="bg-stone-900 border border-stone-700 rounded px-2 py-1.5 text-stone-300 text-xs focus:border-blue-500 focus:outline-none font-mono"
+                            />
+                        </div>
+                    </div>
+                    {detail.harborInferred ? (
+                        <p className="text-yellow-400 text-xs bg-yellow-950/30 border border-yellow-900/50 rounded px-2 py-1.5">
+                            ⚠ Porta harbor non leggibile dall'API (la API Key potrebbe non avere il permesso "Manage Station Broadcasting").
+                            Sto usando i default AzuraCast — verifica in <span className="font-bold">AzuraCast → Broadcasting → How do I connect? → Icecast Clients</span> e correggi se necessario.
+                        </p>
+                    ) : (
+                        <p className="text-green-500 text-xs">✓ Porta DJ letta automaticamente dall'API admin.</p>
+                    )}
                     {detail.streamers.length > 0 ? (
                         <>
                             <label className="text-stone-500 text-xs">Account DJ / Streamer</label>

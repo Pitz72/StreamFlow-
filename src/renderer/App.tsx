@@ -99,7 +99,7 @@ function App() {
                         <div className={`w-3 h-3 rounded-full ${isStreaming ? 'bg-red-500 animate-pulse' : 'bg-stone-600'}`}></div>
                         <span className="text-xl font-bold tracking-wider text-stone-300">RUNTIME STREAMFLOW</span>
                     </div>
-                    <div className="text-stone-500 text-sm">v0.5.0</div>
+                    <div className="text-stone-500 text-sm">v0.5.1</div>
                 </header>
 
                 {/* Center Control Panel */}

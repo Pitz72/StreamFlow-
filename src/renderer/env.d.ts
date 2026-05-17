@@ -14,6 +14,7 @@ interface AzStationDetail {
     port: string;
     mount: string;
     streamers: AzStreamer[];
+    harborInferred: boolean;
 }
 
 interface ElectronAPI {

@@ -18,6 +18,12 @@ export interface AzStationDetail {
     port: string;
     mount: string;
     streamers: AzStreamer[];
+    /**
+     * true = port/mount sono fallback default (8005 / "/") perché l'API admin
+     * non era accessibile (API Key senza permesso "Manage Station Broadcasting").
+     * L'utente deve verificarli manualmente in AzuraCast → Broadcasting → How do I connect?
+     */
+    harborInferred: boolean;
 }
 
 function fetchJson<T>(url: string, apiKey: string): Promise<T> {
@@ -48,6 +54,10 @@ function fetchJson<T>(url: string, apiKey: string): Promise<T> {
                 let data = '';
                 res.on('data', (chunk: string) => { data += chunk; });
                 res.on('end', () => {
+                    const status = res.statusCode ?? 0;
+                    if (status < 200 || status >= 300) {
+                        return reject(new Error(`HTTP ${status}`));
+                    }
                     try {
                         resolve(JSON.parse(data) as T);
                     } catch {
@@ -63,6 +73,29 @@ function fetchJson<T>(url: string, apiKey: string): Promise<T> {
         });
         req.end();
     });
+}
+
+/**
+ * Tenta di leggere backend_config dall'endpoint admin (richiede API Key con
+ * permesso "Manage Station Broadcasting"). Ritorna null su qualsiasi errore
+ * (auth, network, parsing) — il chiamante userà i default.
+ */
+async function tryFetchHarborConfig(
+    baseUrl: string,
+    apiKey: string,
+    stationId: number
+): Promise<{ dj_port?: number; dj_mount_point?: string } | null> {
+    try {
+        const data = await fetchJson<{
+            backend_config?: {
+                dj_port?: number;
+                dj_mount_point?: string;
+            };
+        }>(`${baseUrl}/api/admin/station/${stationId}`, apiKey);
+        return data.backend_config ?? null;
+    } catch {
+        return null;
+    }
 }
 
 export async function fetchStations(baseUrl: string, apiKey: string): Promise<AzStation[]> {
@@ -84,23 +117,29 @@ export async function fetchStationDetail(
         mounts?: { path: string; is_default: boolean }[];
     }>(`${base}/api/station/${stationId}`, apiKey);
 
+    // Host: dal listen_url (hostname pubblico della radio).
     let host = '';
-    let port = '8000';
-    let mount = '/';
-
     try {
-        const listenUrl = new URL(station.listen_url);
-        host = listenUrl.hostname;
-        // listen_url is a proxied HTTPS URL — port is not the Icecast source port.
-        // Always default to 8000 (standard Icecast source port).
-        port = '8000';
-        // Use the actual Icecast mount path from the mounts array, not the
-        // proxied listen_url pathname which includes routing prefixes.
-        const defaultMount = station.mounts?.find(m => m.is_default) ?? station.mounts?.[0];
-        mount = defaultMount?.path || '/';
+        host = new URL(station.listen_url).hostname;
     } catch {
-        const baseUrlParsed = new URL(base);
-        host = baseUrlParsed.hostname;
+        host = new URL(base).hostname;
+    }
+
+    // Port + Mount: in AzuraCast il DJ NON si connette a Icecast (8000) sul mount
+    // listener (es. /radio.mp3) — quello è occupato permanentemente da Liquidsoap.
+    // Il DJ si connette all'INPUT HARBOR di Liquidsoap, su una porta separata
+    // (default 8005) e mount default "/". Questi valori vivono in
+    // backend_config.dj_port / dj_mount_point, accessibili solo via /api/admin/station/{id}
+    // (richiede API Key con permesso "Manage Station Broadcasting").
+    let port = '8005';
+    let mount = '/';
+    let harborInferred = true;
+
+    const harborCfg = await tryFetchHarborConfig(base, apiKey, stationId);
+    if (harborCfg?.dj_port) {
+        port = String(harborCfg.dj_port);
+        mount = harborCfg.dj_mount_point || '/';
+        harborInferred = false;
     }
 
     // Fetch DJ/streamer accounts for this station
@@ -118,7 +157,7 @@ export async function fetchStationDetail(
         }))
         : [];
 
-    return { host, port, mount, streamers };
+    return { host, port, mount, streamers, harborInferred };
 }
 
 export async function uploadStationArt(
