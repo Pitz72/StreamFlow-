@@ -223,12 +223,19 @@ Implementazione: `node-schedule` o semplice `setTimeout` basato su `Date`.
 ## Ordine di esecuzione consigliato
 
 ```
-v0.3.2  Fix MEDIE (M1-M4) + Fix LIEVI (L1-L3)
-v0.4.0  FASE A: VU Meter avanzato + Feedback ON AIR + Fade in/out
-v0.5.0  FASE B: AzuraCast One-Click + Now Playing (B1+B2+B3)
-v0.5.x  FASE C: Auto-reconnect + Registrazione locale (C1+C2)
-v0.6.0  FASE D-lite: Livello input + Bitrate/Codec configurabili (D1+D2)
-v0.7.0  FASE E: System tray + Hotkey + Notifiche (E1+E2)
+v0.3.2  Fix MEDIE (M1-M4) + Fix LIEVI (L1-L3)                      [✅]
+v0.4.0  FASE A: VU Meter avanzato + Feedback ON AIR + Fade in/out  [✅]
+v0.5.0  FASE B: AzuraCast One-Click + Now Playing (B1+B3)          [✅, B2 rimossa in v0.5.4]
+v0.5.1  Fix harbor AzuraCast/Liquidsoap + refactor UI a modali     [✅]
+v0.5.2  Now Playing 2-fields + Input Volume + validazione metadata [✅]
+v0.5.3  Metadata BUTT-compat via raw socket + StreamLog            [✅]
+v0.5.4  Rimossa feature Cover Art (endpoint inesistente)           [✅]
+v0.5.5  Fix visibilità StreamLog                                   [✅]
+v0.5.6  Input Volume spostato in home                              [✅]
+v0.6.0  FASE C1: Auto-reconnect con backoff esponenziale           [prossimo, priorità max]
+v0.6.x  FASE C2/C3/C4: Registrazione locale, multi-stream, stats
+v0.7.0  FASE D-lite: Codec configurabile (AAC/Opus)
+v0.8.0  FASE E: System tray + Hotkey + Notifiche
 v1.0.0  Stabilizzazione, auto-update, documentazione utente
 ```
 

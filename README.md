@@ -43,4 +43,4 @@ npm run electron:build
 
 ---
 
-Versione attuale: **0.3.0** — Sviluppato da Runtime Radio
+Versione attuale: **0.5.6** — Sviluppato da Runtime Radio
