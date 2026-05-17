@@ -57,7 +57,13 @@ export const useStore = create<AppState>()(
             partialize: (state) => ({
                 selectedDeviceId: state.selectedDeviceId,
                 selectedDeviceLabel: state.selectedDeviceLabel,
-                streamConfig: state.streamConfig
+                streamConfig: {
+                    host: state.streamConfig.host,
+                    port: state.streamConfig.port,
+                    mount: state.streamConfig.mount,
+                    icecastUser: state.streamConfig.icecastUser,
+                    password: '', // never persisted to localStorage
+                },
             }),
         }
     )

@@ -25,14 +25,12 @@ const Timer = ({ isRunning }: TimerProps) => {
             }, 500); // 500ms al posto di 1000ms fornisce maggiore reattività allo scatto visivo
         } else {
             // Quando si ferma, azzeriamo tutto
-            if (seconds > 0) {
-                setSeconds(0);
-                startTimeRef.current = null;
-            }
+            setSeconds(0);
+            startTimeRef.current = null;
         }
 
         return () => clearInterval(interval);
-    }, [isRunning, seconds]);
+    }, [isRunning]);
 
     const formatTime = (totalSeconds: number) => {
         const h = Math.floor(totalSeconds / 3600);

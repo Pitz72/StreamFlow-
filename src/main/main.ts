@@ -30,17 +30,21 @@ function createWindow() {
 
 import { initializeIpc, cleanupIpc } from './ipcp';
 
+let ipcInitialized = false;
+
 app.whenReady().then(() => {
     createWindow();
     if (mainWindow) {
         initializeIpc(mainWindow);
+        ipcInitialized = true;
     }
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
             createWindow();
-            if (mainWindow) {
+            if (mainWindow && !ipcInitialized) {
                 initializeIpc(mainWindow);
+                ipcInitialized = true;
             }
         }
     });

@@ -5,6 +5,16 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.3.1] — 2026-05-17
+
+### Fixed
+- **Timer setInterval ricreato ogni 500ms (V1)**: `seconds` era nelle dipendenze dell'`useEffect` in `Timer.tsx`. Poiché `seconds` cambia ogni 500ms, l'effect veniva smontato e rimontato continuamente, ricreando il `setInterval` in loop. Rimosso `seconds` dalle deps; la logica di reset usa direttamente `setSeconds(0)` e `startTimeRef.current = null` senza guard condizionale (chiamare `setSeconds(0)` quando il valore è già 0 è un no-op in React).
+- **Tipi `any` non sicuri (V2)**: Sostituito `config: any` in `preload/index.ts` con una `StreamConfig` interface tipizzata; sostituito `_event: any` con `_event: IpcRendererEvent` da Electron. Il tipo `targetDeviceId: any` in `useAudioVisualizer.ts` era già stato corretto nella v0.3.0 (`{ exact: string } | undefined`).
+- **Password in chiaro nel localStorage (V3)**: La funzione `partialize` di Zustand in `useStore.ts` persisteva l'intero oggetto `streamConfig`, inclusa la password. Riscritta per escludere `password` dalla serializzazione: il campo viene persisto come stringa vuota e l'utente deve re-inserirla ad ogni sessione.
+- **Doppia registrazione handler IPC su macOS activate (V4)**: `initializeIpc()` veniva chiamata di nuovo nell'evento `app.on('activate')` anche quando era già stata invocata all'avvio. Su macOS questo registra `ipcMain.handle()` duplicate, causando warning Electron e comportamento indefinito. Introdotta flag `ipcInitialized` in `main.ts`.
+
+---
+
 ## [0.3.0] — 2026-05-17
 
 ### Fixed
