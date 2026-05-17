@@ -6,6 +6,7 @@ Hub centrale della documentazione tecnica di **Runtime StreamFlow** (v0.2.4-rc).
 
 | Documento | Contenuto |
 |---|---|
+| [ROADMAP.md](./ROADMAP.md) | Visione del prodotto, fasi di sviluppo, feature pianificate |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | Struttura multi-processo, flusso audio, IPC bridge, state machine |
 | [SETUP.md](./SETUP.md) | Prerequisiti, comandi di sviluppo, build, troubleshooting |
 
