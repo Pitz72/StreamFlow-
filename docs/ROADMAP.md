@@ -14,7 +14,7 @@ Aggiornato e ampliato al 17 Maggio 2026 (v0.3.1) con analisi completa del codice
 | Fix stabilità GRAVISSIME (G1/G2/G3) | ✅ Completato | Timeout, race condition AudioContext, lock connecting |
 | Fix criticità GRAVI (V1/V2/V3/V4) | ✅ Completato | Timer deps, tipi any, password localStorage, IPC duplicato |
 | Setup funzionante | ⚠️ Parziale | Richiede conoscenza manuale di mount point, host, porta |
-| Gestione copertine / cover art | ❌ Non iniziato | Era il "Killer Feature" originale |
+| Gestione copertine / cover art | ❌ Rimossa in v0.5.4 | AzuraCast gestisce già streamer art + lookup MusicBrainz |
 | Registrazione locale | ❌ Non iniziato | Prevista sin dall'inizio, mai implementata |
 | Integrazione API AzuraCast | ❌ Non iniziato | Auto-configurazione e metadata |
 
@@ -109,15 +109,12 @@ Miglioramenti rispetto al piano originale:
 - **Selezione mount point** se la stazione ne ha più di uno (AzuraCast supporta mount multipli per qualità diverse)
 - **Profili multipli**: salva più configurazioni (stazione principale / backup / test) e passa da una all'altra con un click
 
-### B2 — Pannello "Now Playing" + Cover Art
-1. Pannello dedicato nell'app: titolo, artista, copertina corrente
-2. Campi editabili per aggiornare titolo/artista in tempo reale durante la diretta
-3. **Drag & Drop cover art** — l'utente trascina un JPG/PNG nell'app
-4. L'app ridimensiona l'immagine al formato corretto
-5. L'app chiama le API AzuraCast (`/api/station/{id}/art`) e fa l'upload
-6. La copertina cambia immediatamente sul player web degli ascoltatori
-
-*Questo è ciò che rende StreamFlow superiore a BUTT.*
+### B2 — Cover Art ❌ RIMOSSA in v0.5.4
+Feature inizialmente prevista per drag&drop cover via API AzuraCast. **Cancellata** perché:
+- L'endpoint `POST /api/station/{id}/art` non esiste (era una assunzione errata della v0.5.0).
+- Gli endpoint reali (`/files/{mediaId}/art`, `/streamer/{id}/art`) coprono casi d'uso diversi.
+- AzuraCast mostra già l'immagine profilo dello streamer ON AIR + fa lookup automatico MusicBrainz/Last.fm dai metadata Icecast inviati correttamente dalla v0.5.3.
+- Replicare l'admin UI dall'app non aggiunge valore.
 
 ### B3 — Now Playing via Icecast nativo [NUOVO]
 Per chi usa Icecast puro senza AzuraCast: anche Icecast supporta l'aggiornamento del titolo corrente tramite HTTP GET a `/admin/metadata?mount=...&song=...`. Più semplice da implementare di B2 (nessuna API key, nessun JSON) e funziona con qualsiasi server Icecast standard. Implementabile come B2-lite: campo testuale "Ora in onda" con pulsante "Aggiorna" che fa la chiamata HTTP in background.

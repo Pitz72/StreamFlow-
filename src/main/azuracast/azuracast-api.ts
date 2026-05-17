@@ -1,6 +1,5 @@
 import https from 'https';
 import http from 'http';
-import { Buffer } from 'buffer';
 
 export interface AzStation {
     id: number;
@@ -158,68 +157,4 @@ export async function fetchStationDetail(
         : [];
 
     return { host, port, mount, streamers, harborInferred };
-}
-
-export async function uploadStationArt(
-    baseUrl: string,
-    apiKey: string,
-    stationId: number,
-    imageBase64: string
-): Promise<void> {
-    const base = baseUrl.replace(/\/$/, '');
-    const endpoint = `${base}/api/station/${stationId}/art`;
-
-    let parsed: URL;
-    try {
-        parsed = new URL(endpoint);
-    } catch {
-        throw new Error(`URL non valida: ${endpoint}`);
-    }
-
-    const imageBuffer = Buffer.from(imageBase64, 'base64');
-    const boundary = `----StreamFlowBoundary${Date.now()}`;
-    const CRLF = '\r\n';
-
-    const partHead = Buffer.from(
-        `--${boundary}${CRLF}` +
-        `Content-Disposition: form-data; name="art"; filename="cover.jpg"${CRLF}` +
-        `Content-Type: image/jpeg${CRLF}${CRLF}`
-    );
-    const partTail = Buffer.from(`${CRLF}--${boundary}--${CRLF}`);
-    const body = Buffer.concat([partHead, imageBuffer, partTail]);
-
-    await new Promise<void>((resolve, reject) => {
-        const isHttps = parsed.protocol === 'https:';
-        const mod = isHttps ? https : http;
-        const defaultPort = isHttps ? 443 : 80;
-
-        const req = mod.request(
-            {
-                hostname: parsed.hostname,
-                port: parseInt(parsed.port) || defaultPort,
-                path: parsed.pathname,
-                method: 'POST',
-                headers: {
-                    'X-API-Key': apiKey,
-                    'Content-Type': `multipart/form-data; boundary=${boundary}`,
-                    'Content-Length': body.length,
-                },
-            },
-            (res) => {
-                let data = '';
-                res.on('data', (chunk: string) => { data += chunk; });
-                res.on('end', () => {
-                    if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-                        resolve();
-                    } else {
-                        reject(new Error(`Upload fallito (${res.statusCode}): ${data.substring(0, 200)}`));
-                    }
-                });
-            }
-        );
-        req.on('error', reject);
-        req.setTimeout(15000, () => { req.destroy(); reject(new Error('Timeout upload cover art')); });
-        req.write(body);
-        req.end();
-    });
 }

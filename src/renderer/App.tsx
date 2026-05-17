@@ -4,12 +4,11 @@ import VuMeter from './components/VuMeter'
 import OnAirButton from './components/OnAirButton'
 import SettingsPanel from './components/SettingsPanel'
 import NowPlayingPanel from './components/NowPlayingPanel'
-import CoverArtPanel from './components/CoverArtPanel'
 import Modal from './components/Modal'
 import StreamLog from './components/StreamLog'
 import { useStore } from './store/useStore'
 
-type OpenModal = null | 'settings' | 'nowplaying' | 'coverart';
+type OpenModal = null | 'settings' | 'nowplaying';
 
 const statusLabels: Record<string, string> = {
     disconnected: 'Ready',
@@ -148,13 +147,10 @@ function App() {
                     <button onClick={() => setOpenModal('nowplaying')} className={toolbarBtn}>
                         Now Playing
                     </button>
-                    <button onClick={() => setOpenModal('coverart')} className={toolbarBtn}>
-                        Cover Art
-                    </button>
                     <button onClick={() => setOpenModal('settings')} className={toolbarBtn}>
                         Configurazione
                     </button>
-                    <span className="text-stone-600 text-xs ml-3">v0.5.3</span>
+                    <span className="text-stone-600 text-xs ml-3">v0.5.4</span>
                 </div>
             </header>
 
@@ -183,10 +179,6 @@ function App() {
 
             <Modal isOpen={openModal === 'nowplaying'} onClose={() => setOpenModal(null)} title="Now Playing / Metadata" maxWidth="max-w-2xl">
                 <NowPlayingPanel />
-            </Modal>
-
-            <Modal isOpen={openModal === 'coverart'} onClose={() => setOpenModal(null)} title="Cover Art — AzuraCast" maxWidth="max-w-md">
-                <CoverArtPanel />
             </Modal>
 
             {/* Toast Notification (non-blocking) */}

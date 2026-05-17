@@ -5,6 +5,18 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.5.4] — 2026-05-17
+
+### Removed
+- **Feature Cover Art (B2) eliminata.** L'endpoint `POST /api/station/{id}/art` su cui era basata non esiste in AzuraCast (ritornava 405 dall'inizio). Gli endpoint reali (`/files/{mediaId}/art` per singoli file, `/streamer/{id}/art` per profilo DJ) coprono casi d'uso diversi da uno stream live. AzuraCast gestisce già lato server l'art del DJ in onda (immagine profilo streamer) + fallback automatico MusicBrainz/Last.fm dai metadata Icecast inviati da StreamFlow. Replicare la feature dall'app duplicherebbe l'admin UI senza valore aggiunto.
+- File eliminati: `CoverArtPanel.tsx`, funzione `uploadStationArt` da `azuracast-api.ts`, handler IPC `azuracast-upload-art`, espose `azuraCastUploadArt`, dichiarazione tipo relativa.
+- Rimosso bottone "Cover Art" dalla toolbar + modale associato in `App.tsx`.
+
+### Changed
+- Bump versione 0.5.3 → 0.5.4.
+
+---
+
 ## [0.5.3] — 2026-05-17
 
 ### Fixed

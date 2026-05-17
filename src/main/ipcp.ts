@@ -1,7 +1,7 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import { StreamManager } from './streaming/ffmpeg-manager';
 import { MetadataManager } from './streaming/metadata-manager';
-import { fetchStations, fetchStationDetail, uploadStationArt } from './azuracast/azuracast-api';
+import { fetchStations, fetchStationDetail } from './azuracast/azuracast-api';
 
 let streamManager: StreamManager | null = null;
 const metadataManager = new MetadataManager();
@@ -80,12 +80,4 @@ export const initializeIpc = (mainWindow: BrowserWindow) => {
         }
     });
 
-    ipcMain.handle('azuracast-upload-art', async (_event, { url, apiKey, stationId, imageBase64 }: { url: string; apiKey: string; stationId: number; imageBase64: string }) => {
-        try {
-            await uploadStationArt(url, apiKey, stationId, imageBase64);
-            return { ok: true };
-        } catch (err) {
-            return { ok: false, error: (err as Error).message };
-        }
-    });
 };
