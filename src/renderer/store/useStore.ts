@@ -8,10 +8,10 @@ export interface ServerProfile {
     mount: string;
     icecastUser: string;
     bitrate: string;
+    inputGain: string;
 }
 
 interface StreamMetadata {
-    showName: string;
     artist: string;
     title: string;
 }
@@ -23,6 +23,8 @@ interface StreamConfig {
     mount: string;
     icecastUser: string;
     bitrate: string;
+    /** Guadagno input come percentuale ("100" = 100%, range 0-200). Passato a FFmpeg come -af volume=N. */
+    inputGain: string;
 }
 
 interface AppState {
@@ -68,13 +70,14 @@ export const useStore = create<AppState>()(
                 password: '',
                 mount: '/live',
                 icecastUser: 'source',
-                bitrate: '128'
+                bitrate: '128',
+                inputGain: '100',
             },
             setStreamConfig: (config) => set((state) => ({
                 streamConfig: { ...state.streamConfig, ...config }
             })),
             // Now Playing metadata
-            streamMetadata: { showName: '', artist: '', title: '' },
+            streamMetadata: { artist: '', title: '' },
             setStreamMetadata: (meta) => set((state) => ({
                 streamMetadata: { ...state.streamMetadata, ...meta }
             })),
@@ -97,6 +100,7 @@ export const useStore = create<AppState>()(
                     mount: streamConfig.mount,
                     icecastUser: streamConfig.icecastUser,
                     bitrate: streamConfig.bitrate,
+                    inputGain: streamConfig.inputGain,
                 };
                 const filtered = profiles.filter(p => p.name !== profile.name);
                 set({ profiles: [...filtered, profile] });
@@ -112,6 +116,7 @@ export const useStore = create<AppState>()(
                         mount: profile.mount,
                         icecastUser: profile.icecastUser,
                         bitrate: profile.bitrate,
+                        inputGain: profile.inputGain ?? '100',
                     }
                 }));
             },
@@ -136,10 +141,10 @@ export const useStore = create<AppState>()(
                     mount: state.streamConfig.mount,
                     icecastUser: state.streamConfig.icecastUser,
                     bitrate: state.streamConfig.bitrate,
+                    inputGain: state.streamConfig.inputGain,
                     password: '', // never persisted to localStorage
                 },
                 streamMetadata: {
-                    showName: state.streamMetadata.showName,
                     artist: state.streamMetadata.artist,
                     title: '', // current song title is session-only
                 },

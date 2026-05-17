@@ -14,6 +14,8 @@ interface StreamConfig {
     mount: string;
     icecastUser?: string;
     bitrate?: string;
+    /** Guadagno input come percentuale ("100" = 1.0x, range 0-200). */
+    inputGain?: string;
 }
 
 export class StreamManager {
@@ -76,7 +78,7 @@ export class StreamManager {
         // Stop preventivo aggressivo
         this.stop();
 
-        const { inputDeviceName, host, port, password, mount, icecastUser, bitrate } = config;
+        const { inputDeviceName, host, port, password, mount, icecastUser, bitrate, inputGain } = config;
 
         // I NOMI DISPOSITIVO ARRIVANO ORA DIRETTAMENTE DA DSHOW VIA IPC.
         // NON È PIÙ NECESSARIA NESSUNA PULIZIA REGEX PER COMPENSARE A CHROME.
@@ -93,13 +95,20 @@ export class StreamManager {
         const creds = Buffer.from(`${user}:${password}`).toString('base64');
         const targetUrl = `http://${host}:${port}${cleanMount}`;
 
+        // Volume input: percentuale → moltiplicatore FFmpeg (es. "150" → "1.5").
+        // Range valido 0–200, default 100 (1.0x). Solo se diverso da 100 inseriamo
+        // il filtro per evitare la pipeline di filtraggio quando non serve.
+        const gainPct = Math.max(0, Math.min(200, parseInt(inputGain || '100', 10) || 100));
+        const audioFilter = gainPct === 100 ? null : `volume=${(gainPct / 100).toFixed(2)}`;
+
         this.sendStatus('connecting');
 
-        console.log(`[StreamManager] Connecting → ${host}:${port}${cleanMount} as user="${user}"`);
+        console.log(`[StreamManager] Connecting → ${host}:${port}${cleanMount} as user="${user}" gain=${gainPct}%`);
 
         const args = [
             '-f', 'dshow',
             '-i', `audio=${cleanDevice}`,
+            ...(audioFilter ? ['-af', audioFilter] : []),
             '-acodec', 'libmp3lame',
             '-ab', `${bitrate || '128'}k`,
             '-ar', '44100',

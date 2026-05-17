@@ -7,6 +7,7 @@ interface StreamConfig {
     mount: string;
     icecastUser: string;
     bitrate: string;
+    inputGain: string;
     inputDeviceName: string;
 }
 

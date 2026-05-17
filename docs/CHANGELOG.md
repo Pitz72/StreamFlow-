@@ -5,6 +5,25 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.5.2] — 2026-05-17
+
+### Changed
+- **Now Playing: rimosso il campo "Show"**. Il protocollo Icecast `updinfo` invia un singolo campo `song` formato come `Artist - Title`, quindi una terza voce era confondente e non veniva mai trasmessa. Ora i metadata sono solo Artist + Title, in linea con tutti i client Icecast standard.
+
+### Added
+- **Input Volume slider (Fase D1)**: nuovo controllo nella Configurazione, range 0–200% con default 100%. Inserisce il filtro FFmpeg `-af volume=N` nella pipeline solo se diverso da 100% (zero overhead al default). La modifica si applica al prossimo avvio dello stream.
+
+### Fixed
+- **Now Playing fake-OK**: il toast "✓ Inviato" appariva anche quando il server non aveva effettivamente accettato i metadati. La precedente validazione si limitava a `statusCode < 400`, accettando qualsiasi risposta. Ora `MetadataManager.send`:
+  - Rifiuta esplicitamente HTTP >= 400 mostrando il body del server.
+  - Riconosce risposte HTML (es. harbor Liquidsoap senza supporto `/admin/metadata`) e segnala "Server non Icecast — i metadati non verranno applicati".
+  - Parsea XML Icecast e rifiuta su `<return>0</return>` mostrando il `<message>` del server.
+  - Logga su console main process la richiesta completa + status + body (primi 200 char) per debug.
+- Encoding del mount nei metadata: `/` non viene più url-encodato come `%2F` (alcuni harbor sono sensibili al match esatto).
+- Il toast errore in Now Playing mostra ora il messaggio reale del server invece del generico "server raggiungibile?".
+
+---
+
 ## [0.5.1] — 2026-05-17
 
 ### Fixed

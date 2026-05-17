@@ -55,10 +55,10 @@ function App() {
 
                 if (status === 'connected') {
                     setIsStreaming(true);
-                    // Auto-send fixed metadata as soon as the stream is confirmed live
-                    if (window.electronAPI && (streamMetadata.artist || streamMetadata.title || streamMetadata.showName)) {
+                    // Auto-send metadata as soon as the stream is confirmed live
+                    if (window.electronAPI && (streamMetadata.artist || streamMetadata.title)) {
                         window.electronAPI.updateMetadata({
-                            artist: streamMetadata.artist || streamMetadata.showName,
+                            artist: streamMetadata.artist,
                             title: streamMetadata.title,
                         });
                     }
@@ -142,7 +142,7 @@ function App() {
                     <button onClick={() => setOpenModal('settings')} className={toolbarBtn}>
                         Configurazione
                     </button>
-                    <span className="text-stone-600 text-xs ml-3">v0.5.1</span>
+                    <span className="text-stone-600 text-xs ml-3">v0.5.2</span>
                 </div>
             </header>
 

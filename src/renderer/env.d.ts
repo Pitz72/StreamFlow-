@@ -26,6 +26,7 @@ interface ElectronAPI {
         mount: string;
         icecastUser: string;
         bitrate: string;
+        inputGain: string;
     }) => Promise<void>;
     stopStream: () => Promise<void>;
     onStreamStatus: (
