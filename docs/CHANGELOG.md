@@ -5,6 +5,15 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.5.6] — 2026-05-17
+
+### Changed
+- **Input Volume spostato in home.** Lo slider 0-200% non è più nel modale Configurazione ma direttamente sotto la riga VU + ON AIR, dentro un nuovo componente `InputVolumeControl`. Motivazione: è un controllo che il DJ regola al volo durante la trasmissione, costringerlo ad aprire un modale è scomodo. Il valore corrente si applica al prossimo avvio dello stream (FFmpeg non ricarica i filtri a caldo) — nota esplicita nel componente.
+- `SettingsPanel`: rimosso lo slider, aggiunto messaggio informativo.
+- Bump versione 0.5.5 → 0.5.6.
+
+---
+
 ## [0.5.5] — 2026-05-17
 
 ### Fixed

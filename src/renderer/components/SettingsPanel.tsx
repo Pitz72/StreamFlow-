@@ -204,27 +204,9 @@ const SettingsPanel = () => {
                 </select>
             </div>
 
-            <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                    <label className="text-stone-500 uppercase text-xs font-bold tracking-wider">Input Volume</label>
-                    <span className="text-stone-400 text-xs font-mono tabular-nums">{streamConfig.inputGain}%</span>
-                </div>
-                <input
-                    type="range"
-                    min="0"
-                    max="200"
-                    step="5"
-                    value={streamConfig.inputGain}
-                    onChange={(e) => setStreamConfig({ inputGain: e.target.value })}
-                    className="w-full accent-blue-500"
-                />
-                <div className="flex justify-between text-stone-600 text-[10px]">
-                    <span>0%</span>
-                    <span>100%</span>
-                    <span>200%</span>
-                </div>
-                <p className="text-stone-600 text-xs">Modifica applicata al prossimo avvio dello stream.</p>
-            </div>
+            <p className="text-stone-600 text-xs italic">
+                Input Volume è ora nella schermata principale, sotto il pulsante ON AIR.
+            </p>
 
         </div>
     );

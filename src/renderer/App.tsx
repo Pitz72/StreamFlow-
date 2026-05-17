@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import Timer from './components/Timer'
 import VuMeter from './components/VuMeter'
 import OnAirButton from './components/OnAirButton'
+import InputVolumeControl from './components/InputVolumeControl'
 import SettingsPanel from './components/SettingsPanel'
 import NowPlayingPanel from './components/NowPlayingPanel'
 import Modal from './components/Modal'
@@ -150,7 +151,7 @@ function App() {
                     <button onClick={() => setOpenModal('settings')} className={toolbarBtn}>
                         Configurazione
                     </button>
-                    <span className="text-stone-600 text-xs ml-3">v0.5.5</span>
+                    <span className="text-stone-600 text-xs ml-3">v0.5.6</span>
                 </div>
             </header>
 
@@ -167,6 +168,8 @@ function App() {
                     />
                     <VuMeter label="R" active={isStreaming} />
                 </div>
+
+                <InputVolumeControl />
             </main>
 
             {/* Log bar (always visible at bottom, expandable) — shrink-0 garantito nel componente */}
