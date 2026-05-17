@@ -1,6 +1,8 @@
 import { useState, useRef, useCallback } from 'react';
 import { useStore } from '../store/useStore';
 
+/* Pannello sempre montato: l'aprire/chiudere è gestito dal Modal contenitore. */
+
 type UploadStatus = 'idle' | 'uploading' | 'success' | 'error';
 
 const MAX_SIZE = 1000;
@@ -37,7 +39,6 @@ const CoverArtPanel = () => {
     const [dragging, setDragging] = useState(false);
     const [status, setStatus] = useState<UploadStatus>('idle');
     const [errorMsg, setErrorMsg] = useState('');
-    const [open, setOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const processFile = useCallback(async (file: File) => {
@@ -97,24 +98,8 @@ const CoverArtPanel = () => {
     const canUpload = !!imageBase64 && !!azuraCastUrl && !!azuraCastApiKey && azuraCastStationId !== null;
     const missingContext = !azuraCastUrl || !azuraCastApiKey || azuraCastStationId === null;
 
-    if (!open) {
-        return (
-            <button
-                onClick={() => setOpen(true)}
-                className="w-full text-xs bg-stone-800 hover:bg-stone-700 text-purple-400 hover:text-purple-300 border border-stone-700 rounded px-3 py-2 transition-colors text-left"
-            >
-                Cover Art — Carica su AzuraCast
-            </button>
-        );
-    }
-
     return (
-        <div className="bg-stone-950 border border-purple-900/50 rounded-xl p-4 flex flex-col gap-3">
-            <div className="flex justify-between items-center">
-                <span className="text-xs font-bold text-purple-400 uppercase tracking-wider">Cover Art</span>
-                <button onClick={() => setOpen(false)} className="text-stone-500 hover:text-stone-200 text-sm">✕</button>
-            </div>
-
+        <div className="flex flex-col gap-3">
             {missingContext && (
                 <p className="text-xs text-yellow-400/80 bg-yellow-950/30 border border-yellow-900/40 rounded px-2 py-1.5">
                     Configura prima la stazione tramite AzuraCast Auto-Config.

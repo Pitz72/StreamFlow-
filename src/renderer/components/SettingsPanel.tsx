@@ -3,20 +3,6 @@ import { useAudioDevices } from '../hooks/useAudioDevices';
 import { useStore } from '../store/useStore';
 import AzuraCastWizard from './AzuraCastWizard';
 
-const statusLabels: Record<string, string> = {
-    disconnected: 'Ready',
-    connecting: 'Connecting...',
-    connected: 'ON AIR',
-    error: 'Error',
-};
-
-const statusColors: Record<string, string> = {
-    disconnected: 'text-stone-400',
-    connecting: 'text-yellow-400',
-    connected: 'text-red-400',
-    error: 'text-orange-400',
-};
-
 const SettingsPanel = () => {
     const { devices } = useAudioDevices();
     const {
@@ -25,7 +11,6 @@ const SettingsPanel = () => {
         setSelectedDeviceLabel,
         streamConfig,
         setStreamConfig,
-        streamStatus,
         profiles,
         saveProfile,
         loadProfile,
@@ -70,8 +55,6 @@ const SettingsPanel = () => {
 
     return (
         <div className="flex flex-col gap-6 text-sm relative">
-            <h2 className="text-xl font-bold text-stone-300 border-b border-stone-700 pb-2">Settings</h2>
-
             <AzuraCastWizard />
 
             {/* Server Profiles (B1) */}
@@ -221,11 +204,6 @@ const SettingsPanel = () => {
                 </select>
             </div>
 
-            <div className="mt-auto">
-                <div className="bg-stone-800/50 p-3 rounded text-xs text-stone-500">
-                    Status: <span className={statusColors[streamStatus] || 'text-stone-400'}>{statusLabels[streamStatus] || 'Unknown'}</span>
-                </div>
-            </div>
         </div>
     );
 };

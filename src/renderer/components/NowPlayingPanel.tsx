@@ -28,11 +28,7 @@ const NowPlayingPanel = () => {
     };
 
     return (
-        <div className="w-full max-w-2xl bg-stone-900/50 rounded-xl border border-stone-800 p-4">
-            <h3 className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-3">
-                Now Playing / Metadata
-            </h3>
-
+        <div>
             <div className="flex flex-col gap-2">
                 {/* Show Name — fixed for the session */}
                 <div className="flex items-center gap-2">
