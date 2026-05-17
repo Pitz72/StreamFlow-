@@ -5,6 +5,17 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.5.5] — 2026-05-17
+
+### Fixed
+- **StreamLog ora visibile.** La barra log a piè di pagina (introdotta in v0.5.3) era praticamente invisibile per via di tre problemi cumulativi: sfondo a bassa opacità (`bg-stone-900/90`) molto vicino al colore del parent (`bg-stone-950`), padding ridotto, e nessun evento iniziale → la barra restava vuota all'avvio. Fix: contrasto aumentato (`bg-stone-900` opaco, bordo top più marcato `border-t-2 border-stone-700`), padding `py-2`, `shrink-0` esplicito sul wrapper per impedire al flex column di comprimerla, `z-10` per garantire stacking corretto.
+- **Evento di sistema iniziale.** All'avvio dell'app (`webContents.did-finish-load`) viene emesso un primo `LOG_EVENT` `system / info / "StreamFlow pronto — in attesa di eventi."` così la barra ha sempre contenuto dal primo frame.
+
+### Changed
+- Bump versione 0.5.4 → 0.5.5.
+
+---
+
 ## [0.5.4] — 2026-05-17
 
 ### Removed

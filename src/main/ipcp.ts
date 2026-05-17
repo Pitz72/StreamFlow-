@@ -27,6 +27,12 @@ export const initializeIpc = (mainWindow: BrowserWindow) => {
     metadataManager.setLogSink((level, msg) => emitLog(level, 'metadata', msg));
     streamManager.setLogSink((level, msg) => emitLog(level, 'stream', msg));
 
+    // Evento iniziale: rende la barra log immediatamente visibile e conferma l'IPC up.
+    // Atteso che la finestra abbia finito di caricare, altrimenti il send va perso.
+    mainWindow.webContents.once('did-finish-load', () => {
+        emitLog('info', 'system', `StreamFlow pronto — in attesa di eventi.`);
+    });
+
     ipcMain.handle('start-stream', async (_event, config) => {
         if (streamManager) {
             streamManager.start(config);

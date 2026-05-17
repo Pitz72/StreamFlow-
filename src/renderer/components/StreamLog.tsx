@@ -36,9 +36,9 @@ const StreamLog = () => {
     const last = logEvents[logEvents.length - 1];
 
     return (
-        <div className="bg-stone-900/90 border-t border-stone-800 backdrop-blur-sm">
+        <div className="shrink-0 bg-stone-900 border-t-2 border-stone-700 relative z-10">
             {/* Bar collapsed: mostra ultimo evento + bottoni */}
-            <div className="flex items-center gap-3 px-4 py-1.5">
+            <div className="flex items-center gap-3 px-4 py-2">
                 <button
                     onClick={() => setExpanded((v) => !v)}
                     className="text-stone-500 hover:text-stone-200 text-xs font-bold uppercase tracking-wider shrink-0 transition-colors"

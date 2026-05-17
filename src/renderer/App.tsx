@@ -150,7 +150,7 @@ function App() {
                     <button onClick={() => setOpenModal('settings')} className={toolbarBtn}>
                         Configurazione
                     </button>
-                    <span className="text-stone-600 text-xs ml-3">v0.5.4</span>
+                    <span className="text-stone-600 text-xs ml-3">v0.5.5</span>
                 </div>
             </header>
 
@@ -169,7 +169,7 @@ function App() {
                 </div>
             </main>
 
-            {/* Log bar (always visible at bottom, expandable) */}
+            {/* Log bar (always visible at bottom, expandable) — shrink-0 garantito nel componente */}
             <StreamLog />
 
             {/* Modals */}
