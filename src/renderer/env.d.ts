@@ -1,3 +1,21 @@
+interface AzStation {
+    id: number;
+    name: string;
+}
+
+interface AzStreamer {
+    id: number;
+    username: string;
+    displayName: string;
+}
+
+interface AzStationDetail {
+    host: string;
+    port: string;
+    mount: string;
+    streamers: AzStreamer[];
+}
+
 interface ElectronAPI {
     startStream: (config: {
         inputDeviceName: string;
@@ -5,13 +23,17 @@ interface ElectronAPI {
         port: string;
         password: string;
         mount: string;
-        icecastUser?: string;
+        icecastUser: string;
+        bitrate: string;
     }) => Promise<void>;
     stopStream: () => Promise<void>;
     onStreamStatus: (
         callback: (status: 'disconnected' | 'connecting' | 'connected' | 'error', message?: string) => void
     ) => () => void;
     getAudioDevices: () => Promise<string[]>;
+    updateMetadata: (meta: { artist: string; title: string }) => Promise<{ ok: boolean; error?: string }>;
+    azuraCastFetchStations: (args: { url: string; apiKey: string }) => Promise<{ ok: boolean; stations?: AzStation[]; error?: string }>;
+    azuraCastFetchStationDetail: (args: { url: string; apiKey: string; stationId: number }) => Promise<{ ok: boolean; detail?: AzStationDetail; error?: string }>;
 }
 
 interface Window {

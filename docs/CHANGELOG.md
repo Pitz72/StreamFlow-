@@ -5,6 +5,14 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.4.0] — 2026-05-17
+
+### Added
+- **Now Playing / Metadata (universale)**: Invio metadati al server via protocollo Icecast `updinfo` (HTTP GET `/admin/metadata?mode=updinfo`). Compatibile con qualsiasi server Icecast-based (AzuraCast, CentovaCast, Shoutcast, Icecast puro). Campi: Show Name (identità trasmissione, persistito), Artist + Title (aggiornabili durante la diretta). Pulsante "Invia" con feedback ✓/✗ e submit su tasto Invio. Auto-invio metadati al momento della connessione confermata.
+- **AzuraCast Auto-Config**: Wizard guidato a step — inserimento URL + API Key → caricamento stazioni → selezione stazione → caricamento DJ/streamer → selezione account → "Applica". Popola automaticamente host, port, mount, icecastUser. La password rimane sempre manuale per sicurezza. Il pulsante ⓘ mostra istruzioni inline per ottenere le credenziali API da AzuraCast. Supporto multi-stazione e multi-streamer.
+
+---
+
 ## [0.3.2] — 2026-05-17
 
 ### Added

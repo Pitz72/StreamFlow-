@@ -3,11 +3,13 @@ import Timer from './components/Timer'
 import VuMeter from './components/VuMeter'
 import OnAirButton from './components/OnAirButton'
 import SettingsPanel from './components/SettingsPanel'
+import NowPlayingPanel from './components/NowPlayingPanel'
 import { useStore } from './store/useStore'
 
 function App() {
     const {
         streamConfig,
+        streamMetadata,
         selectedDeviceId,
         selectedDeviceLabel,
         isStreaming,
@@ -26,6 +28,13 @@ function App() {
 
                 if (status === 'connected') {
                     setIsStreaming(true);
+                    // Auto-send fixed metadata as soon as the stream is confirmed live
+                    if (window.electronAPI && (streamMetadata.artist || streamMetadata.title || streamMetadata.showName)) {
+                        window.electronAPI.updateMetadata({
+                            artist: streamMetadata.artist || streamMetadata.showName,
+                            title: streamMetadata.title,
+                        });
+                    }
                 } else if (status === 'disconnected' || status === 'error') {
                     setIsStreaming(false);
                     if (status === 'error' && message) {
@@ -35,7 +44,7 @@ function App() {
             });
             return unsubscribe;
         }
-    }, [setIsStreaming, setStreamStatus, setErrorMessage]);
+    }, [setIsStreaming, setStreamStatus, setErrorMessage, streamMetadata]);
 
     // Auto-dismiss toast after 5 seconds
     useEffect(() => {
@@ -89,11 +98,14 @@ function App() {
                         <div className={`w-3 h-3 rounded-full ${isStreaming ? 'bg-red-500 animate-pulse' : 'bg-stone-600'}`}></div>
                         <span className="text-xl font-bold tracking-wider text-stone-300">RUNTIME STREAMFLOW</span>
                     </div>
-                    <div className="text-stone-500 text-sm">v0.3.2</div>
+                    <div className="text-stone-500 text-sm">v0.4.0</div>
                 </header>
 
                 {/* Center Control Panel */}
-                <div className="flex-1 flex flex-col items-center justify-center gap-12">
+                <div className="flex-1 flex flex-col items-center justify-center gap-8">
+
+                    {/* Now Playing / Metadata */}
+                    <NowPlayingPanel />
 
                     {/* Timer Display */}
                     <div className="w-full flex justify-center">

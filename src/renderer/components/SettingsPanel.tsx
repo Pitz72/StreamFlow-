@@ -1,5 +1,6 @@
 import { useAudioDevices } from '../hooks/useAudioDevices';
 import { useStore } from '../store/useStore';
+import AzuraCastWizard from './AzuraCastWizard';
 
 const statusLabels: Record<string, string> = {
     disconnected: 'Ready',
@@ -43,8 +44,10 @@ const SettingsPanel = () => {
     };
 
     return (
-        <div className="flex flex-col gap-6 text-sm">
+        <div className="flex flex-col gap-6 text-sm relative">
             <h2 className="text-xl font-bold text-stone-300 border-b border-stone-700 pb-2">Settings</h2>
+
+            <AzuraCastWizard />
 
             <div className="flex flex-col gap-2">
                 <label className="text-stone-500 uppercase text-xs font-bold tracking-wider">Audio Input Device</label>

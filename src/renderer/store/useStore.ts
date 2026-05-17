@@ -1,6 +1,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+interface StreamMetadata {
+    showName: string;
+    artist: string;
+    title: string;
+}
+
 interface StreamConfig {
     host: string;
     port: string;
@@ -17,6 +23,9 @@ interface AppState {
     setSelectedDeviceLabel: (label: string) => void;
     streamConfig: StreamConfig;
     setStreamConfig: (config: Partial<StreamConfig>) => void;
+    // Now Playing metadata
+    streamMetadata: StreamMetadata;
+    setStreamMetadata: (meta: Partial<StreamMetadata>) => void;
     // Runtime State
     isStreaming: boolean;
     streamStatus: 'disconnected' | 'connecting' | 'connected' | 'error';
@@ -45,6 +54,11 @@ export const useStore = create<AppState>()(
             setStreamConfig: (config) => set((state) => ({
                 streamConfig: { ...state.streamConfig, ...config }
             })),
+            // Now Playing metadata
+            streamMetadata: { showName: '', artist: '', title: '' },
+            setStreamMetadata: (meta) => set((state) => ({
+                streamMetadata: { ...state.streamMetadata, ...meta }
+            })),
             // Initial Runtime State
             isStreaming: false,
             streamStatus: 'disconnected',
@@ -66,6 +80,11 @@ export const useStore = create<AppState>()(
                     icecastUser: state.streamConfig.icecastUser,
                     bitrate: state.streamConfig.bitrate,
                     password: '', // never persisted to localStorage
+                },
+                streamMetadata: {
+                    showName: state.streamMetadata.showName,
+                    artist: state.streamMetadata.artist,
+                    title: '', // current song title is session-only
                 },
             }),
         }

@@ -6,6 +6,7 @@ interface StreamConfig {
     password: string;
     mount: string;
     icecastUser: string;
+    bitrate: string;
     inputDeviceName: string;
 }
 
@@ -16,7 +17,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onStreamStatus: (callback: (status: string, message?: string) => void) => {
         const handler = (_event: IpcRendererEvent, status: string, message?: string) => callback(status, message);
         ipcRenderer.on('STREAM_STATUS', handler);
-        // Return cleanup function to remove this specific listener
         return () => { ipcRenderer.removeListener('STREAM_STATUS', handler); };
-    }
+    },
+    updateMetadata: (meta: { artist: string; title: string }) =>
+        ipcRenderer.invoke('update-metadata', meta),
+    azuraCastFetchStations: (args: { url: string; apiKey: string }) =>
+        ipcRenderer.invoke('azuracast-fetch-stations', args),
+    azuraCastFetchStationDetail: (args: { url: string; apiKey: string; stationId: number }) =>
+        ipcRenderer.invoke('azuracast-fetch-station-detail', args),
 });
