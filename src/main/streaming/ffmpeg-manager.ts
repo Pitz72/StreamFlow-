@@ -92,8 +92,6 @@ export class StreamManager {
         if (!cleanMount || cleanMount === '') cleanMount = '/';
 
         const targetUrl = `http://${safeUser}:${safePass}@${host}:${port}${cleanMount}`;
-        // Mascheriamo la password per il log
-        const logUrl = `http://${safeUser}:***@${host}:${port}${cleanMount}`;
 
         this.sendStatus('connecting');
 
