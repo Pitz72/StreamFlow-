@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useAudioDevices } from '../hooks/useAudioDevices';
 import { useStore } from '../store/useStore';
 import AzuraCastWizard from './AzuraCastWizard';
@@ -24,8 +25,16 @@ const SettingsPanel = () => {
         setSelectedDeviceLabel,
         streamConfig,
         setStreamConfig,
-        streamStatus
+        streamStatus,
+        profiles,
+        saveProfile,
+        loadProfile,
+        deleteProfile,
     } = useStore();
+
+    const [savingName, setSavingName] = useState('');
+    const [showSaveInput, setShowSaveInput] = useState(false);
+    const [selectedProfile, setSelectedProfile] = useState('');
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setStreamConfig({ [e.target.name]: e.target.value });
@@ -34,13 +43,29 @@ const SettingsPanel = () => {
     const handleDeviceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const deviceId = e.target.value;
         setSelectedDeviceId(deviceId);
-
         const device = devices.find(d => d.deviceId === deviceId);
-        if (device) {
-            setSelectedDeviceLabel(device.label);
-        } else {
-            setSelectedDeviceLabel('default');
-        }
+        setSelectedDeviceLabel(device ? device.label : 'default');
+    };
+
+    const handleProfileLoad = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const name = e.target.value;
+        setSelectedProfile(name);
+        if (name) loadProfile(name);
+    };
+
+    const handleSave = () => {
+        const name = savingName.trim();
+        if (!name) return;
+        saveProfile(name);
+        setSelectedProfile(name);
+        setSavingName('');
+        setShowSaveInput(false);
+    };
+
+    const handleDelete = () => {
+        if (!selectedProfile) return;
+        deleteProfile(selectedProfile);
+        setSelectedProfile('');
     };
 
     return (
@@ -48,6 +73,64 @@ const SettingsPanel = () => {
             <h2 className="text-xl font-bold text-stone-300 border-b border-stone-700 pb-2">Settings</h2>
 
             <AzuraCastWizard />
+
+            {/* Server Profiles (B1) */}
+            <div className="flex flex-col gap-2">
+                <label className="text-stone-500 uppercase text-xs font-bold tracking-wider">Server Profiles</label>
+                <select
+                    value={selectedProfile}
+                    onChange={handleProfileLoad}
+                    className="bg-stone-950 border border-stone-800 rounded p-2 text-stone-300 focus:border-blue-500 focus:outline-none w-full"
+                >
+                    <option value="">— Seleziona profilo —</option>
+                    {profiles.map((p) => (
+                        <option key={p.name} value={p.name}>{p.name}</option>
+                    ))}
+                </select>
+                <div className="flex gap-2">
+                    {!showSaveInput ? (
+                        <button
+                            onClick={() => { setSavingName(selectedProfile || ''); setShowSaveInput(true); }}
+                            className="flex-1 text-xs bg-stone-800 hover:bg-stone-700 text-blue-400 border border-stone-700 rounded px-3 py-1.5 transition-colors"
+                        >
+                            + Salva profilo
+                        </button>
+                    ) : (
+                        <>
+                            <input
+                                autoFocus
+                                type="text"
+                                placeholder="Nome profilo"
+                                value={savingName}
+                                onChange={(e) => setSavingName(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setShowSaveInput(false); }}
+                                className="flex-1 bg-stone-950 border border-blue-600 rounded px-2 py-1 text-stone-300 text-xs focus:outline-none"
+                            />
+                            <button
+                                onClick={handleSave}
+                                disabled={!savingName.trim()}
+                                className="text-xs bg-blue-700 hover:bg-blue-600 disabled:opacity-40 text-white rounded px-3 py-1 transition-colors"
+                            >
+                                ✓
+                            </button>
+                            <button
+                                onClick={() => setShowSaveInput(false)}
+                                className="text-xs bg-stone-800 hover:bg-stone-700 text-stone-400 rounded px-2 py-1 transition-colors"
+                            >
+                                ✕
+                            </button>
+                        </>
+                    )}
+                    {selectedProfile && !showSaveInput && (
+                        <button
+                            onClick={handleDelete}
+                            className="text-xs bg-stone-800 hover:bg-red-900/60 text-red-400 border border-stone-700 rounded px-3 py-1.5 transition-colors"
+                        >
+                            Elimina
+                        </button>
+                    )}
+                </div>
+            </div>
 
             <div className="flex flex-col gap-2">
                 <label className="text-stone-500 uppercase text-xs font-bold tracking-wider">Audio Input Device</label>

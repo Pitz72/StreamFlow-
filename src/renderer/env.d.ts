@@ -34,6 +34,7 @@ interface ElectronAPI {
     updateMetadata: (meta: { artist: string; title: string }) => Promise<{ ok: boolean; error?: string }>;
     azuraCastFetchStations: (args: { url: string; apiKey: string }) => Promise<{ ok: boolean; stations?: AzStation[]; error?: string }>;
     azuraCastFetchStationDetail: (args: { url: string; apiKey: string; stationId: number }) => Promise<{ ok: boolean; detail?: AzStationDetail; error?: string }>;
+    azuraCastUploadArt: (args: { url: string; apiKey: string; stationId: number; imageBase64: string }) => Promise<{ ok: boolean; error?: string }>;
 }
 
 interface Window {

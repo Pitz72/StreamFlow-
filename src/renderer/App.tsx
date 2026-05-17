@@ -4,6 +4,7 @@ import VuMeter from './components/VuMeter'
 import OnAirButton from './components/OnAirButton'
 import SettingsPanel from './components/SettingsPanel'
 import NowPlayingPanel from './components/NowPlayingPanel'
+import CoverArtPanel from './components/CoverArtPanel'
 import { useStore } from './store/useStore'
 
 function App() {
@@ -98,7 +99,7 @@ function App() {
                         <div className={`w-3 h-3 rounded-full ${isStreaming ? 'bg-red-500 animate-pulse' : 'bg-stone-600'}`}></div>
                         <span className="text-xl font-bold tracking-wider text-stone-300">RUNTIME STREAMFLOW</span>
                     </div>
-                    <div className="text-stone-500 text-sm">v0.4.0</div>
+                    <div className="text-stone-500 text-sm">v0.5.0</div>
                 </header>
 
                 {/* Center Control Panel */}
@@ -106,6 +107,11 @@ function App() {
 
                     {/* Now Playing / Metadata */}
                     <NowPlayingPanel />
+
+                    {/* Cover Art Upload (B2) */}
+                    <div className="w-full max-w-sm">
+                        <CoverArtPanel />
+                    </div>
 
                     {/* Timer Display */}
                     <div className="w-full flex justify-center">

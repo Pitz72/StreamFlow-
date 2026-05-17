@@ -5,6 +5,14 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.5.0] — 2026-05-17
+
+### Added
+- **Profili server (B1)**: Il pannello Settings include ora una sezione "Server Profiles" che permette di salvare la configurazione corrente (host, port, mount, icecastUser, bitrate) con un nome personalizzato, caricarla in un click e cancellarla. I profili sono persistiti nel localStorage tramite Zustand. La password non viene mai salvata nel profilo per motivi di sicurezza.
+- **Cover Art upload (B2)**: Nuovo pannello "Cover Art" nel'area principale (collassabile). Supporta drag&drop o selezione file (JPG, PNG, GIF, WebP). L'immagine viene ridimensionata lato client via Canvas API (max 1000×1000px, JPEG 92%) prima dell'upload. L'upload avviene via `POST /api/station/{id}/art` con multipart/form-data verso AzuraCast. Il pannello mostra preview, feedback di successo/errore e avvisa se il contesto AzuraCast non è ancora configurato. Il contesto AzuraCast (URL, API Key, stationId) viene salvato nello store al momento dell'applicazione della configurazione dal Wizard.
+
+---
+
 ## [0.4.0] — 2026-05-17
 
 ### Added

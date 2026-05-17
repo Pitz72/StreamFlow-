@@ -25,4 +25,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.invoke('azuracast-fetch-stations', args),
     azuraCastFetchStationDetail: (args: { url: string; apiKey: string; stationId: number }) =>
         ipcRenderer.invoke('azuracast-fetch-station-detail', args),
+    azuraCastUploadArt: (args: { url: string; apiKey: string; stationId: number; imageBase64: string }) =>
+        ipcRenderer.invoke('azuracast-upload-art', args),
 });

@@ -17,7 +17,7 @@ La password DJ va inserita manualmente
 per motivi di sicurezza.`;
 
 const AzuraCastWizard = () => {
-    const { setStreamConfig } = useStore();
+    const { setStreamConfig, setAzuraCastContext } = useStore();
     const [open, setOpen] = useState(false);
     const [showInfo, setShowInfo] = useState(false);
 
@@ -71,13 +71,14 @@ const AzuraCastWizard = () => {
     };
 
     const apply = () => {
-        if (!detail) return;
+        if (!detail || !selectedStationId) return;
         setStreamConfig({
             host: detail.host,
             port: detail.port,
             mount: detail.mount,
             icecastUser: selectedStreamerUsername || 'source',
         });
+        setAzuraCastContext(url.trim(), apiKey.trim(), selectedStationId);
         setOpen(false);
         setState('idle');
     };
