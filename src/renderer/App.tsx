@@ -139,7 +139,7 @@ function App() {
             </main>
 
             {/* Sidebar Settings */}
-            <aside className="w-80 border-l border-stone-800 bg-stone-900/80 p-6 flex flex-col">
+            <aside className="w-80 border-l border-stone-800 bg-stone-900/80 p-6 flex flex-col overflow-y-auto">
                 <SettingsPanel />
             </aside>
 
