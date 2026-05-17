@@ -82,16 +82,16 @@ export class StreamManager {
         // NON È PIÙ NECESSARIA NESSUNA PULIZIA REGEX PER COMPENSARE A CHROME.
         const cleanDevice = inputDeviceName;
 
-        // 2. CONFIGURAZIONE HTTP RAW
         const user = icecastUser || 'source';
-        const safeUser = encodeURIComponent(user);
-        const safePass = encodeURIComponent(password);
 
         // Normalizzazione Mount: Azuracast DJ vuole "/"
         let cleanMount = mount;
         if (!cleanMount || cleanMount === '') cleanMount = '/';
 
-        const targetUrl = `http://${safeUser}:${safePass}@${host}:${port}${cleanMount}`;
+        // Credenziali via header Authorization esplicito: evita problemi di encoding
+        // dell'URL con username che contengono @, $ o altri caratteri speciali.
+        const creds = Buffer.from(`${user}:${password}`).toString('base64');
+        const targetUrl = `http://${host}:${port}${cleanMount}`;
 
         this.sendStatus('connecting');
 
@@ -100,13 +100,12 @@ export class StreamManager {
             '-i', `audio=${cleanDevice}`,
             '-acodec', 'libmp3lame',
             '-ab', `${bitrate || '128'}k`,
-            '-ar', '44100',                 // Sample rate fisso
+            '-ar', '44100',
             '-content_type', 'audio/mpeg',
             '-f', 'mp3',
-            '-method', 'PUT',               // Metodo HTTP
-            '-chunked_post', '0',           // Disabilita chunking
-            // FIX CRUCIALE: Rimuove "Expect" (mettendo valore vuoto) e imposta User-Agent
-            '-headers', 'User-Agent: FMLE/3.0\r\nExpect:\r\nIce-Public: 1\r\n',
+            '-method', 'PUT',
+            '-chunked_post', '0',
+            '-headers', `User-Agent: FMLE/3.0\r\nExpect:\r\nIce-Public: 1\r\nAuthorization: Basic ${creds}\r\n`,
             targetUrl
         ];
 
@@ -138,7 +137,13 @@ export class StreamManager {
                 }
 
                 // Connection error detection (immediate feedback)
-                if (message.includes('Connection refused') || message.includes('401 Unauthorized') || message.includes('I/O error')) {
+                if (message.includes('Connection refused') ||
+                    message.includes('401') ||
+                    message.includes('403') ||
+                    message.includes('404') ||
+                    message.includes('Unauthorized') ||
+                    message.includes('access denied') ||
+                    message.includes('I/O error')) {
                     if (!connectionConfirmed) {
                         connectionConfirmed = true;
                         cancelConnectionTimeout();
@@ -158,11 +163,17 @@ export class StreamManager {
             this.ffmpegProcess.on('close', (code) => {
                 cancelConnectionTimeout();
                 this.ffmpegProcess = null;
-                if (code !== 0 && code !== null) { // code is null if killed by signal
-                    // Estraiamo le ultime 3 righe per prendere l'errore reale, ad es. "Connection reset" + "Conversion failed"
+                if (code !== 0 && code !== null) {
                     const errorLines = lastErrorLog.split('\n').map(l => l.trim()).filter(l => l);
-                    const errorReason = errorLines.slice(-3).join(' | ');
-                    this.sendStatus('error', `FFmpeg Crash: ${errorReason || 'Exited with code ' + code}`);
+                    // Priorità alla prima riga che contiene un errore riconoscibile
+                    // (es. "401", "Connection refused") — le ultime righe sono spesso
+                    // cleanup noise di FFmpeg (Error muxing, Error writing trailer, ecc.)
+                    const HTTP_ERROR = /\b(40[0-9]|Connection refused|Unauthorized|access denied|No route|Name or service)\b/i;
+                    const firstMeaningful = errorLines.find(l => HTTP_ERROR.test(l));
+                    const errorReason = firstMeaningful
+                        ? firstMeaningful.substring(0, 150)
+                        : errorLines.slice(-3).join(' | ');
+                    this.sendStatus('error', `FFmpeg: ${errorReason || 'Exited with code ' + code}`);
                 } else {
                     this.sendStatus('disconnected');
                 }
