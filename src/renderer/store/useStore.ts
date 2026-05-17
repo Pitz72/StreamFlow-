@@ -27,6 +27,14 @@ interface StreamConfig {
     inputGain: string;
 }
 
+export interface LogEvent {
+    id: number;
+    ts: number;
+    level: 'info' | 'success' | 'error';
+    source: 'stream' | 'metadata' | 'system';
+    message: string;
+}
+
 interface AppState {
     selectedDeviceId: string;
     selectedDeviceLabel: string;
@@ -55,6 +63,10 @@ interface AppState {
     azuraCastApiKey: string;
     azuraCastStationId: number | null;
     setAzuraCastContext: (url: string, apiKey: string, stationId: number) => void;
+    // Event log (rolling buffer, last 50 events)
+    logEvents: LogEvent[];
+    appendLog: (e: Omit<LogEvent, 'id' | 'ts'>) => void;
+    clearLog: () => void;
 }
 
 export const useStore = create<AppState>()(
@@ -129,6 +141,19 @@ export const useStore = create<AppState>()(
             azuraCastStationId: null,
             setAzuraCastContext: (url, apiKey, stationId) =>
                 set({ azuraCastUrl: url, azuraCastApiKey: apiKey, azuraCastStationId: stationId }),
+            // Event log
+            logEvents: [],
+            appendLog: (e) => set((state) => {
+                const entry: LogEvent = {
+                    id: Date.now() + Math.random(),
+                    ts: Date.now(),
+                    ...e,
+                };
+                const next = [...state.logEvents, entry];
+                if (next.length > 50) next.splice(0, next.length - 50);
+                return { logEvents: next };
+            }),
+            clearLog: () => set({ logEvents: [] }),
         }),
         {
             name: 'streamflow-storage',

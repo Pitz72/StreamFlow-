@@ -6,6 +6,7 @@ import SettingsPanel from './components/SettingsPanel'
 import NowPlayingPanel from './components/NowPlayingPanel'
 import CoverArtPanel from './components/CoverArtPanel'
 import Modal from './components/Modal'
+import StreamLog from './components/StreamLog'
 import { useStore } from './store/useStore'
 
 type OpenModal = null | 'settings' | 'nowplaying' | 'coverart';
@@ -42,7 +43,8 @@ function App() {
         setIsStreaming,
         setStreamStatus,
         errorMessage,
-        setErrorMessage
+        setErrorMessage,
+        appendLog,
     } = useStore()
 
     const [openModal, setOpenModal] = useState<OpenModal>(null);
@@ -72,6 +74,16 @@ function App() {
             return unsubscribe;
         }
     }, [setIsStreaming, setStreamStatus, setErrorMessage, streamMetadata]);
+
+    // Subscribe to log events from main process
+    useEffect(() => {
+        if (window.electronAPI && window.electronAPI.onLogEvent) {
+            const unsubscribe = window.electronAPI.onLogEvent((e) => {
+                appendLog(e);
+            });
+            return unsubscribe;
+        }
+    }, [appendLog]);
 
     // Auto-dismiss toast after 5 seconds
     useEffect(() => {
@@ -142,12 +154,12 @@ function App() {
                     <button onClick={() => setOpenModal('settings')} className={toolbarBtn}>
                         Configurazione
                     </button>
-                    <span className="text-stone-600 text-xs ml-3">v0.5.2</span>
+                    <span className="text-stone-600 text-xs ml-3">v0.5.3</span>
                 </div>
             </header>
 
             {/* Central control panel */}
-            <main className="flex-1 flex flex-col items-center justify-center gap-12 p-8">
+            <main className="flex-1 flex flex-col items-center justify-center gap-12 p-8 overflow-hidden">
                 <Timer isRunning={isStreaming} />
 
                 <div className="flex items-center gap-16 justify-center">
@@ -160,6 +172,9 @@ function App() {
                     <VuMeter label="R" active={isStreaming} />
                 </div>
             </main>
+
+            {/* Log bar (always visible at bottom, expandable) */}
+            <StreamLog />
 
             {/* Modals */}
             <Modal isOpen={openModal === 'settings'} onClose={() => setOpenModal(null)} title="Configurazione" maxWidth="max-w-lg">

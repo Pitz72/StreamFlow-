@@ -17,10 +17,19 @@ export const cleanupIpc = () => {
 export const initializeIpc = (mainWindow: BrowserWindow) => {
     streamManager = new StreamManager(mainWindow);
 
+    const emitLog = (level: 'info' | 'success' | 'error', source: 'stream' | 'metadata' | 'system', message: string) => {
+        try {
+            mainWindow.webContents.send('LOG_EVENT', { level, source, message });
+        } catch { /* finestra distrutta */ }
+    };
+
+    // Aggancia il log sink al MetadataManager (anche StreamManager potrà inoltrare in futuro)
+    metadataManager.setLogSink((level, msg) => emitLog(level, 'metadata', msg));
+    streamManager.setLogSink((level, msg) => emitLog(level, 'stream', msg));
+
     ipcMain.handle('start-stream', async (_event, config) => {
         if (streamManager) {
             streamManager.start(config);
-            // Store config in MetadataManager so update-metadata can use it
             metadataManager.setConfig({
                 host: config.host,
                 port: config.port,
@@ -43,12 +52,14 @@ export const initializeIpc = (mainWindow: BrowserWindow) => {
     });
 
     ipcMain.handle('update-metadata', async (_event, { artist, title }: { artist: string; title: string }) => {
-        try {
-            await metadataManager.send(artist, title);
-            return { ok: true };
-        } catch (err) {
-            return { ok: false, error: (err as Error).message };
-        }
+        const result = await metadataManager.send(artist, title);
+        return {
+            ok: result.ok,
+            error: result.error,
+            httpStatus: result.httpStatus,
+            requestLine: result.requestLine,
+            rawResponse: result.rawResponse,
+        };
     });
 
     ipcMain.handle('azuracast-fetch-stations', async (_event, { url, apiKey }: { url: string; apiKey: string }) => {

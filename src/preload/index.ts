@@ -20,6 +20,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on('STREAM_STATUS', handler);
         return () => { ipcRenderer.removeListener('STREAM_STATUS', handler); };
     },
+    onLogEvent: (callback: (e: { level: 'info' | 'success' | 'error'; source: 'stream' | 'metadata' | 'system'; message: string }) => void) => {
+        const handler = (_event: IpcRendererEvent, e: { level: 'info' | 'success' | 'error'; source: 'stream' | 'metadata' | 'system'; message: string }) => callback(e);
+        ipcRenderer.on('LOG_EVENT', handler);
+        return () => { ipcRenderer.removeListener('LOG_EVENT', handler); };
+    },
     updateMetadata: (meta: { artist: string; title: string }) =>
         ipcRenderer.invoke('update-metadata', meta),
     azuraCastFetchStations: (args: { url: string; apiKey: string }) =>

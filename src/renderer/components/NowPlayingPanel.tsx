@@ -6,6 +6,8 @@ const NowPlayingPanel = () => {
     const [sendStatus, setSendStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
     const [sentAt, setSentAt] = useState('');
     const [errorMsg, setErrorMsg] = useState('');
+    const [lastDebug, setLastDebug] = useState<{ requestLine?: string; rawResponse?: string; httpStatus?: number } | null>(null);
+    const [showDebug, setShowDebug] = useState(false);
 
     const handleSend = async () => {
         if (!window.electronAPI || !isStreaming) return;
@@ -15,6 +17,11 @@ const NowPlayingPanel = () => {
             artist: streamMetadata.artist,
             title: streamMetadata.title,
         });
+        setLastDebug({
+            requestLine: result.requestLine,
+            rawResponse: result.rawResponse,
+            httpStatus: result.httpStatus,
+        });
         if (result.ok) {
             setSendStatus('sent');
             setSentAt(new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }));
@@ -22,7 +29,7 @@ const NowPlayingPanel = () => {
         } else {
             setSendStatus('error');
             setErrorMsg(result.error || 'errore sconosciuto');
-            setTimeout(() => setSendStatus('idle'), 8000);
+            setTimeout(() => setSendStatus('idle'), 10000);
         }
     };
 
@@ -82,6 +89,25 @@ const NowPlayingPanel = () => {
                     <p className="text-stone-600 text-xs text-right pr-1">
                         I metadati verranno inviati automaticamente all'avvio dello stream.
                     </p>
+                )}
+
+                {lastDebug && (
+                    <div className="mt-2">
+                        <button
+                            onClick={() => setShowDebug((v) => !v)}
+                            className="text-stone-500 hover:text-stone-300 text-xs underline"
+                        >
+                            {showDebug ? '▼' : '▶'} Dettagli risposta server (HTTP {lastDebug.httpStatus ?? '?'})
+                        </button>
+                        {showDebug && (
+                            <div className="mt-1 bg-stone-950 border border-stone-800 rounded p-2 font-mono text-[10px] text-stone-400 max-h-48 overflow-auto">
+                                <div className="text-stone-500 uppercase mb-1">Request</div>
+                                <pre className="whitespace-pre-wrap break-all">{lastDebug.requestLine || '—'}</pre>
+                                <div className="text-stone-500 uppercase mt-2 mb-1">Raw response</div>
+                                <pre className="whitespace-pre-wrap break-all">{lastDebug.rawResponse || '(vuoto)'}</pre>
+                            </div>
+                        )}
+                    </div>
                 )}
             </div>
         </div>

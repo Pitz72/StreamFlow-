@@ -21,6 +21,7 @@ interface StreamConfig {
 export class StreamManager {
     private ffmpegProcess: ChildProcess | null = null;
     private mainWindow: BrowserWindow | null = null;
+    private logSink: ((level: 'info' | 'success' | 'error', msg: string) => void) | null = null;
 
     constructor(mainWindow: BrowserWindow | null) {
         this.mainWindow = mainWindow;
@@ -28,6 +29,15 @@ export class StreamManager {
 
     public setMainWindow(window: BrowserWindow) {
         this.mainWindow = window;
+    }
+
+    public setLogSink(sink: (level: 'info' | 'success' | 'error', msg: string) => void) {
+        this.logSink = sink;
+    }
+
+    private log(level: 'info' | 'success' | 'error', msg: string) {
+        if (this.logSink) this.logSink(level, msg);
+        console.log(`[StreamManager] ${level}: ${msg}`);
     }
 
     public static async getWindowsAudioDevices(): Promise<string[]> {
@@ -103,7 +113,7 @@ export class StreamManager {
 
         this.sendStatus('connecting');
 
-        console.log(`[StreamManager] Connecting → ${host}:${port}${cleanMount} as user="${user}" gain=${gainPct}%`);
+        this.log('info', `Connecting → ${host}:${port}${cleanMount} as user="${user}" gain=${gainPct}% bitrate=${bitrate || '128'}k`);
 
         const args = [
             '-f', 'dshow',
@@ -170,6 +180,7 @@ export class StreamManager {
                     if (!connectionConfirmed) {
                         connectionConfirmed = true;
                         cancelConnectionTimeout();
+                        this.log('success', `✓ stream live (audio in transito verso ${host}:${port}${cleanMount})`);
                         this.sendStatus('connected');
                     }
                 }
@@ -200,8 +211,10 @@ export class StreamManager {
                     } else {
                         errorReason = errorLines.slice(-3).join(' | ') || `Exited with code ${code}`;
                     }
+                    this.log('error', `✗ ${errorReason}`);
                     this.sendStatus('error', `FFmpeg: ${errorReason}`);
                 } else {
+                    this.log('info', 'stream chiuso correttamente');
                     this.sendStatus('disconnected');
                 }
             });
