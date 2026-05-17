@@ -79,12 +79,11 @@ export async function fetchStationDetail(
 ): Promise<AzStationDetail> {
     const base = baseUrl.replace(/\/$/, '');
 
-    const station = await fetchJson<{ listen_url: string }>(
-        `${base}/api/station/${stationId}`,
-        apiKey
-    );
+    const station = await fetchJson<{
+        listen_url: string;
+        mounts?: { path: string; is_default: boolean }[];
+    }>(`${base}/api/station/${stationId}`, apiKey);
 
-    // Derive streaming connection info from the public listen_url
     let host = '';
     let port = '8000';
     let mount = '/';
@@ -92,8 +91,13 @@ export async function fetchStationDetail(
     try {
         const listenUrl = new URL(station.listen_url);
         host = listenUrl.hostname;
-        port = listenUrl.port || '8000';
-        mount = listenUrl.pathname || '/';
+        // listen_url is a proxied HTTPS URL — port is not the Icecast source port.
+        // Always default to 8000 (standard Icecast source port).
+        port = '8000';
+        // Use the actual Icecast mount path from the mounts array, not the
+        // proxied listen_url pathname which includes routing prefixes.
+        const defaultMount = station.mounts?.find(m => m.is_default) ?? station.mounts?.[0];
+        mount = defaultMount?.path || '/';
     } catch {
         const baseUrlParsed = new URL(base);
         host = baseUrlParsed.hostname;
