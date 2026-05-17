@@ -5,7 +5,7 @@ export const useAudioVisualizer = (deviceId: string) => {
     const audioContextRef = useRef<AudioContext | null>(null);
     const analyserRef = useRef<AnalyserNode | null>(null);
     const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
-    const requestRef = useRef<number>(undefined);
+    const requestRef = useRef<number | null>(null);
 
     useEffect(() => {
         if (!deviceId) return;
