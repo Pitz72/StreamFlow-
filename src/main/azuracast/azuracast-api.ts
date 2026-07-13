@@ -25,7 +25,7 @@ export interface AzStationDetail {
     harborInferred: boolean;
 }
 
-function fetchJson<T>(url: string, apiKey: string): Promise<T> {
+function fetchJson<T>(url: string, apiKey: string, redirectsLeft = 3): Promise<T> {
     return new Promise((resolve, reject) => {
         let parsed: URL;
         try {
@@ -50,10 +50,27 @@ function fetchJson<T>(url: string, apiKey: string): Promise<T> {
                 },
             },
             (res) => {
+                const status = res.statusCode ?? 0;
+
+                // Segui i redirect (caso tipico: utente inserisce http:// e il
+                // server risponde 301 verso https://) — max 3 hop.
+                if (status >= 300 && status < 400 && res.headers.location) {
+                    res.resume();
+                    if (redirectsLeft <= 0) {
+                        return reject(new Error('Troppi redirect dal server AzuraCast'));
+                    }
+                    let nextUrl: string;
+                    try {
+                        nextUrl = new URL(res.headers.location, url).toString();
+                    } catch {
+                        return reject(new Error(`Redirect non valido: ${res.headers.location}`));
+                    }
+                    return resolve(fetchJson<T>(nextUrl, apiKey, redirectsLeft - 1));
+                }
+
                 let data = '';
-                res.on('data', (chunk: string) => { data += chunk; });
+                res.on('data', (chunk: Buffer) => { data += chunk.toString(); });
                 res.on('end', () => {
-                    const status = res.statusCode ?? 0;
                     if (status < 200 || status >= 300) {
                         return reject(new Error(`HTTP ${status}`));
                     }

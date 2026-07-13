@@ -1,29 +1,36 @@
 import { useEffect, useState, useRef } from 'react';
 
-export const useAudioVisualizer = (deviceId: string) => {
-    const [volume, setVolume] = useState(0);
+export interface StereoLevels {
+    left: number;
+    right: number;
+}
+
+/**
+ * Livelli L/R da un'UNICA pipeline Web Audio condivisa:
+ * getUserMedia → MediaStreamSource → ChannelSplitter → 2 AnalyserNode.
+ *
+ * - Prima esistevano due pipeline complete (una per VuMeter) che mostravano
+ *   lo stesso valore mono: doppio uso risorse e "stereo" solo apparente.
+ * - Input mono: il livello del canale unico viene duplicato su L e R.
+ * - `enabled: false` smonta tutto e rilascia il microfono (indicatore
+ *   privacy OS spento) — usato quando la finestra non è visibile.
+ */
+export const useAudioVisualizer = (deviceId: string, enabled: boolean): StereoLevels => {
+    const [levels, setLevels] = useState<StereoLevels>({ left: 0, right: 0 });
     const audioContextRef = useRef<AudioContext | null>(null);
-    const analyserRef = useRef<AnalyserNode | null>(null);
-    const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
     const requestRef = useRef<number | null>(null);
 
     useEffect(() => {
-        if (!deviceId) return;
+        if (!deviceId || !enabled) return;
 
         // Flag di cancellazione: se l'effect viene pulito prima che initAudio termini
         // (cambio dispositivo rapido), tutte le operazioni async successive vengono abortite.
         let cancelled = false;
+        let stream: MediaStream | null = null;
 
         const initAudio = async () => {
             try {
-                // Chiudi il context precedente prima di aprirne uno nuovo
-                if (audioContextRef.current) {
-                    await audioContextRef.current.close();
-                    audioContextRef.current = null;
-                }
-                if (cancelled) return;
-
-                audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+                audioContextRef.current = new AudioContext();
 
                 // Traduci il nome DSHOW (deviceId) nell'hash Chrome per getUserMedia
                 let targetDeviceId: { exact: string } | undefined = undefined;
@@ -46,7 +53,7 @@ export const useAudioVisualizer = (deviceId: string) => {
                     }
                 }
 
-                const stream = await navigator.mediaDevices.getUserMedia({
+                stream = await navigator.mediaDevices.getUserMedia({
                     audio: targetDeviceId ? { deviceId: targetDeviceId } : true
                 });
                 if (cancelled) {
@@ -54,24 +61,40 @@ export const useAudioVisualizer = (deviceId: string) => {
                     return;
                 }
 
-                sourceRef.current = audioContextRef.current.createMediaStreamSource(stream);
-                analyserRef.current = audioContextRef.current.createAnalyser();
-                analyserRef.current.fftSize = 256;
-                sourceRef.current.connect(analyserRef.current);
+                const ctx = audioContextRef.current;
+                const source = ctx.createMediaStreamSource(stream);
+                const track = stream.getAudioTracks()[0];
+                const isStereo = (track?.getSettings().channelCount ?? 1) >= 2;
 
-                const bufferLength = analyserRef.current.frequencyBinCount;
-                const dataArray = new Uint8Array(bufferLength);
+                const analyserL = ctx.createAnalyser();
+                analyserL.fftSize = 256;
+                let analyserR: AnalyserNode | null = null;
+
+                if (isStereo) {
+                    const splitter = ctx.createChannelSplitter(2);
+                    source.connect(splitter);
+                    analyserR = ctx.createAnalyser();
+                    analyserR.fftSize = 256;
+                    splitter.connect(analyserL, 0);
+                    splitter.connect(analyserR, 1);
+                } else {
+                    source.connect(analyserL);
+                }
+
+                const dataArray = new Uint8Array(analyserL.frequencyBinCount);
+                const readLevel = (analyser: AnalyserNode) => {
+                    analyser.getByteFrequencyData(dataArray);
+                    let sum = 0;
+                    for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+                    const average = sum / dataArray.length;
+                    return Math.min(100, (average / 128) * 100 * 1.5);
+                };
 
                 const animate = () => {
-                    if (!analyserRef.current || cancelled) return;
-
-                    analyserRef.current.getByteFrequencyData(dataArray);
-                    let sum = 0;
-                    for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
-                    const average = sum / bufferLength;
-                    const normalizedVolume = Math.min(100, (average / 128) * 100 * 1.5);
-
-                    setVolume(normalizedVolume);
+                    if (cancelled) return;
+                    const left = readLevel(analyserL);
+                    const right = analyserR ? readLevel(analyserR) : left;
+                    setLevels({ left, right });
                     requestRef.current = requestAnimationFrame(animate);
                 };
 
@@ -89,16 +112,14 @@ export const useAudioVisualizer = (deviceId: string) => {
         return () => {
             cancelled = true;
             if (requestRef.current) cancelAnimationFrame(requestRef.current);
-            if (sourceRef.current?.mediaStream) {
-                sourceRef.current.mediaStream.getTracks().forEach(track => track.stop());
-            }
+            stream?.getTracks().forEach(track => track.stop());
             if (audioContextRef.current) {
-                audioContextRef.current.close();
+                audioContextRef.current.close().catch(() => { /* già chiuso */ });
                 audioContextRef.current = null;
             }
-            setVolume(0);
+            setLevels({ left: 0, right: 0 });
         };
-    }, [deviceId]);
+    }, [deviceId, enabled]);
 
-    return volume;
+    return levels;
 };

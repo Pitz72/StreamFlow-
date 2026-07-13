@@ -1,4 +1,5 @@
 import net from 'net';
+import { app } from 'electron';
 
 /**
  * Inviare metadata a Liquidsoap harbor / Icecast usando RAW socket + HTTP/1.0.
@@ -43,12 +44,21 @@ export class MetadataManager {
     }
 
     /**
-     * Replica BUTT: encoding minimale, solo spazi → %20 e & → %26.
-     * NON usa encodeURIComponent perché Liquidsoap accetta `/` letterale nel mount
-     * e gestisce caratteri unicode senza encoding nel song.
+     * Replica BUTT: encoding minimale (Liquidsoap accetta `/` letterale nel mount
+     * e caratteri unicode non-encoded nel song), ma con sanificazione dei byte che
+     * spezzerebbero la richiesta HTTP scritta a mano:
+     * - caratteri di controllo (CR/LF = header injection sul raw socket) → spazio
+     * - `%` `#` `?` (alterano la request line / vengono interpretati) → percent-encoded
      */
     private buttEncode(s: string): string {
-        return s.replace(/ /g, '%20').replace(/&/g, '%26');
+        return s
+            // eslint-disable-next-line no-control-regex -- i control char sono esattamente ciò che va rimosso
+            .replace(/[\x00-\x1F\x7F]+/g, ' ')
+            .replace(/%/g, '%25')
+            .replace(/ /g, '%20')
+            .replace(/&/g, '%26')
+            .replace(/#/g, '%23')
+            .replace(/\?/g, '%3F');
     }
 
     async send(artist: string, title: string): Promise<MetaSendResult> {
@@ -58,11 +68,18 @@ export class MetadataManager {
 
         const { host, port, user, password, mount } = this.config;
         const portNum = parseInt(port, 10);
+        if (!Number.isFinite(portNum) || portNum < 1 || portNum > 65535) {
+            return { ok: false, requestLine: '', rawResponse: '', error: `Porta non valida: "${port}"` };
+        }
         const song = artist && title
             ? `${artist} - ${title}`
             : title || artist || '';
 
-        const cleanMount = mount.startsWith('/') ? mount : `/${mount}`;
+        // Il mount non viene percent-encoded (il `/` letterale serve a Liquidsoap),
+        // ma niente whitespace/control chars: spezzerebbero la request line.
+        // eslint-disable-next-line no-control-regex -- i control char sono esattamente ciò che va rimosso
+        const safeMount = mount.replace(/[\x00-\x20\x7F]/g, '');
+        const cleanMount = safeMount.startsWith('/') ? safeMount : `/${safeMount}`;
         const auth = Buffer.from(`${user || 'source'}:${password}`).toString('base64');
 
         // Costruzione esatta a la BUTT.
@@ -73,7 +90,7 @@ export class MetadataManager {
 
         const rawRequest =
             `${requestLine}\r\n` +
-            `User-Agent: StreamFlow/0.5.3 (BUTT-compat)\r\n` +
+            `User-Agent: StreamFlow/${app.getVersion()} (BUTT-compat)\r\n` +
             `Authorization: Basic ${auth}\r\n` +
             `Host: ${hostHeader}\r\n` +
             `\r\n`;
@@ -118,6 +135,14 @@ export class MetadataManager {
             });
 
             sock.on('timeout', () => {
+                // Alcuni server rispondono ma non chiudono la connessione (l''end'
+                // non arriva mai): se abbiamo già una risposta HTTP parsabile,
+                // valutiamola invece di riportare un falso timeout.
+                const parsed = parseRawHttpResponse(rawResponse);
+                if (parsed.status !== null) {
+                    finish(evaluateResponse(requestLine, rawResponse, parsed));
+                    return;
+                }
                 finish({
                     ok: false,
                     requestLine,

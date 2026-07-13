@@ -5,6 +5,45 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.5.8] — 2026-07-13
+
+Hardening completo post-audit: chiuse tutte le criticità **gravi** e **medie** rimanenti e tutte le **lievi** (vedi `docs/AUDIT-2026-07-13.md`).
+
+### Fixed
+- **S4** — su macOS la riapertura da dock creava una finestra "morta": `initializeIpc` è ora idempotente (handler registrati una volta, finestra/log sink ricollegati a ogni finestra), `main.ts` la richiama in ogni `createWindow`.
+- **S5** — doppio click su GO nel varco pre-`connecting`: guard sincrono `startInFlightRef` nel renderer, rilasciato al primo status IPC (fallback 3s).
+- **M1** — i VU meter L/R erano identici (falso stereo) e ognuno apriva la propria pipeline audio completa: ora un'unica pipeline condivisa (`getUserMedia` → `ChannelSplitter` → 2 `AnalyserNode`) con canali reali; input mono duplicato su entrambi.
+- **M6** — `taskkill` era fire-and-forget anche in `before-quit` (possibile FFmpeg orfano alla chiusura): `stop(true)` usa `execSync` nel percorso di quit.
+- **M7** — le API AzuraCast non seguivano i redirect: 301/302 ora seguiti (max 3 hop) — un URL `http://` che redirige a `https://` non produce più l'errore opaco "HTTP 301".
+- **M8** — `handleSend` (Now Playing) e i loader del wizard AzuraCast senza try/catch: una rejection IPC lasciava la UI bloccata su "sending"/"loading". Ora gestita con messaggio d'errore.
+- **L3** — enumerazione device: timeout di 10s (FFmpeg bloccato non lascia più la promise pendente) + dedup dei nomi (chiavi React duplicate).
+- **L4** — detection errori FFmpeg per substring (`includes('401')`) sostituita da regex con word boundary: "size= 401kB" non può più risultare un errore HTTP.
+- **L5** — metadata: se il server risponde ma non chiude la connessione, la risposta viene valutata al timeout invece di riportare un falso "Timeout (5s)".
+- **L6** — la config metadata viene impostata solo se lo stream è effettivamente partito (`start()` ritorna boolean).
+- **L7** — il timer non si azzera più su disconnect/error: la durata dell'ultima sessione resta visibile; riparte da zero al prossimo GO.
+- **L8** — il listener status IPC non viene più ri-sottoscritto a ogni keystroke nei campi metadata (ref sui metadata correnti).
+- **L9** — Now Playing: timeout di reset ripuliti allo smontaggio, guard sugli invii concorrenti via Enter.
+- **L13** — allo start il device salvato viene verificato contro la lista corrente: messaggio chiaro se scollegato (invece dell'errore dshow criptico).
+
+### Security
+- **M4** — CSP di produzione stretta: `script-src 'self'` (rimossi `unsafe-inline`/`unsafe-eval`); in dev un plugin Vite rilassa la direttiva per react-refresh.
+- **M5** — `sandbox: true` sul renderer (FFmpeg è spawnato nel main, il commento "For FFmpeg spawning" era errato) + `setWindowOpenHandler` deny + guard `will-navigate`.
+- **M9** — single instance lock: una seconda istanza di StreamFlow fa focus sulla prima invece di contendersi device audio e harbor.
+- **M3** — sanificazione metadata sul raw socket: control char (CR/LF = header injection) rimossi, `%`/`#`/`?` percent-encoded, mount ripulito da whitespace.
+- **S2** — credenziali nella command line FFmpeg: rischio strutturale documentato nel codice (limite di FFmpeg CLI), mitigato con `windowsHide: true` su tutti gli spawn.
+
+### Changed
+- **L1** — versione non più hardcoded: header UI da `__APP_VERSION__` (define Vite ← package.json), User-Agent metadata da `app.getVersion()`.
+- **L2** — flag FFmpeg deprecato `-ab` → `-b:a`.
+- **L10** — `tsconfig.main.tsbuildinfo` rimosso dal tracking git (`*.tsbuildinfo` in .gitignore): era il file perennemente "modificato".
+- **L11** — rimosso favicon inesistente `/vite.svg` e asset vuoto `react.svg`; titolo pagina "Runtime StreamFlow".
+- **L12** — rimossa lib `DOM` dal tsconfig del main process.
+- **L14** — modale Configurazione non si chiude più con un click sul backdrop (un misclick scartava i dati digitati); Esc e ✕ restano attivi.
+- ESLint: ignorati `builds/` e `.claude/` (worktree); fix violazione `set-state-in-effect` nel Timer. `npm run lint` ora passa pulito.
+- Bump versione 0.5.7 → 0.5.8.
+
+---
+
 ## [0.5.7] — 2026-07-13
 
 ### Fixed

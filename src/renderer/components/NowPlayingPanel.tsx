@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store/useStore';
 
 const NowPlayingPanel = () => {
@@ -9,27 +9,48 @@ const NowPlayingPanel = () => {
     const [lastDebug, setLastDebug] = useState<{ requestLine?: string; rawResponse?: string; httpStatus?: number } | null>(null);
     const [showDebug, setShowDebug] = useState(false);
 
+    // Timeout di reset dello stato: va ripulito alla chiusura del modale
+    const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    useEffect(() => {
+        return () => {
+            if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+        };
+    }, []);
+
+    const scheduleReset = (ms: number) => {
+        if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+        resetTimerRef.current = setTimeout(() => setSendStatus('idle'), ms);
+    };
+
     const handleSend = async () => {
-        if (!window.electronAPI || !isStreaming) return;
+        // Guard anche su 'sending': Enter nei campi permetteva invii concorrenti
+        if (!window.electronAPI || !isStreaming || sendStatus === 'sending') return;
         setSendStatus('sending');
         setErrorMsg('');
-        const result = await window.electronAPI.updateMetadata({
-            artist: streamMetadata.artist,
-            title: streamMetadata.title,
-        });
-        setLastDebug({
-            requestLine: result.requestLine,
-            rawResponse: result.rawResponse,
-            httpStatus: result.httpStatus,
-        });
-        if (result.ok) {
-            setSendStatus('sent');
-            setSentAt(new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }));
-            setTimeout(() => setSendStatus('idle'), 5000);
-        } else {
+        try {
+            const result = await window.electronAPI.updateMetadata({
+                artist: streamMetadata.artist,
+                title: streamMetadata.title,
+            });
+            setLastDebug({
+                requestLine: result.requestLine,
+                rawResponse: result.rawResponse,
+                httpStatus: result.httpStatus,
+            });
+            if (result.ok) {
+                setSendStatus('sent');
+                setSentAt(new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }));
+                scheduleReset(5000);
+            } else {
+                setSendStatus('error');
+                setErrorMsg(result.error || 'errore sconosciuto');
+                scheduleReset(10000);
+            }
+        } catch (err) {
+            // Senza catch una rejection IPC lasciava il pannello bloccato su "sending"
             setSendStatus('error');
-            setErrorMsg(result.error || 'errore sconosciuto');
-            setTimeout(() => setSendStatus('idle'), 10000);
+            setErrorMsg(`Errore IPC: ${(err as Error).message || 'sconosciuto'}`);
+            scheduleReset(10000);
         }
     };
 

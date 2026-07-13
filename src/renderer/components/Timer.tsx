@@ -12,20 +12,26 @@ const Timer = ({ isRunning }: TimerProps) => {
         let interval: ReturnType<typeof setInterval>;
 
         if (isRunning) {
-            // Se partiamo da zero e non c'è uno startTime memorizzato, lo salviamo
-            if (startTimeRef.current === null) {
-                startTimeRef.current = Date.now();
-            }
+            // Nuova sessione: riparte da zero
+            startTimeRef.current = Date.now();
 
-            interval = setInterval(() => {
+            const tick = () => {
                 const now = Date.now();
                 // Calcoliamo i secondi reali passati (timestamp difference) per evitare drift
                 const diff = Math.floor((now - startTimeRef.current!) / 1000);
                 setSeconds(diff);
-            }, 500); // 500ms al posto di 1000ms fornisce maggiore reattività allo scatto visivo
+            };
+            // Primo aggiornamento asincrono (azzera il display senza setState
+            // sincrono nel corpo dell'effect), poi tick ogni 500ms per reattività.
+            const immediate = setTimeout(tick, 0);
+            interval = setInterval(tick, 500);
+            return () => {
+                clearTimeout(immediate);
+                clearInterval(interval);
+            };
         } else {
-            // Quando si ferma, azzeriamo tutto
-            setSeconds(0);
+            // Quando si ferma NON azzeriamo: la durata dell'ultima sessione resta
+            // visibile (utile dopo un drop per sapere quanto si è stati in onda).
             startTimeRef.current = null;
         }
 

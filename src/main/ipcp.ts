@@ -6,24 +6,42 @@ import { fetchStations, fetchStationDetail } from './azuracast/azuracast-api';
 let streamManager: StreamManager | null = null;
 const metadataManager = new MetadataManager();
 
+// Finestra correntemente collegata: aggiornata a ogni initializeIpc così i log
+// raggiungono sempre la finestra viva (su macOS activate ne può nascere una nuova).
+let boundWindow: BrowserWindow | null = null;
+let handlersRegistered = false;
+
+const emitLog = (level: 'info' | 'success' | 'error', source: 'stream' | 'metadata' | 'system', message: string) => {
+    if (!boundWindow || boundWindow.isDestroyed()) return;
+    try {
+        boundWindow.webContents.send('LOG_EVENT', { level, source, message });
+    } catch { /* finestra in chiusura */ }
+};
+
 export const cleanupIpc = () => {
     if (streamManager) {
-        streamManager.stop();
+        // sync=true: siamo in before-quit, un taskkill asincrono potrebbe non
+        // partire mai prima della morte del processo main (FFmpeg orfano).
+        streamManager.stop(true);
         streamManager = null;
     }
     metadataManager.clearConfig();
 };
 
+/**
+ * Idempotente: gli handler ipcMain vengono registrati una sola volta;
+ * la finestra (StreamManager, log sink, evento iniziale) viene ricollegata
+ * a ogni chiamata. Va invocata per ogni BrowserWindow creata.
+ */
 export const initializeIpc = (mainWindow: BrowserWindow) => {
-    streamManager = new StreamManager(mainWindow);
+    boundWindow = mainWindow;
 
-    const emitLog = (level: 'info' | 'success' | 'error', source: 'stream' | 'metadata' | 'system', message: string) => {
-        try {
-            mainWindow.webContents.send('LOG_EVENT', { level, source, message });
-        } catch { /* finestra distrutta */ }
-    };
+    if (!streamManager) {
+        streamManager = new StreamManager(mainWindow);
+    } else {
+        streamManager.setMainWindow(mainWindow);
+    }
 
-    // Aggancia il log sink al MetadataManager (anche StreamManager potrà inoltrare in futuro)
     metadataManager.setLogSink((level, msg) => emitLog(level, 'metadata', msg));
     streamManager.setLogSink((level, msg) => emitLog(level, 'stream', msg));
 
@@ -33,16 +51,23 @@ export const initializeIpc = (mainWindow: BrowserWindow) => {
         emitLog('info', 'system', `StreamFlow pronto — in attesa di eventi.`);
     });
 
+    if (handlersRegistered) return;
+    handlersRegistered = true;
+
     ipcMain.handle('start-stream', async (_event, config) => {
         if (streamManager) {
-            streamManager.start(config);
-            metadataManager.setConfig({
-                host: config.host,
-                port: config.port,
-                user: config.icecastUser || 'source',
-                password: config.password,
-                mount: config.mount,
-            });
+            const started = streamManager.start(config);
+            // Config metadata solo se lo stream è effettivamente partito:
+            // altrimenti "Invia" sembrerebbe funzionante senza stream attivo.
+            if (started) {
+                metadataManager.setConfig({
+                    host: config.host,
+                    port: config.port,
+                    user: config.icecastUser || 'source',
+                    password: config.password,
+                    mount: config.mount,
+                });
+            }
         }
     });
 
@@ -85,5 +110,4 @@ export const initializeIpc = (mainWindow: BrowserWindow) => {
             return { ok: false, error: (err as Error).message };
         }
     });
-
 };

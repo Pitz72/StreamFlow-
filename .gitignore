@@ -31,3 +31,6 @@ release/
 # Claude Code internals
 .claude/
 
+
+# TypeScript incremental build info
+*.tsbuildinfo

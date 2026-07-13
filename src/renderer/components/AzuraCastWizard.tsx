@@ -50,36 +50,47 @@ const AzuraCastWizard = () => {
         }
         setState('loading-stations');
         setError('');
-        const res = await window.electronAPI.azuraCastFetchStations({ url: url.trim(), apiKey: apiKey.trim() });
-        if (!res.ok || !res.stations) {
+        try {
+            const res = await window.electronAPI.azuraCastFetchStations({ url: url.trim(), apiKey: apiKey.trim() });
+            if (!res.ok || !res.stations) {
+                setState('error');
+                setError(res.error || 'Errore sconosciuto');
+                return;
+            }
+            setStations(res.stations);
+            setSelectedStationId(res.stations[0]?.id ?? null);
+            setState('select-station');
+        } catch (err) {
+            // Senza catch una rejection IPC lasciava il wizard bloccato sul loading
             setState('error');
-            setError(res.error || 'Errore sconosciuto');
-            return;
+            setError(`Errore IPC: ${(err as Error).message || 'sconosciuto'}`);
         }
-        setStations(res.stations);
-        setSelectedStationId(res.stations[0]?.id ?? null);
-        setState('select-station');
     };
 
     const loadDetail = async () => {
         if (!selectedStationId) return;
         setState('loading-detail');
         setError('');
-        const res = await window.electronAPI.azuraCastFetchStationDetail({
-            url: url.trim(),
-            apiKey: apiKey.trim(),
-            stationId: selectedStationId,
-        });
-        if (!res.ok || !res.detail) {
+        try {
+            const res = await window.electronAPI.azuraCastFetchStationDetail({
+                url: url.trim(),
+                apiKey: apiKey.trim(),
+                stationId: selectedStationId,
+            });
+            if (!res.ok || !res.detail) {
+                setState('error');
+                setError(res.error || 'Errore sconosciuto');
+                return;
+            }
+            setDetail(res.detail);
+            setSelectedStreamerUsername(res.detail.streamers[0]?.username ?? '');
+            setEditPort(res.detail.port);
+            setEditMount(res.detail.mount);
+            setState('select-streamer');
+        } catch (err) {
             setState('error');
-            setError(res.error || 'Errore sconosciuto');
-            return;
+            setError(`Errore IPC: ${(err as Error).message || 'sconosciuto'}`);
         }
-        setDetail(res.detail);
-        setSelectedStreamerUsername(res.detail.streamers[0]?.username ?? '');
-        setEditPort(res.detail.port);
-        setEditMount(res.detail.mount);
-        setState('select-streamer');
     };
 
     const apply = () => {

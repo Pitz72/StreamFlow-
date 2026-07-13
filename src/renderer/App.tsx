@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Timer from './components/Timer'
 import VuMeter from './components/VuMeter'
+import { useAudioVisualizer } from './hooks/useAudioVisualizer'
 import OnAirButton from './components/OnAirButton'
 import InputVolumeControl from './components/InputVolumeControl'
 import SettingsPanel from './components/SettingsPanel'
@@ -54,10 +55,35 @@ function App() {
     // Dettaglio mostrato accanto allo status (countdown riconnessione dal main)
     const [statusDetail, setStatusDetail] = useState<string | null>(null);
 
+    // Guard sincrono anti doppio-GO: il disabled del pulsante arriva solo quando
+    // lo status 'connecting' torna dal main via IPC — nel frattempo un secondo
+    // click avvierebbe un secondo stream.
+    const startInFlightRef = useRef(false);
+
+    // Ref sui metadata correnti: evita di ri-sottoscrivere il listener IPC
+    // a ogni keystroke nei campi Artist/Title.
+    const metadataRef = useRef(streamMetadata);
+    useEffect(() => {
+        metadataRef.current = streamMetadata;
+    }, [streamMetadata]);
+
+    // Il microfono per i VU meter è attivo solo quando la finestra è visibile:
+    // niente capture (e indicatore privacy OS) con app minimizzata.
+    const [pageVisible, setPageVisible] = useState(!document.hidden);
+    useEffect(() => {
+        const handler = () => setPageVisible(!document.hidden);
+        document.addEventListener('visibilitychange', handler);
+        return () => document.removeEventListener('visibilitychange', handler);
+    }, []);
+
+    // Pipeline audio condivisa: livelli L/R reali per entrambi i VU meter
+    const { left: vuLeft, right: vuRight } = useAudioVisualizer(selectedDeviceId, pageVisible);
+
     // Listen for status updates from Main process
     useEffect(() => {
         if (window.electronAPI && window.electronAPI.onStreamStatus) {
             const unsubscribe = window.electronAPI.onStreamStatus((status, message) => {
+                startInFlightRef.current = false;
                 setStreamStatus(status);
                 setStatusDetail(status === 'reconnecting' ? (message || null) : null);
 
@@ -66,10 +92,11 @@ function App() {
                 } else if (status === 'connected') {
                     setIsStreaming(true);
                     // Auto-send metadata as soon as the stream is confirmed live
-                    if (window.electronAPI && (streamMetadata.artist || streamMetadata.title)) {
+                    const meta = metadataRef.current;
+                    if (window.electronAPI && (meta.artist || meta.title)) {
                         window.electronAPI.updateMetadata({
-                            artist: streamMetadata.artist,
-                            title: streamMetadata.title,
+                            artist: meta.artist,
+                            title: meta.title,
                         });
                     }
                 } else if (status === 'disconnected' || status === 'error') {
@@ -81,7 +108,7 @@ function App() {
             });
             return unsubscribe;
         }
-    }, [setIsStreaming, setStreamStatus, setErrorMessage, streamMetadata]);
+    }, [setIsStreaming, setStreamStatus, setErrorMessage]);
 
     // Subscribe to log events from main process
     useEffect(() => {
@@ -105,40 +132,60 @@ function App() {
     // funziona da annulla-riconnessione (chiama stopStream).
     const sessionActive = isStreaming || streamStatus === 'reconnecting';
 
-    const toggleStream = () => {
-        if (window.electronAPI) {
-            if (!sessionActive) {
-                if (selectedDeviceId === 'default' || !selectedDeviceLabel || selectedDeviceLabel === 'default') {
-                    setErrorMessage('Seleziona un Audio Input Device specifico in Configurazione.');
-                    setOpenModal('settings');
-                    return;
-                }
-                if (!streamConfig.host.trim()) {
-                    setErrorMessage('Host obbligatorio.');
-                    setOpenModal('settings');
-                    return;
-                }
-                const portNum = parseInt(streamConfig.port, 10);
-                if (!streamConfig.port.trim() || isNaN(portNum) || portNum < 1 || portNum > 65535) {
-                    setErrorMessage('La porta deve essere un numero tra 1 e 65535.');
-                    setOpenModal('settings');
-                    return;
-                }
-                if (!streamConfig.password.trim()) {
-                    setErrorMessage('Password obbligatoria.');
-                    setOpenModal('settings');
-                    return;
-                }
+    const toggleStream = async () => {
+        if (!window.electronAPI) return;
 
-                const startConfig = {
-                    ...streamConfig,
-                    inputDeviceName: selectedDeviceLabel
-                };
+        if (sessionActive) {
+            window.electronAPI.stopStream();
+            return;
+        }
 
-                window.electronAPI.startStream(startConfig);
-            } else {
-                window.electronAPI.stopStream();
+        if (startInFlightRef.current) return;
+
+        if (selectedDeviceId === 'default' || !selectedDeviceLabel || selectedDeviceLabel === 'default') {
+            setErrorMessage('Seleziona un Audio Input Device specifico in Configurazione.');
+            setOpenModal('settings');
+            return;
+        }
+        if (!streamConfig.host.trim()) {
+            setErrorMessage('Host obbligatorio.');
+            setOpenModal('settings');
+            return;
+        }
+        const portNum = parseInt(streamConfig.port, 10);
+        if (!streamConfig.port.trim() || isNaN(portNum) || portNum < 1 || portNum > 65535) {
+            setErrorMessage('La porta deve essere un numero tra 1 e 65535.');
+            setOpenModal('settings');
+            return;
+        }
+        if (!streamConfig.password.trim()) {
+            setErrorMessage('Password obbligatoria.');
+            setOpenModal('settings');
+            return;
+        }
+
+        startInFlightRef.current = true;
+        try {
+            // Il device salvato in localStorage può essere stato scollegato:
+            // meglio un messaggio chiaro ora che un errore dshow criptico da FFmpeg.
+            const available = await window.electronAPI.getAudioDevices();
+            if (available.length > 0 && !available.includes(selectedDeviceLabel)) {
+                setErrorMessage(`Il dispositivo "${selectedDeviceLabel}" non è più disponibile. Selezionane un altro.`);
+                setOpenModal('settings');
+                startInFlightRef.current = false;
+                return;
             }
+
+            window.electronAPI.startStream({
+                ...streamConfig,
+                inputDeviceName: selectedDeviceLabel
+            });
+            // Il flag viene rilasciato dal primo status IPC in arrivo;
+            // fallback di sicurezza se il main non risponde.
+            setTimeout(() => { startInFlightRef.current = false; }, 3000);
+        } catch {
+            startInFlightRef.current = false;
+            setErrorMessage('Errore di comunicazione con il processo principale.');
         }
     }
 
@@ -168,7 +215,7 @@ function App() {
                     <button onClick={() => setOpenModal('settings')} className={toolbarBtn}>
                         Configurazione
                     </button>
-                    <span className="text-stone-600 text-xs ml-3">v0.5.7</span>
+                    <span className="text-stone-600 text-xs ml-3">v{__APP_VERSION__}</span>
                 </div>
             </header>
 
@@ -177,13 +224,13 @@ function App() {
                 <Timer isRunning={isStreaming} />
 
                 <div className="flex items-center gap-16 justify-center">
-                    <VuMeter label="L" active={isStreaming} />
+                    <VuMeter label="L" active={isStreaming} volume={vuLeft} />
                     <OnAirButton
                         isOn={sessionActive}
                         onClick={toggleStream}
                         disabled={streamStatus === 'connecting'}
                     />
-                    <VuMeter label="R" active={isStreaming} />
+                    <VuMeter label="R" active={isStreaming} volume={vuRight} />
                 </div>
 
                 <InputVolumeControl />
@@ -193,7 +240,7 @@ function App() {
             <StreamLog />
 
             {/* Modals */}
-            <Modal isOpen={openModal === 'settings'} onClose={() => setOpenModal(null)} title="Configurazione" maxWidth="max-w-lg">
+            <Modal isOpen={openModal === 'settings'} onClose={() => setOpenModal(null)} title="Configurazione" maxWidth="max-w-lg" closeOnBackdrop={false}>
                 <SettingsPanel />
             </Modal>
 

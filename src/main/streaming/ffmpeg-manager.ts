@@ -1,4 +1,4 @@
-import { spawn, ChildProcess, exec } from 'child_process';
+import { spawn, ChildProcess, exec, execSync } from 'child_process';
 import ffmpegPathRaw from 'ffmpeg-static';
 import { BrowserWindow } from 'electron';
 
@@ -58,15 +58,23 @@ export class StreamManager {
                 return;
             }
 
-            const getDevices = spawn(ffmpegPath, ['-list_devices', 'true', '-f', 'dshow', '-i', 'dummy']);
+            const getDevices = spawn(ffmpegPath, ['-list_devices', 'true', '-f', 'dshow', '-i', 'dummy'], { windowsHide: true });
             const devices: string[] = [];
             let outputBuffer = '';
+
+            // Safety: se FFmpeg si blocca, non lasciamo la promise pendente per sempre
+            // (bloccherebbe il caricamento della lista device nella UI).
+            const timeoutId = setTimeout(() => {
+                try { getDevices.kill(); } catch { /* già morto */ }
+                resolve([]);
+            }, 10000);
 
             getDevices.stderr?.on('data', (data) => {
                 outputBuffer += data.toString();
             });
 
             getDevices.on('close', () => {
+                clearTimeout(timeoutId);
                 // Analizziamo l'intero buffer di output quando FFmpeg termina
                 const lines = outputBuffer.split('\n');
 
@@ -80,10 +88,12 @@ export class StreamManager {
                         }
                     }
                 }
-                resolve(devices);
+                // Dedup: nomi identici produrrebbero <option> con chiavi duplicate nella UI
+                resolve([...new Set(devices)]);
             });
 
             getDevices.on('error', () => {
+                clearTimeout(timeoutId);
                 resolve([]);
             });
         });
@@ -98,7 +108,8 @@ export class StreamManager {
         } catch { /* finestra in chiusura */ }
     }
 
-    public start(config: StreamConfig) {
+    /** @returns false se lo stream non può nemmeno partire (binario FFmpeg mancante). */
+    public start(config: StreamConfig): boolean {
         // Nuovo start richiesto dall'utente: annulla eventuali retry pendenti e
         // termina il processo corrente. I listener del vecchio processo si
         // auto-disattivano tramite il guard di identità (this.ffmpegProcess !== proc).
@@ -106,7 +117,7 @@ export class StreamManager {
         this.reconnectAttempt = 0;
         this.killCurrentProcess();
         this.currentConfig = config;
-        this.launch();
+        return this.launch();
     }
 
     /**
@@ -116,9 +127,9 @@ export class StreamManager {
      * dall'utente non può più alterare status/riferimenti (era la race che
      * produceva stream orfani e falsi stati di errore).
      */
-    private launch() {
+    private launch(): boolean {
         const config = this.currentConfig;
-        if (!config) return;
+        if (!config) return false;
 
         const { inputDeviceName, host, port, password, mount, icecastUser, bitrate, inputGain } = config;
 
@@ -153,7 +164,7 @@ export class StreamManager {
             '-i', `audio=${cleanDevice}`,
             ...(audioFilter ? ['-af', audioFilter] : []),
             '-acodec', 'libmp3lame',
-            '-ab', `${bitrate || '128'}k`,
+            '-b:a', `${bitrate || '128'}k`,
             '-ar', '44100',
             '-content_type', 'audio/mpeg',
             '-f', 'mp3',
@@ -165,10 +176,15 @@ export class StreamManager {
 
         if (!ffmpegPath) {
             this.sendStatus('error', 'FFmpeg binary not found');
-            return;
+            return false;
         }
 
-        const proc = spawn(ffmpegPath, args);
+        // NOTA SICUREZZA (audit S2, rischio accettato): l'header Authorization con le
+        // credenziali Basic viaggia negli argomenti di riga di comando, leggibili da
+        // qualunque processo locale (Task Manager / wmic). È un limite strutturale di
+        // FFmpeg CLI (non legge headers da stdin/env) comune a tutti i client di questo
+        // tipo. Mitigazioni: windowsHide, mai loggare `args`, doc in AUDIT-2026-07-13.
+        const proc = spawn(ffmpegPath, args, { windowsHide: true });
         this.ffmpegProcess = proc;
 
         let connectionConfirmed = false;
@@ -193,14 +209,11 @@ export class StreamManager {
                 if (lastErrorLog.length > 2000) lastErrorLog = lastErrorLog.substring(lastErrorLog.length - 2000);
             }
 
-            // Connection error detection (immediate feedback)
-            if (message.includes('Connection refused') ||
-                message.includes('401') ||
-                message.includes('403') ||
-                message.includes('404') ||
-                message.includes('Unauthorized') ||
-                message.includes('access denied') ||
-                message.includes('I/O error')) {
+            // Connection error detection (immediate feedback).
+            // \b40[134]\b evita falsi positivi tipo "size= 401kB" (nessun word
+            // boundary tra la cifra e "kB") che il vecchio includes('401') matchava.
+            const CONNECT_ERROR = /Connection refused|Unauthorized|access denied|I\/O error|\b40[134]\b/;
+            if (CONNECT_ERROR.test(message)) {
                 if (!connectionConfirmed) {
                     connectionConfirmed = true;
                     cancelConnectionTimeout();
@@ -292,6 +305,8 @@ export class StreamManager {
                 this.sendStatus('connected');
             }
         }, 5000);
+
+        return true;
     }
 
     /** Pianifica il prossimo tentativo di riconnessione con backoff, countdown a video e log. */
@@ -340,8 +355,13 @@ export class StreamManager {
         }
     }
 
-    /** Termina il processo corrente senza toccare status/log (usato da start e stop). */
-    private killCurrentProcess() {
+    /**
+     * Termina il processo corrente senza toccare status/log (usato da start e stop).
+     * @param sync usare il kill sincrono: necessario in before-quit, dove un exec
+     *             asincrono potrebbe non partire mai prima della morte del main
+     *             (→ FFmpeg orfano che continua a trasmettere).
+     */
+    private killCurrentProcess(sync = false) {
         const proc = this.ffmpegProcess;
         if (!proc) return;
         // Azzerare il riferimento PRIMA del kill: i listener del processo morente
@@ -351,7 +371,12 @@ export class StreamManager {
         if (process.platform === 'win32' && proc.pid) {
             // Su Windows, kill() normale spesso lascia orfani. Usiamo taskkill.
             try {
-                exec(`taskkill /pid ${proc.pid} /f /t`);
+                const cmd = `taskkill /pid ${proc.pid} /f /t`;
+                if (sync) {
+                    execSync(cmd, { windowsHide: true, stdio: 'ignore' });
+                } else {
+                    exec(cmd, { windowsHide: true });
+                }
             } catch (e) {
                 console.error('Taskkill failed:', e);
             }
@@ -360,12 +385,12 @@ export class StreamManager {
         }
     }
 
-    public stop() {
+    public stop(sync = false) {
         const wasActive = this.ffmpegProcess !== null || this.reconnectTimer !== null;
         this.cancelReconnect();
         this.reconnectAttempt = 0;
         this.currentConfig = null;
-        this.killCurrentProcess();
+        this.killCurrentProcess(sync);
         if (wasActive) {
             this.log('info', 'stream fermato');
             this.sendStatus('disconnected');

@@ -6,9 +6,12 @@ interface ModalProps {
     title: string;
     children: React.ReactNode;
     maxWidth?: string;
+    /** false per i modali con form lunghi (es. Configurazione): un click
+     *  accidentale sul backdrop non deve scartare l'input digitato. */
+    closeOnBackdrop?: boolean;
 }
 
-const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-md' }: ModalProps) => {
+const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-md', closeOnBackdrop = true }: ModalProps) => {
     useEffect(() => {
         if (!isOpen) return;
         const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -21,7 +24,7 @@ const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-md' }: Moda
     return (
         <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
-            onClick={onClose}
+            onClick={closeOnBackdrop ? onClose : undefined}
         >
             <div
                 onClick={(e) => e.stopPropagation()}

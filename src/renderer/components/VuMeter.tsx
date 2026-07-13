@@ -1,15 +1,11 @@
-import { useStore } from '../store/useStore';
-import { useAudioVisualizer } from '../hooks/useAudioVisualizer';
-
 interface VuMeterProps {
     label: string;
     active: boolean;
+    /** Livello 0-100 del canale (calcolato dalla pipeline condivisa in App). */
+    volume: number;
 }
 
-const VuMeter = ({ label, active }: VuMeterProps) => {
-    const { selectedDeviceId } = useStore();
-    const volume = useAudioVisualizer(selectedDeviceId);
-
+const VuMeter = ({ label, active, volume }: VuMeterProps) => {
     return (
         <div className="flex flex-col items-center gap-2">
             <div className={`relative w-8 h-64 bg-stone-800 rounded-full overflow-hidden border shadow-inner transition-all duration-300 ${active ? 'border-stone-600' : 'border-stone-800'}`}>

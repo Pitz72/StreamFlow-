@@ -1,3 +1,6 @@
+/** Versione app iniettata da Vite (define __APP_VERSION__ ← package.json) */
+declare const __APP_VERSION__: string;
+
 interface AzStation {
     id: number;
     name: string;

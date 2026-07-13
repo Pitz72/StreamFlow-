@@ -4,8 +4,7 @@
         "useDefineForClassFields": true,
         "module": "CommonJS",
         "lib": [
-            "ES2020",
-            "DOM"
+            "ES2020"
         ],
         "skipLibCheck": true,
         "sourceMap": true,
