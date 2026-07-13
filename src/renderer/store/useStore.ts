@@ -47,9 +47,9 @@ interface AppState {
     setStreamMetadata: (meta: Partial<StreamMetadata>) => void;
     // Runtime State
     isStreaming: boolean;
-    streamStatus: 'disconnected' | 'connecting' | 'connected' | 'error';
+    streamStatus: 'disconnected' | 'connecting' | 'connected' | 'error' | 'reconnecting';
     setIsStreaming: (isStreaming: boolean) => void;
-    setStreamStatus: (status: 'disconnected' | 'connecting' | 'connected' | 'error') => void;
+    setStreamStatus: (status: 'disconnected' | 'connecting' | 'connected' | 'error' | 'reconnecting') => void;
     // Error notification (non-blocking toast)
     errorMessage: string | null;
     setErrorMessage: (message: string | null) => void;

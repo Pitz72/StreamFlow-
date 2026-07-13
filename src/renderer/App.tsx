@@ -16,6 +16,7 @@ const statusLabels: Record<string, string> = {
     connecting: 'Connecting...',
     connected: 'ON AIR',
     error: 'Error',
+    reconnecting: 'Reconnecting...',
 };
 
 const statusColors: Record<string, string> = {
@@ -23,6 +24,7 @@ const statusColors: Record<string, string> = {
     connecting: 'bg-yellow-500 animate-pulse',
     connected: 'bg-red-500 animate-pulse',
     error: 'bg-orange-500',
+    reconnecting: 'bg-amber-500 animate-pulse',
 };
 
 const statusTextColors: Record<string, string> = {
@@ -30,6 +32,7 @@ const statusTextColors: Record<string, string> = {
     connecting: 'text-yellow-400',
     connected: 'text-red-400',
     error: 'text-orange-400',
+    reconnecting: 'text-amber-400',
 };
 
 function App() {
@@ -48,14 +51,19 @@ function App() {
     } = useStore()
 
     const [openModal, setOpenModal] = useState<OpenModal>(null);
+    // Dettaglio mostrato accanto allo status (countdown riconnessione dal main)
+    const [statusDetail, setStatusDetail] = useState<string | null>(null);
 
     // Listen for status updates from Main process
     useEffect(() => {
         if (window.electronAPI && window.electronAPI.onStreamStatus) {
             const unsubscribe = window.electronAPI.onStreamStatus((status, message) => {
                 setStreamStatus(status);
+                setStatusDetail(status === 'reconnecting' ? (message || null) : null);
 
-                if (status === 'connected') {
+                if (status === 'reconnecting') {
+                    setIsStreaming(false);
+                } else if (status === 'connected') {
                     setIsStreaming(true);
                     // Auto-send metadata as soon as the stream is confirmed live
                     if (window.electronAPI && (streamMetadata.artist || streamMetadata.title)) {
@@ -93,9 +101,13 @@ function App() {
         }
     }, [errorMessage, setErrorMessage]);
 
+    // Durante la riconnessione automatica la sessione è "attiva": il pulsante
+    // funziona da annulla-riconnessione (chiama stopStream).
+    const sessionActive = isStreaming || streamStatus === 'reconnecting';
+
     const toggleStream = () => {
         if (window.electronAPI) {
-            if (!isStreaming) {
+            if (!sessionActive) {
                 if (selectedDeviceId === 'default' || !selectedDeviceLabel || selectedDeviceLabel === 'default') {
                     setErrorMessage('Seleziona un Audio Input Device specifico in Configurazione.');
                     setOpenModal('settings');
@@ -142,6 +154,11 @@ function App() {
                     <span className={`text-xs font-mono uppercase tracking-wider ml-2 ${statusTextColors[streamStatus] || 'text-stone-400'}`}>
                         {statusLabels[streamStatus] || 'Unknown'}
                     </span>
+                    {statusDetail && (
+                        <span className="text-xs font-mono text-amber-400 ml-1">
+                            {statusDetail}
+                        </span>
+                    )}
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -151,7 +168,7 @@ function App() {
                     <button onClick={() => setOpenModal('settings')} className={toolbarBtn}>
                         Configurazione
                     </button>
-                    <span className="text-stone-600 text-xs ml-3">v0.5.6</span>
+                    <span className="text-stone-600 text-xs ml-3">v0.5.7</span>
                 </div>
             </header>
 
@@ -162,7 +179,7 @@ function App() {
                 <div className="flex items-center gap-16 justify-center">
                     <VuMeter label="L" active={isStreaming} />
                     <OnAirButton
-                        isOn={isStreaming}
+                        isOn={sessionActive}
                         onClick={toggleStream}
                         disabled={streamStatus === 'connecting'}
                     />

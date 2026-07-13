@@ -5,6 +5,22 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.5.7] — 2026-07-13
+
+### Fixed
+- **G1 — Race condition stop→start (audit 2026-07-13).** Il handler `close` del processo FFmpeg azzerava `this.ffmpegProcess` incondizionatamente: il `close` ritardato di un processo appena killato (taskkill è asincrono) poteva cancellare il riferimento al processo **nuovo**, producendo stream orfani non stoppabili dall'app, doppio stream sullo stesso harbor e falso stato "Error" mentre si era live. Ora ogni listener verifica l'identità del processo (`this.ffmpegProcess === proc`) prima di toccare lo stato condiviso.
+- **G2 — Error spurio a ogni stop manuale.** `taskkill /f` termina FFmpeg con exit code 1 e il close handler lo trattava come crash (toast d'errore + `✗` nel log dopo ogni stop regolare). Con il guard di identità il close di un processo fermato volontariamente viene ignorato; `stop()` logga "stream fermato" e manda un solo `disconnected`.
+- **S1 (bonus) — Volume input 0% diventava 100%.** `parseInt('0') || 100` scartava lo zero (falsy): slider a 0 = mute atteso, ma si andava in onda a volume pieno. Ora il parse usa `Number.isFinite`.
+- **S3 (bonus) — Crash alla chiusura dell'app mentre ON AIR.** `sendStatus` ora verifica `isDestroyed()` prima di `webContents.send` (l'eccezione "Object has been destroyed" scattava in `before-quit`).
+
+### Added
+- **G3 — Auto-reconnect con backoff esponenziale (Fase C1).** Se lo stream cade dopo essere stato effettivamente live (`code != 0` non richiesto dall'utente), StreamFlow ritenta automaticamente: 5s → 10s → 30s → 60s → 120s, max 5 tentativi, poi errore definitivo. Countdown visibile nell'header (`Riconnessione tra Xs (tentativo N/5)`), nuovo status `reconnecting` (pallino ambra pulsante), eventi loggati nello StreamLog. Il contatore tentativi si azzera appena lo stream torna sano. Durante l'attesa il pulsante ON AIR resta attivo e premendolo si annulla la riconnessione. I fallimenti al **primo** connect (credenziali/porta/mount errati) NON attivano il retry: sono errori di configurazione.
+
+### Changed
+- Bump versione 0.5.6 → 0.5.7.
+
+---
+
 ## [0.5.6] — 2026-05-17
 
 ### Changed
