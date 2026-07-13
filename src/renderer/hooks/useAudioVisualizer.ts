@@ -1,22 +1,27 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useRef, type RefObject } from 'react';
 
-export interface StereoLevels {
-    left: number;
-    right: number;
+export interface VisualizerRefs {
+    leftRef: RefObject<HTMLDivElement | null>;
+    rightRef: RefObject<HTMLDivElement | null>;
 }
 
 /**
- * Livelli L/R da un'UNICA pipeline Web Audio condivisa:
+ * VU meter L/R da un'UNICA pipeline Web Audio condivisa:
  * getUserMedia → MediaStreamSource → ChannelSplitter → 2 AnalyserNode.
  *
- * - Prima esistevano due pipeline complete (una per VuMeter) che mostravano
- *   lo stesso valore mono: doppio uso risorse e "stereo" solo apparente.
+ * PERFORMANCE: l'altezza delle barre viene scritta DIRETTAMENTE nel DOM
+ * (leftRef/rightRef .style.height) dentro il loop requestAnimationFrame, SENZA
+ * passare per lo stato React. Aggiornare uno useState a 60fps ri-renderizzava
+ * l'intera App a ogni frame (meter a scatti). Ora React non rirenderizza mai
+ * per il meter: il loop tocca solo due nodi DOM.
+ *
  * - Input mono: il livello del canale unico viene duplicato su L e R.
  * - `enabled: false` smonta tutto e rilascia il microfono (indicatore
- *   privacy OS spento) — usato quando la finestra non è visibile.
+ *   privacy OS spento) — usato quando la finestra è minimizzata.
  */
-export const useAudioVisualizer = (deviceId: string, enabled: boolean): StereoLevels => {
-    const [levels, setLevels] = useState<StereoLevels>({ left: 0, right: 0 });
+export const useAudioVisualizer = (deviceId: string, enabled: boolean): VisualizerRefs => {
+    const leftRef = useRef<HTMLDivElement | null>(null);
+    const rightRef = useRef<HTMLDivElement | null>(null);
     const audioContextRef = useRef<AudioContext | null>(null);
     const requestRef = useRef<number | null>(null);
 
@@ -27,6 +32,10 @@ export const useAudioVisualizer = (deviceId: string, enabled: boolean): StereoLe
         // (cambio dispositivo rapido), tutte le operazioni async successive vengono abortite.
         let cancelled = false;
         let stream: MediaStream | null = null;
+
+        const setBar = (ref: RefObject<HTMLDivElement | null>, pct: number) => {
+            if (ref.current) ref.current.style.height = `${pct}%`;
+        };
 
         const initAudio = async () => {
             try {
@@ -62,6 +71,12 @@ export const useAudioVisualizer = (deviceId: string, enabled: boolean): StereoLe
                 }
 
                 const ctx = audioContextRef.current;
+                // Il context può partire "suspended": senza resume() il loop legge
+                // sempre zero (barre inerti). Va ripreso esplicitamente.
+                if (ctx.state === 'suspended') {
+                    ctx.resume().catch(() => { /* ignore */ });
+                }
+
                 const source = ctx.createMediaStreamSource(stream);
                 const track = stream.getAudioTracks()[0];
                 const isStereo = (track?.getSettings().channelCount ?? 1) >= 2;
@@ -81,20 +96,22 @@ export const useAudioVisualizer = (deviceId: string, enabled: boolean): StereoLe
                     source.connect(analyserL);
                 }
 
-                const dataArray = new Uint8Array(analyserL.frequencyBinCount);
-                const readLevel = (analyser: AnalyserNode) => {
-                    analyser.getByteFrequencyData(dataArray);
+                const bufL = new Uint8Array(analyserL.frequencyBinCount);
+                const bufR = new Uint8Array(analyserL.frequencyBinCount);
+                const readLevel = (analyser: AnalyserNode, buf: Uint8Array<ArrayBuffer>) => {
+                    analyser.getByteFrequencyData(buf);
                     let sum = 0;
-                    for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
-                    const average = sum / dataArray.length;
+                    for (let i = 0; i < buf.length; i++) sum += buf[i];
+                    const average = sum / buf.length;
                     return Math.min(100, (average / 128) * 100 * 1.5);
                 };
 
                 const animate = () => {
                     if (cancelled) return;
-                    const left = readLevel(analyserL);
-                    const right = analyserR ? readLevel(analyserR) : left;
-                    setLevels({ left, right });
+                    const left = readLevel(analyserL, bufL);
+                    const right = analyserR ? readLevel(analyserR, bufR) : left;
+                    setBar(leftRef, left);
+                    setBar(rightRef, right);
                     requestRef.current = requestAnimationFrame(animate);
                 };
 
@@ -117,9 +134,10 @@ export const useAudioVisualizer = (deviceId: string, enabled: boolean): StereoLe
                 audioContextRef.current.close().catch(() => { /* già chiuso */ });
                 audioContextRef.current = null;
             }
-            setLevels({ left: 0, right: 0 });
+            setBar(leftRef, 0);
+            setBar(rightRef, 0);
         };
     }, [deviceId, enabled]);
 
-    return levels;
+    return { leftRef, rightRef };
 };

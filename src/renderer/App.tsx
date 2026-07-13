@@ -76,8 +76,9 @@ function App() {
         return () => document.removeEventListener('visibilitychange', handler);
     }, []);
 
-    // Pipeline audio condivisa: livelli L/R reali per entrambi i VU meter
-    const { left: vuLeft, right: vuRight } = useAudioVisualizer(selectedDeviceId, pageVisible);
+    // Pipeline audio condivisa: le barre L/R sono guidate via ref direttamente
+    // dal loop rAF (nessun re-render React per frame).
+    const { leftRef: vuLeftRef, rightRef: vuRightRef } = useAudioVisualizer(selectedDeviceId, pageVisible);
 
     // Listen for status updates from Main process
     useEffect(() => {
@@ -224,13 +225,13 @@ function App() {
                 <Timer isRunning={isStreaming} />
 
                 <div className="flex items-center gap-16 justify-center">
-                    <VuMeter label="L" active={isStreaming} volume={vuLeft} />
+                    <VuMeter label="L" active={isStreaming} barRef={vuLeftRef} />
                     <OnAirButton
                         isOn={sessionActive}
                         onClick={toggleStream}
                         disabled={streamStatus === 'connecting'}
                     />
-                    <VuMeter label="R" active={isStreaming} volume={vuRight} />
+                    <VuMeter label="R" active={isStreaming} barRef={vuRightRef} />
                 </div>
 
                 <InputVolumeControl />

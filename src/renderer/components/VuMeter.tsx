@@ -1,11 +1,16 @@
+import { type RefObject } from 'react';
+
 interface VuMeterProps {
     label: string;
     active: boolean;
-    /** Livello 0-100 del canale (calcolato dalla pipeline condivisa in App). */
-    volume: number;
+    /**
+     * Ref alla barra di riempimento: l'altezza viene scritta direttamente dal
+     * loop rAF in useAudioVisualizer (nessun re-render React per frame).
+     */
+    barRef: RefObject<HTMLDivElement | null>;
 }
 
-const VuMeter = ({ label, active, volume }: VuMeterProps) => {
+const VuMeter = ({ label, active, barRef }: VuMeterProps) => {
     return (
         <div className="flex flex-col items-center gap-2">
             <div className={`relative w-8 h-64 bg-stone-800 rounded-full overflow-hidden border shadow-inner transition-all duration-300 ${active ? 'border-stone-600' : 'border-stone-800'}`}>
@@ -16,10 +21,11 @@ const VuMeter = ({ label, active, volume }: VuMeterProps) => {
                     ))}
                 </div>
 
-                {/* Active Level */}
+                {/* Active Level — altezza guidata via ref dal loop audio (no state) */}
                 <div
-                    className="absolute bottom-0 w-full transition-all duration-75 ease-out"
-                    style={{ height: `${volume}%` }}
+                    ref={barRef}
+                    className="absolute bottom-0 w-full"
+                    style={{ height: '0%' }}
                 >
                     <div className={`w-full h-full bg-gradient-to-t from-green-500 via-yellow-500 to-red-500 transition-opacity duration-300 ${active ? 'opacity-90' : 'opacity-40'}`}></div>
                 </div>

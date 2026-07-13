@@ -14,6 +14,10 @@ function createWindow() {
             nodeIntegration: false,
             contextIsolation: true,
             sandbox: true,
+            // I VU meter (requestAnimationFrame) devono restare fluidi anche quando
+            // l'app è dietro un'altra finestra durante la diretta: senza questo
+            // Electron rallenta rAF/timer a ~1fps sulle finestre in background.
+            backgroundThrottling: false,
         },
         autoHideMenuBar: true,
     });

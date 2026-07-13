@@ -5,6 +5,16 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.5.9] — 2026-07-13
+
+### Fixed
+- **VU meter a scatti (~1 aggiornamento/sec) e apparentemente inerte** — regressione introdotta in v0.5.8 unificando la pipeline stereo. Due cause: (1) il livello aggiornava uno `useState` a 60fps facendo ri-renderizzare l'intera `App` a ogni frame; (2) Electron con `backgroundThrottling` di default rallentava `requestAnimationFrame` a ~1fps quando la finestra era dietro un'altra (tipico durante la diretta, con il browser in primo piano). Fix: l'altezza delle barre L/R è ora scritta **direttamente nel DOM** dal loop rAF via ref (zero re-render React per frame), e `backgroundThrottling: false` sulla finestra mantiene i meter fluidi anche in background. Aggiunto anche `AudioContext.resume()` se il context parte sospeso.
+
+### Changed
+- Bump versione 0.5.8 → 0.5.9.
+
+---
+
 ## [0.5.8] — 2026-07-13
 
 Hardening completo post-audit: chiuse tutte le criticità **gravi** e **medie** rimanenti e tutte le **lievi** (vedi `docs/AUDIT-2026-07-13.md`).
