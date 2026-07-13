@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
     updateMetadata: (meta: { artist: string; title: string }) =>
         ipcRenderer.invoke('update-metadata', meta),
+    setInputGain: (pct: number) => ipcRenderer.invoke('set-input-gain', pct),
     azuraCastFetchStations: (args: { url: string; apiKey: string }) =>
         ipcRenderer.invoke('azuracast-fetch-stations', args),
     azuraCastFetchStationDetail: (args: { url: string; apiKey: string; stationId: number }) =>

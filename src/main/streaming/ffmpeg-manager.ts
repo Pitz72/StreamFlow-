@@ -1,6 +1,7 @@
 import { spawn, ChildProcess, exec, execSync } from 'child_process';
 import ffmpegPathRaw from 'ffmpeg-static';
 import { BrowserWindow } from 'electron';
+import { sendFilterCommand, isPortFree } from './zmq-command';
 
 // In production (asar), ffmpeg-static resolves inside app.asar which cannot be spawned.
 // We replace 'app.asar' with 'app.asar.unpacked' to point to the extracted binary.
@@ -23,6 +24,8 @@ type StreamStatus = 'connecting' | 'connected' | 'error' | 'disconnected' | 'rec
 export class StreamManager {
     /** Backoff riconnessione: 5s → 10s → 30s → 60s → 120s, poi stop definitivo. */
     private static readonly RECONNECT_DELAYS_MS = [5000, 10000, 30000, 60000, 120000];
+    /** Porta del broker azmq (bind default FFmpeg `tcp://*:5555`, client su loopback). */
+    private static readonly ZMQ_PORT = 5555;
 
     private ffmpegProcess: ChildProcess | null = null;
     private mainWindow: BrowserWindow | null = null;
@@ -33,6 +36,8 @@ export class StreamManager {
     private reconnectAttempt = 0;
     private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     private countdownTimer: ReturnType<typeof setInterval> | null = null;
+    /** true quando il filtro azmq è attivo → volume regolabile in diretta. */
+    private liveVolumeActive = false;
 
     constructor(mainWindow: BrowserWindow | null) {
         this.mainWindow = mainWindow;
@@ -108,8 +113,8 @@ export class StreamManager {
         } catch { /* finestra in chiusura */ }
     }
 
-    /** @returns false se lo stream non può nemmeno partire (binario FFmpeg mancante). */
-    public start(config: StreamConfig): boolean {
+    /** @returns Promise<false> se lo stream non può partire (binario FFmpeg mancante). */
+    public start(config: StreamConfig): Promise<boolean> {
         // Nuovo start richiesto dall'utente: annulla eventuali retry pendenti e
         // termina il processo corrente. I listener del vecchio processo si
         // auto-disattivano tramite il guard di identità (this.ffmpegProcess !== proc).
@@ -127,9 +132,13 @@ export class StreamManager {
      * dall'utente non può più alterare status/riferimenti (era la race che
      * produceva stream orfani e falsi stati di errore).
      */
-    private launch(): boolean {
+    private async launch(): Promise<boolean> {
         const config = this.currentConfig;
         if (!config) return false;
+        if (!ffmpegPath) {
+            this.sendStatus('error', 'FFmpeg binary not found');
+            return false;
+        }
 
         const { inputDeviceName, host, port, password, mount, icecastUser, bitrate, inputGain } = config;
 
@@ -149,15 +158,32 @@ export class StreamManager {
         const targetUrl = `http://${host}:${port}${cleanMount}`;
 
         // Volume input: percentuale → moltiplicatore FFmpeg (es. "150" → "1.5").
-        // Range valido 0–200, default 100 (1.0x). Solo se diverso da 100 inseriamo
-        // il filtro per evitare la pipeline di filtraggio quando non serve.
+        // Range valido 0–200, default 100 (1.0x).
         const gainParsed = parseInt(inputGain ?? '100', 10);
         const gainPct = Number.isFinite(gainParsed) ? Math.max(0, Math.min(200, gainParsed)) : 100;
-        const audioFilter = gainPct === 100 ? null : `volume=${(gainPct / 100).toFixed(2)}`;
+        const gainMul = (gainPct / 100).toFixed(2);
+
+        // Volume LIVE via azmq: se la porta ZMQ è libera includiamo sempre il filtro
+        // `azmq,volume` (con eval=frame così i comandi a caldo hanno effetto immediato)
+        // e potremo cambiare il guadagno in diretta senza riavviare l'encoder.
+        // Se la porta è occupata, degradiamo al filtro statico (solo se ≠ 100%) — lo
+        // stream parte comunque, ma il volume non sarà regolabile live.
+        const portFree = await isPortFree(StreamManager.ZMQ_PORT);
+        // La porta va ri-verificata dopo l'await: un nuovo start()/stop() nel frattempo
+        // ha cambiato currentConfig e questo launch è ormai obsoleto.
+        if (this.currentConfig !== config) return false;
+        this.liveVolumeActive = portFree;
+
+        let audioFilter: string | null;
+        if (portFree) {
+            audioFilter = `azmq,volume=eval=frame:volume=${gainMul}`;
+        } else {
+            audioFilter = gainPct === 100 ? null : `volume=${gainMul}`;
+        }
 
         this.sendStatus('connecting');
 
-        this.log('info', `Connecting → ${host}:${port}${cleanMount} as user="${user}" gain=${gainPct}% bitrate=${bitrate || '128'}k`);
+        this.log('info', `Connecting → ${host}:${port}${cleanMount} as user="${user}" gain=${gainPct}% bitrate=${bitrate || '128'}k live-vol=${portFree ? 'on' : 'off'}`);
 
         const args = [
             '-f', 'dshow',
@@ -173,11 +199,6 @@ export class StreamManager {
             '-headers', `User-Agent: FMLE/3.0\r\nExpect:\r\nIce-Public: 1\r\nAuthorization: Basic ${creds}\r\n`,
             targetUrl
         ];
-
-        if (!ffmpegPath) {
-            this.sendStatus('error', 'FFmpeg binary not found');
-            return false;
-        }
 
         // NOTA SICUREZZA (audit S2, rischio accettato): l'header Authorization con le
         // credenziali Basic viaggia negli argomenti di riga di comando, leggibili da
@@ -340,8 +361,33 @@ export class StreamManager {
             this.cancelReconnect();
             if (!this.currentConfig) return; // stop arrivato durante l'attesa
             this.log('info', `riconnessione in corso (tentativo ${attempt}/${total})...`);
-            this.launch();
+            void this.launch();
         }, delayMs);
+    }
+
+    /**
+     * Cambia il volume input in DIRETTA (senza riavviare l'encoder) via comando
+     * ZMQ al filtro azmq. Aggiorna anche currentConfig così un'eventuale
+     * riconnessione riparte dall'ultimo valore impostato.
+     * @returns true se applicato live, false se solo memorizzato (stream fermo o
+     *          canale live non disponibile → si applicherà al prossimo avvio).
+     */
+    public async setInputGain(pct: number): Promise<boolean> {
+        const clamped = Math.max(0, Math.min(200, Math.round(pct)));
+        if (this.currentConfig) {
+            this.currentConfig.inputGain = String(clamped);
+        }
+        const canApplyLive = this.ffmpegProcess !== null && this.liveVolumeActive;
+        if (!canApplyLive) return false;
+
+        const mul = (clamped / 100).toFixed(2);
+        try {
+            await sendFilterCommand(StreamManager.ZMQ_PORT, `all volume ${mul}`);
+            return true;
+        } catch (e) {
+            this.log('error', `volume live non applicato: ${(e as Error).message}`);
+            return false;
+        }
     }
 
     private cancelReconnect() {
@@ -390,6 +436,7 @@ export class StreamManager {
         this.cancelReconnect();
         this.reconnectAttempt = 0;
         this.currentConfig = null;
+        this.liveVolumeActive = false;
         this.killCurrentProcess(sync);
         if (wasActive) {
             this.log('info', 'stream fermato');

@@ -56,7 +56,7 @@ export const initializeIpc = (mainWindow: BrowserWindow) => {
 
     ipcMain.handle('start-stream', async (_event, config) => {
         if (streamManager) {
-            const started = streamManager.start(config);
+            const started = await streamManager.start(config);
             // Config metadata solo se lo stream è effettivamente partito:
             // altrimenti "Invia" sembrerebbe funzionante senza stream attivo.
             if (started) {
@@ -69,6 +69,12 @@ export const initializeIpc = (mainWindow: BrowserWindow) => {
                 });
             }
         }
+    });
+
+    ipcMain.handle('set-input-gain', async (_event, pct: number) => {
+        if (!streamManager) return { appliedLive: false };
+        const appliedLive = await streamManager.setInputGain(pct);
+        return { appliedLive };
     });
 
     ipcMain.handle('stop-stream', async () => {

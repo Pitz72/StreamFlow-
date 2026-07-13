@@ -46,6 +46,7 @@ interface ElectronAPI {
         requestLine?: string;
         rawResponse?: string;
     }>;
+    setInputGain: (pct: number) => Promise<{ appliedLive: boolean }>;
     azuraCastFetchStations: (args: { url: string; apiKey: string }) => Promise<{ ok: boolean; stations?: AzStation[]; error?: string }>;
     azuraCastFetchStationDetail: (args: { url: string; apiKey: string; stationId: number }) => Promise<{ ok: boolean; detail?: AzStationDetail; error?: string }>;
 }

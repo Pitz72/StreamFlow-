@@ -5,6 +5,24 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.6.0] — 2026-07-13
+
+### Added
+- **Volume input regolabile IN DIRETTA.** Finora lo slider Input Volume si applicava solo al successivo avvio dello stream (FFmpeg non ricarica i filtri a caldo). Ora, mentre sei ON AIR, la regolazione ha effetto immediato sull'audio trasmesso, senza interruzioni e senza riavviare l'encoder. Implementazione: il filtergraph FFmpeg include `azmq,volume=eval=frame`; un client ZMTP (ZeroMQ REQ) scritto in puro Node — **nessuna dipendenza nativa** — invia il comando `volume` runtime al filtro via loopback. Meccanismo validato end-to-end contro il binario ffmpeg-static incluso (comando di mute a metà di un tono → silenzio confermato via silencedetect).
+  - Il canale di comando usa la porta ZMQ 5555 (bind default di FFmpeg). Se la porta è occupata, lo stream parte comunque ma senza regolazione live (degradazione morbida, indicata in UI): il valore si applicherà al prossimo avvio.
+  - Lo slider fa feedback: "● In diretta" (verde) quando la regolazione è applicata live, oppure avviso ambra se il canale live non è disponibile.
+  - Gli invii durante il trascinamento sono limitati (~80ms) per non floodare, con invio finale garantito.
+  - Il valore live aggiorna anche la config di sessione, così un'eventuale riconnessione automatica riparte dall'ultimo volume impostato.
+
+### Changed
+- `StreamManager.start()` è ora asincrono (attende il check di disponibilità della porta ZMQ prima di comporre il filtergraph); guard di generazione per abortire un `launch()` reso obsoleto da uno start/stop avvenuto durante l'attesa.
+- Bump versione 0.5.9 → 0.6.0.
+
+### Nota
+- Al primo avvio Windows Defender Firewall potrebbe chiedere un'autorizzazione per FFmpeg (che apre la porta di comando locale). La regolazione live funziona comunque via loopback anche negando la richiesta; la si può ignorare/negare senza conseguenze.
+
+---
+
 ## [0.5.9] — 2026-07-13
 
 ### Fixed
