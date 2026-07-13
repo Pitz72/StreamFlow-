@@ -1,22 +1,28 @@
 # Roadmap — Runtime StreamFlow
 
 Documento ripristinato dalla conversazione strategica originale (Gemini AI Studio, 5 Mar 2026).
-Aggiornato e ampliato al 17 Maggio 2026 (v0.3.1) con analisi completa del codice e nuove proposte.
+Aggiornato al 13 Luglio 2026 (v0.6.0) dopo audit completo, stabilizzazione e validazione in diretta reale.
 
 ---
 
-## Stato attuale (v0.3.1)
+## 🎉 MILESTONE (13 Lug 2026): stabilizzazione conclusa e validata in diretta
+
+La 0.6.0 ha superato la prova del campo: **~1h30 di diretta + 1h di preshow con rotazione musicale, zero interruzioni/errori**, metadata inviati correttamente al player AzuraCast, volume input regolabile in diretta (udibile in ricezione). Obiettivo dichiarato: **sostituire BUTT**.
+
+## Stato attuale (v0.6.0)
 
 | Obiettivo | Stato | Note |
 |---|---|---|
-| Streaming solido HTTP PUT | ✅ Completato | Motore rock-solid, compatibile AzuraCast/Icecast |
-| Interfaccia dark mode | ✅ Completato | VU Meter, Timer, OnAir Button |
-| Fix stabilità GRAVISSIME (G1/G2/G3) | ✅ Completato | Timeout, race condition AudioContext, lock connecting |
-| Fix criticità GRAVI (V1/V2/V3/V4) | ✅ Completato | Timer deps, tipi any, password localStorage, IPC duplicato |
-| Setup funzionante | ⚠️ Parziale | Richiede conoscenza manuale di mount point, host, porta |
-| Gestione copertine / cover art | ❌ Rimossa in v0.5.4 | AzuraCast gestisce già streamer art + lookup MusicBrainz |
-| Registrazione locale | ❌ Non iniziato | Prevista sin dall'inizio, mai implementata |
-| Integrazione API AzuraCast | ❌ Non iniziato | Auto-configurazione e metadata |
+| Streaming solido HTTP PUT | ✅ Validato in diretta | Motore rock-solid, 2h30 senza intoppi |
+| Interfaccia dark mode + modali | ✅ Completato | VU Meter fluido, Timer, OnAir, StreamLog |
+| Audit 31 problematiche (gravissime→lievi) | ✅ Interamente evaso | v0.5.7 + v0.5.8, vedi `AUDIT-2026-07-13.md` |
+| C1 — Auto-reconnect backoff | ✅ Implementato (v0.5.7) | Non ancora stressato da un drop reale |
+| Now Playing / metadata | ✅ Validato in diretta | Raw socket BUTT-compat, arriva rapido al player |
+| Integrazione AzuraCast (wizard) | ✅ Completato | Auto-config one-click (opzionale) |
+| D1 — Volume input LIVE | ✅ Implementato (v0.6.0) | Via azmq + client ZMTP puro-Node |
+| **Generalizzazione multi-sistema** | ❌ **Prossima priorità** | Testare Icecast puro / Shoutcast, non solo AzuraCast |
+| Registrazione locale (C2) | ❌ Non iniziato | `-f tee`, costo ~zero |
+| VU meter post-gain | ⚠️ Da rifinire | I meter leggono l'input pre-gain (Web Audio); il gain è in FFmpeg |
 
 ---
 
@@ -232,12 +238,20 @@ v0.5.3  Metadata BUTT-compat via raw socket + StreamLog            [✅]
 v0.5.4  Rimossa feature Cover Art (endpoint inesistente)           [✅]
 v0.5.5  Fix visibilità StreamLog                                   [✅]
 v0.5.6  Input Volume spostato in home                              [✅]
-v0.6.0  FASE C1: Auto-reconnect con backoff esponenziale           [prossimo, priorità max]
-v0.6.x  FASE C2/C3/C4: Registrazione locale, multi-stream, stats
-v0.7.0  FASE D-lite: Codec configurabile (AAC/Opus)
+v0.5.7  Audit: 3 gravissime (race FFmpeg, error spurio, C1 reconnect) [✅]
+v0.5.8  Audit: tutte le gravi/medie/lievi (hardening completo)      [✅]
+v0.5.9  Fix VU meter fluido (ref DOM + backgroundThrottling)        [✅]
+v0.6.0  Volume input LIVE (azmq + client ZMTP puro-Node)           [✅ VALIDATO IN DIRETTA]
+─────── stabilizzazione conclusa · da qui: integrazioni e rifiniture ───────
+v0.6.x  GENERALIZZAZIONE: test/supporto Icecast puro + Shoutcast   [prossimo, priorità max]
+v0.6.x  Rifinitura VU meter post-gain (riflette il volume live)
+v0.7.0  FASE C2/C3/C4: Registrazione locale, multi-stream, stats
+v0.7.x  FASE D: Codec configurabile (AAC/Opus), mixer mic+sistema
 v0.8.0  FASE E: System tray + Hotkey + Notifiche
-v1.0.0  Stabilizzazione, auto-update, documentazione utente
+v1.0.0  Stabilizzazione finale, auto-update, documentazione utente
 ```
+
+**Nota direzione (13 Lug 2026):** priorità assoluta della prossima fase è rendere StreamFlow **universale** — non legato ad AzuraCast ma funzionante con qualsiasi server Icecast/Shoutcast. Il core HTTP PUT + metadata è già generico; va testato contro server non-AzuraCast. Il wizard AzuraCast resta un plus opzionale.
 
 Feature avanzate (D3 Mixer, D4 Soundboard, D5 Monitor, C3 Stream multipli, E3 Schedule) da valutare dopo v1.0 in base al feedback utenti reali.
 
