@@ -3,7 +3,10 @@
   "private": true,
   "version": "0.6.0",
   "description": "Desktop Audio Streaming Client",
-  "author": "Runtime StreamFlow",
+  "author": {
+    "name": "Runtime StreamFlow",
+    "email": "info@runtimeradio.it"
+  },
   "main": "dist/main/main.js",
   "scripts": {
     "dev": "vite",
