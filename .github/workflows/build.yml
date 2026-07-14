@@ -1,0 +1,175 @@
+name: Build & Release
+
+# Trigger esclusivamente manuale (workflow_dispatch).
+# Nessun build su push o tag — la pubblicazione è una decisione esplicita.
+# Modello identico a Runtime TelegramBot Desktop / FeedDownloader Pro,
+# con in più il job macOS. Le tre piattaforme vengono buildate in parallelo,
+# poi il job `release` pubblica gli installer sul bridge repo pubblico.
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: 'Publish release to bridge repo after build'
+        required: false
+        default: 'true'
+        type: choice
+        options: ['true', 'false']
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - name: Cache Electron binary
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/electron
+          key: electron-linux-${{ hashFiles('package-lock.json') }}
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfuse2
+      - name: Install dependencies
+        run: npm ci
+      - name: Build (Linux, no publish)
+        run: npm run build && npm run build:main && npx electron-builder --linux --publish never
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-artifacts
+          path: |
+            builds/*/*.AppImage
+            builds/*/*.deb
+            builds/*/latest-linux.yml
+          if-no-files-found: error
+          retention-days: 30
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - name: Cache Electron binary
+        uses: actions/cache@v4
+        with:
+          path: ~/AppData/Local/electron/Cache
+          key: electron-win-${{ hashFiles('package-lock.json') }}
+      - name: Install dependencies
+        run: npm ci
+      - name: Build (Windows, no publish)
+        run: npm run build && npm run build:main && npx electron-builder --windows --publish never
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-artifacts
+          path: |
+            builds/*/*.exe
+            builds/*/*.blockmap
+            builds/*/latest.yml
+          if-no-files-found: error
+          retention-days: 30
+
+  build-macos:
+    runs-on: macos-latest
+    env:
+      # Build non firmata (icona/installer temporanei): niente ricerca di
+      # certificati di firma, altrimenti electron-builder fallisce sul runner.
+      CSC_IDENTITY_AUTO_DISCOVERY: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - name: Cache Electron binary
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/electron
+          key: electron-mac-${{ hashFiles('package-lock.json') }}
+      - name: Install dependencies
+        run: npm ci
+      - name: Build (macOS, no publish)
+        run: npm run build && npm run build:main && npx electron-builder --mac --publish never
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-artifacts
+          path: |
+            builds/*/*.dmg
+            builds/*/*.zip
+            builds/*/*.blockmap
+            builds/*/latest-mac.yml
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    needs: [build-linux, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.publish_release == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version from package.json
+        id: version
+        run: echo "tag=v$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-artifacts
+          path: artifacts/linux
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-artifacts
+          path: artifacts/windows
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-artifacts
+          path: artifacts/macos
+
+      - name: Publish release to bridge repo
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: Ecosystem-Runtime/StreamFlow-Releases
+          token: ${{ secrets.RELEASE_TOKEN }}
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: "Runtime StreamFlow ${{ steps.version.outputs.tag }}"
+          body: |
+            ## Runtime StreamFlow ${{ steps.version.outputs.tag }}
+
+            Client desktop per streaming audio radiofonico.
+
+            Scarica l'installer per la tua piattaforma:
+
+            | Piattaforma | File |
+            |-------------|------|
+            | **Windows** | `*.exe` |
+            | **macOS** | `*.dmg` |
+            | **Linux (AppImage)** | `*.AppImage` |
+            | **Linux (deb)** | `*.deb` |
+
+            > Le build macOS e Windows non sono firmate: al primo avvio il sistema
+            > potrebbe mostrare un avviso di sicurezza (su macOS: click destro → Apri).
+          files: |
+            artifacts/linux/**/*.AppImage
+            artifacts/linux/**/*.deb
+            artifacts/linux/**/latest-linux.yml
+            artifacts/windows/**/*.exe
+            artifacts/windows/**/*.blockmap
+            artifacts/windows/**/latest.yml
+            artifacts/macos/**/*.dmg
+            artifacts/macos/**/*.zip
+            artifacts/macos/**/*.blockmap
+            artifacts/macos/**/latest-mac.yml

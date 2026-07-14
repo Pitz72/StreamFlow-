@@ -1,0 +1,34 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="42%" r="72%">
+      <stop offset="0%" stop-color="#164A44"/>
+      <stop offset="60%" stop-color="#0C2A27"/>
+      <stop offset="100%" stop-color="#08201F"/>
+    </radialGradient>
+    <radialGradient id="dot" cx="50%" cy="42%" r="70%">
+      <stop offset="0%" stop-color="#F06456"/>
+      <stop offset="55%" stop-color="#E0483A"/>
+      <stop offset="100%" stop-color="#B8302A"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Fondo petrolio -->
+  <rect x="0" y="0" width="1024" height="1024" rx="220" ry="220" fill="url(#bg)"/>
+  <!-- Cornice ottone -->
+  <rect x="48" y="48" width="928" height="928" rx="184" ry="184" fill="none" stroke="#C8A44E" stroke-width="14" stroke-opacity="0.85"/>
+  <rect x="86" y="86" width="852" height="852" rx="152" ry="152" fill="none" stroke="#C8A44E" stroke-width="4" stroke-opacity="0.35"/>
+
+  <!-- Onde di trasmissione (ottone) -->
+  <g fill="none" stroke="#C8A44E" stroke-width="34" stroke-linecap="round">
+    <!-- destra -->
+    <path d="M 632 340 A 210 210 0 0 1 632 684"/>
+    <path d="M 705 282 A 300 300 0 0 1 705 742"/>
+    <!-- sinistra -->
+    <path d="M 392 340 A 210 210 0 0 0 392 684" stroke-opacity="0.9"/>
+    <path d="M 319 282 A 300 300 0 0 0 319 742" stroke-opacity="0.9"/>
+  </g>
+
+  <!-- Punto ON AIR -->
+  <circle cx="512" cy="512" r="128" fill="url(#dot)"/>
+  <circle cx="512" cy="512" r="128" fill="none" stroke="#F2EAD2" stroke-width="6" stroke-opacity="0.35"/>
+</svg>
