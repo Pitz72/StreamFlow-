@@ -119,24 +119,24 @@ const AzuraCastWizard = () => {
             <div className="flex items-center gap-2">
                 <button
                     onClick={() => setOpen(true)}
-                    className="flex-1 text-xs bg-stone-800 hover:bg-stone-700 text-blue-400 hover:text-blue-300 border border-stone-700 rounded px-3 py-2 transition-colors text-left"
+                    className="flex-1 text-xs font-ui uppercase tracking-[1px] bg-transparent hover:bg-deco-brass/10 text-deco-brass border border-deco-brass/40 rounded-[2px] px-3 py-2 transition-colors text-left"
                 >
                     Configura da AzuraCast
                 </button>
                 <button
                     onClick={() => setShowInfo(!showInfo)}
                     title="Come funziona"
-                    className="w-7 h-7 rounded-full bg-stone-800 hover:bg-stone-700 border border-stone-700 text-stone-400 hover:text-stone-200 text-xs font-bold transition-colors"
+                    className="w-7 h-7 rounded-full bg-transparent hover:bg-deco-brass/10 border border-deco-brass/40 text-deco-brass hover:text-deco-inkStrong text-xs font-bold transition-colors"
                 >
                     ⓘ
                 </button>
                 {showInfo && (
-                    <div className="absolute right-6 top-auto z-50 w-72 bg-stone-900 border border-stone-600 rounded-xl p-4 shadow-2xl">
+                    <div className="absolute right-6 top-auto z-50 w-72 bg-deco-surface border border-deco-brass/45 rounded-[8px] p-4 shadow-2xl">
                         <div className="flex justify-between items-center mb-2">
-                            <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">AzuraCast Auto-Config</span>
-                            <button onClick={() => setShowInfo(false)} className="text-stone-500 hover:text-stone-200 text-sm">✕</button>
+                            <span className="text-xs font-ui font-semibold text-deco-brass uppercase tracking-[2px]">AzuraCast Auto-Config</span>
+                            <button onClick={() => setShowInfo(false)} className="text-deco-brass hover:text-deco-inkStrong text-sm">✕</button>
                         </div>
-                        <pre className="text-xs text-stone-400 whitespace-pre-wrap leading-relaxed">{INFO_TEXT}</pre>
+                        <pre className="text-xs text-deco-inkDim whitespace-pre-wrap leading-relaxed">{INFO_TEXT}</pre>
                     </div>
                 )}
             </div>
@@ -144,10 +144,10 @@ const AzuraCastWizard = () => {
     }
 
     return (
-        <div className="bg-stone-950 border border-blue-900/50 rounded-xl p-4 flex flex-col gap-3">
+        <div className="bg-deco-bg border border-deco-brass/30 rounded-[8px] p-4 flex flex-col gap-3">
             <div className="flex justify-between items-center">
-                <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">AzuraCast Auto-Config</span>
-                <button onClick={() => { setOpen(false); reset(); }} className="text-stone-500 hover:text-stone-200 text-sm">✕</button>
+                <span className="text-xs font-ui font-semibold text-deco-brass uppercase tracking-[2px]">AzuraCast Auto-Config</span>
+                <button onClick={() => { setOpen(false); reset(); }} className="text-deco-brass hover:text-deco-inkStrong text-sm">✕</button>
             </div>
 
             {/* URL + API Key */}
@@ -158,7 +158,7 @@ const AzuraCastWizard = () => {
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
                     disabled={state !== 'idle' && state !== 'error'}
-                    className="bg-stone-900 border border-stone-700 rounded px-2 py-1.5 text-stone-300 text-xs focus:border-blue-500 focus:outline-none"
+                    className="bg-deco-bg border border-deco-brass/30 rounded-[3px] px-2 py-1.5 text-deco-ink text-xs focus:border-deco-brass focus:outline-none"
                 />
                 <div className="flex items-center gap-2">
                     <input
@@ -167,49 +167,49 @@ const AzuraCastWizard = () => {
                         value={apiKey}
                         onChange={(e) => setApiKey(e.target.value)}
                         disabled={state !== 'idle' && state !== 'error'}
-                        className="flex-1 bg-stone-900 border border-stone-700 rounded px-2 py-1.5 text-stone-300 text-xs focus:border-blue-500 focus:outline-none"
+                        className="flex-1 bg-deco-bg border border-deco-brass/30 rounded-[3px] px-2 py-1.5 text-deco-ink text-xs focus:border-deco-brass focus:outline-none"
                     />
                     <button
                         onClick={() => setShowInfo(!showInfo)}
                         title="Come ottenere l'API Key"
-                        className="w-6 h-6 rounded-full bg-stone-800 border border-stone-700 text-stone-400 hover:text-stone-200 text-xs font-bold transition-colors shrink-0"
+                        className="w-6 h-6 rounded-full bg-transparent hover:bg-deco-brass/10 border border-deco-brass/40 text-deco-brass hover:text-deco-inkStrong text-xs font-bold transition-colors shrink-0"
                     >
                         ⓘ
                     </button>
                 </div>
                 {showInfo && (
-                    <div className="bg-stone-900 border border-stone-700 rounded-lg p-3">
-                        <pre className="text-xs text-stone-400 whitespace-pre-wrap leading-relaxed">{INFO_TEXT}</pre>
+                    <div className="bg-deco-bg border border-deco-brass/30 rounded-[6px] p-3">
+                        <pre className="text-xs text-deco-inkDim whitespace-pre-wrap leading-relaxed">{INFO_TEXT}</pre>
                     </div>
                 )}
             </div>
 
             {error && (
-                <p className="text-red-400 text-xs bg-red-950/30 border border-red-900/50 rounded px-2 py-1.5">{error}</p>
+                <p className="text-deco-onair text-xs bg-deco-onair/10 border border-deco-onair/40 rounded-[3px] px-2 py-1.5">{error}</p>
             )}
 
             {/* Step 1: Load stations */}
             {(state === 'idle' || state === 'error') && (
                 <button
                     onClick={loadStations}
-                    className="bg-blue-700 hover:bg-blue-600 text-white text-xs font-bold rounded px-3 py-1.5 transition-colors"
+                    className="bg-deco-brass hover:brightness-110 text-deco-bg text-xs font-bold rounded-[2px] px-3 py-1.5 transition-all"
                 >
                     Carica stazioni
                 </button>
             )}
 
             {state === 'loading-stations' && (
-                <p className="text-stone-500 text-xs animate-pulse">Caricamento stazioni...</p>
+                <p className="text-deco-inkDim text-xs animate-pulse">Caricamento stazioni...</p>
             )}
 
             {/* Step 2: Select station */}
             {(state === 'select-station') && (
                 <div className="flex flex-col gap-2">
-                    <label className="text-stone-500 text-xs">Stazione</label>
+                    <label className="text-deco-brassLabel text-xs">Stazione</label>
                     <select
                         value={selectedStationId ?? ''}
                         onChange={(e) => setSelectedStationId(Number(e.target.value))}
-                        className="bg-stone-900 border border-stone-700 rounded px-2 py-1.5 text-stone-300 text-xs focus:border-blue-500 focus:outline-none"
+                        className="bg-deco-bg border border-deco-brass/30 rounded-[3px] px-2 py-1.5 text-deco-ink text-xs focus:border-deco-brass focus:outline-none"
                     >
                         {stations.map((s) => (
                             <option key={s.id} value={s.id}>{s.name}</option>
@@ -217,7 +217,7 @@ const AzuraCastWizard = () => {
                     </select>
                     <button
                         onClick={loadDetail}
-                        className="bg-blue-700 hover:bg-blue-600 text-white text-xs font-bold rounded px-3 py-1.5 transition-colors"
+                        className="bg-deco-brass hover:brightness-110 text-deco-bg text-xs font-bold rounded-[2px] px-3 py-1.5 transition-all"
                     >
                         Carica DJ / Streamer
                     </button>
@@ -225,51 +225,51 @@ const AzuraCastWizard = () => {
             )}
 
             {state === 'loading-detail' && (
-                <p className="text-stone-500 text-xs animate-pulse">Caricamento dettagli stazione...</p>
+                <p className="text-deco-inkDim text-xs animate-pulse">Caricamento dettagli stazione...</p>
             )}
 
             {/* Step 3: Select streamer + apply */}
             {state === 'select-streamer' && detail && (
                 <div className="flex flex-col gap-2">
-                    <div className="text-xs text-stone-500 uppercase tracking-wider">DJ connection (Liquidsoap harbor)</div>
-                    <div className="text-xs text-stone-400 bg-stone-900 rounded px-2 py-1.5 font-mono">
+                    <div className="text-xs text-deco-brassLabel uppercase tracking-[2px]">DJ connection (Liquidsoap harbor)</div>
+                    <div className="text-xs text-deco-success bg-deco-bg rounded-[3px] px-2 py-1.5 font-mono">
                         {detail.host}:{editPort}{editMount.startsWith('/') ? editMount : `/${editMount}`}
                     </div>
                     <div className="flex gap-2">
                         <div className="flex flex-col gap-1 flex-1">
-                            <label className="text-stone-500 text-xs">Porta DJ</label>
+                            <label className="text-deco-brassLabel text-xs">Porta DJ</label>
                             <input
                                 type="text"
                                 value={editPort}
                                 onChange={(e) => setEditPort(e.target.value)}
-                                className="bg-stone-900 border border-stone-700 rounded px-2 py-1.5 text-stone-300 text-xs focus:border-blue-500 focus:outline-none font-mono"
+                                className="bg-deco-bg border border-deco-brass/30 rounded-[3px] px-2 py-1.5 text-deco-ink text-xs focus:border-deco-brass focus:outline-none font-mono"
                             />
                         </div>
                         <div className="flex flex-col gap-1 flex-1">
-                            <label className="text-stone-500 text-xs">Mount DJ</label>
+                            <label className="text-deco-brassLabel text-xs">Mount DJ</label>
                             <input
                                 type="text"
                                 value={editMount}
                                 onChange={(e) => setEditMount(e.target.value)}
-                                className="bg-stone-900 border border-stone-700 rounded px-2 py-1.5 text-stone-300 text-xs focus:border-blue-500 focus:outline-none font-mono"
+                                className="bg-deco-bg border border-deco-brass/30 rounded-[3px] px-2 py-1.5 text-deco-ink text-xs focus:border-deco-brass focus:outline-none font-mono"
                             />
                         </div>
                     </div>
                     {detail.harborInferred ? (
-                        <p className="text-yellow-400 text-xs bg-yellow-950/30 border border-yellow-900/50 rounded px-2 py-1.5">
+                        <p className="text-deco-warn text-xs bg-deco-warn/10 border border-deco-warn/40 rounded-[3px] px-2 py-1.5">
                             ⚠ Porta harbor non leggibile dall'API (la API Key potrebbe non avere il permesso "Manage Station Broadcasting").
                             Sto usando i default AzuraCast — verifica in <span className="font-bold">AzuraCast → Broadcasting → How do I connect? → Icecast Clients</span> e correggi se necessario.
                         </p>
                     ) : (
-                        <p className="text-green-500 text-xs">✓ Porta DJ letta automaticamente dall'API admin.</p>
+                        <p className="text-deco-success text-xs">✓ Porta DJ letta automaticamente dall'API admin.</p>
                     )}
                     {detail.streamers.length > 0 ? (
                         <>
-                            <label className="text-stone-500 text-xs">Account DJ / Streamer</label>
+                            <label className="text-deco-brassLabel text-xs">Account DJ / Streamer</label>
                             <select
                                 value={selectedStreamerUsername}
                                 onChange={(e) => setSelectedStreamerUsername(e.target.value)}
-                                className="bg-stone-900 border border-stone-700 rounded px-2 py-1.5 text-stone-300 text-xs focus:border-blue-500 focus:outline-none"
+                                className="bg-deco-bg border border-deco-brass/30 rounded-[3px] px-2 py-1.5 text-deco-ink text-xs focus:border-deco-brass focus:outline-none"
                             >
                                 {detail.streamers.map((s) => (
                                     <option key={s.id} value={s.username}>{s.displayName} ({s.username})</option>
@@ -277,12 +277,12 @@ const AzuraCastWizard = () => {
                             </select>
                         </>
                     ) : (
-                        <p className="text-stone-500 text-xs">Nessun account DJ trovato — verrà usato "source".</p>
+                        <p className="text-deco-brassLabel text-xs">Nessun account DJ trovato — verrà usato "source".</p>
                     )}
-                    <p className="text-stone-600 text-xs">La password va inserita manualmente nel campo Password.</p>
+                    <p className="text-deco-inkDim text-xs">La password va inserita manualmente nel campo Password.</p>
                     <button
                         onClick={apply}
-                        className="bg-green-700 hover:bg-green-600 text-white text-xs font-bold rounded px-3 py-1.5 transition-colors"
+                        className="bg-deco-success hover:brightness-110 text-deco-bg text-xs font-bold rounded-[2px] px-3 py-1.5 transition-all"
                     >
                         ✓ Applica configurazione
                     </button>

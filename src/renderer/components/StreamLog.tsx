@@ -2,15 +2,15 @@ import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store/useStore';
 
 const levelColors: Record<string, string> = {
-    info: 'text-stone-400',
-    success: 'text-green-400',
-    error: 'text-red-400',
+    info: 'text-deco-inkDim',
+    success: 'text-deco-success',
+    error: 'text-deco-onair',
 };
 
 const sourceBadge: Record<string, string> = {
-    stream: 'bg-blue-900/60 text-blue-300',
-    metadata: 'bg-purple-900/60 text-purple-300',
-    system: 'bg-stone-800 text-stone-400',
+    stream: 'bg-deco-success/25 text-deco-success',
+    metadata: 'bg-[rgba(124,88,168,0.3)] text-deco-metadataInk',
+    system: 'bg-deco-brass/15 text-deco-brass',
 };
 
 const fmtTime = (ts: number) => {
@@ -36,34 +36,34 @@ const StreamLog = () => {
     const last = logEvents[logEvents.length - 1];
 
     return (
-        <div className="shrink-0 bg-stone-900 border-t-2 border-stone-700 relative z-10">
+        <div className="shrink-0 bg-deco-panel2 border-t border-deco-brass/35 relative z-10">
             {/* Bar collapsed: mostra ultimo evento + bottoni */}
             <div className="flex items-center gap-3 px-4 py-2">
                 <button
                     onClick={() => setExpanded((v) => !v)}
-                    className="text-stone-500 hover:text-stone-200 text-xs font-bold uppercase tracking-wider shrink-0 transition-colors"
+                    className="text-deco-brass hover:text-deco-inkStrong text-xs font-ui font-bold uppercase tracking-[2px] shrink-0 transition-colors"
                     title={expanded ? 'Comprimi log' : 'Espandi log'}
                 >
                     {expanded ? '▼' : '▲'} Log
                 </button>
-                <span className="text-stone-600 text-xs">[{logEvents.length}]</span>
+                <span className="text-deco-inkDim text-xs font-mono">[{logEvents.length}]</span>
                 <div className="flex-1 min-w-0 text-xs font-mono truncate">
                     {last ? (
                         <>
-                            <span className="text-stone-600">{fmtTime(last.ts)}</span>
-                            <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] uppercase ${sourceBadge[last.source]}`}>
+                            <span className="text-deco-inkDim">{fmtTime(last.ts)}</span>
+                            <span className={`ml-2 px-1.5 py-0.5 rounded-[2px] text-[10px] uppercase ${sourceBadge[last.source]}`}>
                                 {last.source}
                             </span>
                             <span className={`ml-2 ${levelColors[last.level]}`}>{last.message}</span>
                         </>
                     ) : (
-                        <span className="text-stone-600">nessun evento</span>
+                        <span className="text-deco-inkDim">nessun evento</span>
                     )}
                 </div>
                 <button
                     onClick={clearLog}
                     disabled={logEvents.length === 0}
-                    className="text-stone-500 hover:text-stone-200 disabled:opacity-30 disabled:cursor-not-allowed text-xs px-2 py-0.5 rounded hover:bg-stone-800 transition-colors shrink-0"
+                    className="text-deco-brass hover:text-deco-inkStrong disabled:opacity-30 disabled:cursor-not-allowed text-xs font-ui uppercase tracking-[1px] px-2 py-0.5 rounded-[2px] hover:bg-deco-brass/10 transition-colors shrink-0"
                     title="Cancella log"
                 >
                     Clear
@@ -74,15 +74,15 @@ const StreamLog = () => {
             {expanded && (
                 <div
                     ref={scrollRef}
-                    className="max-h-64 overflow-y-auto px-4 py-2 border-t border-stone-800 font-mono text-xs bg-stone-950/60"
+                    className="max-h-64 overflow-y-auto px-4 py-2 border-t border-deco-brass/20 font-mono text-xs bg-deco-bg/70"
                 >
                     {logEvents.length === 0 ? (
-                        <p className="text-stone-600 italic">In attesa di eventi...</p>
+                        <p className="text-deco-inkDim italic">In attesa di eventi...</p>
                     ) : (
                         logEvents.map((e) => (
                             <div key={e.id} className="py-0.5 flex items-start gap-2">
-                                <span className="text-stone-600 shrink-0">{fmtTime(e.ts)}</span>
-                                <span className={`px-1.5 py-0.5 rounded text-[10px] uppercase shrink-0 ${sourceBadge[e.source]}`}>
+                                <span className="text-deco-inkDim shrink-0">{fmtTime(e.ts)}</span>
+                                <span className={`px-1.5 py-0.5 rounded-[2px] text-[10px] uppercase shrink-0 ${sourceBadge[e.source]}`}>
                                     {e.source}
                                 </span>
                                 <span className={`flex-1 break-words ${levelColors[e.level]}`}>{e.message}</span>

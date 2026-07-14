@@ -59,11 +59,11 @@ const SettingsPanel = () => {
 
             {/* Server Profiles (B1) */}
             <div className="flex flex-col gap-2">
-                <label className="text-stone-500 uppercase text-xs font-bold tracking-wider">Server Profiles</label>
+                <label className="text-deco-brassLabel uppercase text-[10px] font-ui font-semibold tracking-[2px]">Server Profiles</label>
                 <select
                     value={selectedProfile}
                     onChange={handleProfileLoad}
-                    className="bg-stone-950 border border-stone-800 rounded p-2 text-stone-300 focus:border-blue-500 focus:outline-none w-full"
+                    className="bg-deco-bg border border-deco-brass/30 rounded-[3px] px-[11px] py-[9px] text-deco-ink focus:border-deco-brass focus:outline-none w-full"
                 >
                     <option value="">— Seleziona profilo —</option>
                     {profiles.map((p) => (
@@ -74,7 +74,7 @@ const SettingsPanel = () => {
                     {!showSaveInput ? (
                         <button
                             onClick={() => { setSavingName(selectedProfile || ''); setShowSaveInput(true); }}
-                            className="flex-1 text-xs bg-stone-800 hover:bg-stone-700 text-blue-400 border border-stone-700 rounded px-3 py-1.5 transition-colors"
+                            className="flex-1 text-xs font-ui uppercase tracking-[1px] bg-transparent hover:bg-deco-brass/10 text-deco-brass border border-deco-brass/40 rounded-[2px] px-3 py-1.5 transition-colors"
                         >
                             + Salva profilo
                         </button>
@@ -87,18 +87,18 @@ const SettingsPanel = () => {
                                 value={savingName}
                                 onChange={(e) => setSavingName(e.target.value)}
                                 onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setShowSaveInput(false); }}
-                                className="flex-1 bg-stone-950 border border-blue-600 rounded px-2 py-1 text-stone-300 text-xs focus:outline-none"
+                                className="flex-1 bg-deco-bg border border-deco-brass rounded-[3px] px-2 py-1 text-deco-ink text-xs focus:outline-none"
                             />
                             <button
                                 onClick={handleSave}
                                 disabled={!savingName.trim()}
-                                className="text-xs bg-blue-700 hover:bg-blue-600 disabled:opacity-40 text-white rounded px-3 py-1 transition-colors"
+                                className="text-xs bg-deco-success hover:brightness-110 disabled:opacity-40 text-deco-bg font-bold rounded-[2px] px-3 py-1 transition-all"
                             >
                                 ✓
                             </button>
                             <button
                                 onClick={() => setShowSaveInput(false)}
-                                className="text-xs bg-stone-800 hover:bg-stone-700 text-stone-400 rounded px-2 py-1 transition-colors"
+                                className="text-xs bg-transparent hover:bg-deco-brass/10 text-deco-inkDim border border-deco-brass/30 rounded-[2px] px-2 py-1 transition-colors"
                             >
                                 ✕
                             </button>
@@ -107,7 +107,7 @@ const SettingsPanel = () => {
                     {selectedProfile && !showSaveInput && (
                         <button
                             onClick={handleDelete}
-                            className="text-xs bg-stone-800 hover:bg-red-900/60 text-red-400 border border-stone-700 rounded px-3 py-1.5 transition-colors"
+                            className="text-xs bg-transparent hover:bg-deco-onair/15 text-deco-onair border border-deco-onair/40 rounded-[2px] px-3 py-1.5 transition-colors"
                         >
                             Elimina
                         </button>
@@ -116,11 +116,11 @@ const SettingsPanel = () => {
             </div>
 
             <div className="flex flex-col gap-2">
-                <label className="text-stone-500 uppercase text-xs font-bold tracking-wider">Audio Input Device</label>
+                <label className="text-deco-brassLabel uppercase text-[10px] font-ui font-semibold tracking-[2px]">Audio Input Device</label>
                 <select
                     value={selectedDeviceId}
                     onChange={handleDeviceChange}
-                    className="bg-stone-950 border border-stone-800 rounded p-2 text-stone-300 focus:border-blue-500 focus:outline-none w-full"
+                    className="bg-deco-bg border border-deco-brass/30 rounded-[3px] px-[11px] py-[9px] text-deco-ink focus:border-deco-brass focus:outline-none w-full"
                 >
                     <option value="default">Default System Device</option>
                     {devices.map((device) => (
@@ -132,68 +132,68 @@ const SettingsPanel = () => {
             </div>
 
             <div className="flex flex-col gap-2">
-                <label className="text-stone-500 uppercase text-xs font-bold tracking-wider">Host</label>
+                <label className="text-deco-brassLabel uppercase text-[10px] font-ui font-semibold tracking-[2px]">Host</label>
                 <input
                     name="host"
                     type="text"
                     value={streamConfig.host}
                     onChange={handleChange}
-                    className="bg-stone-950 border border-stone-800 rounded p-2 text-stone-300 focus:border-blue-500 focus:outline-none"
+                    className="bg-deco-bg border border-deco-brass/30 rounded-[3px] px-[11px] py-[9px] text-deco-ink focus:border-deco-brass focus:outline-none"
                 />
             </div>
 
             <div className="flex flex-col gap-2">
-                <label className="text-stone-500 uppercase text-xs font-bold tracking-wider">Port</label>
+                <label className="text-deco-brassLabel uppercase text-[10px] font-ui font-semibold tracking-[2px]">Port</label>
                 <input
                     name="port"
                     type="text"
                     value={streamConfig.port}
                     onChange={handleChange}
-                    className="bg-stone-950 border border-stone-800 rounded p-2 text-stone-300 focus:border-blue-500 focus:outline-none"
+                    className="bg-deco-bg border border-deco-brass/30 rounded-[3px] px-[11px] py-[9px] text-deco-ink focus:border-deco-brass focus:outline-none"
                 />
             </div>
 
             <div className="flex flex-col gap-2">
-                <label className="text-stone-500 uppercase text-xs font-bold tracking-wider">Icecast User (DJ)</label>
+                <label className="text-deco-brassLabel uppercase text-[10px] font-ui font-semibold tracking-[2px]">Icecast User (DJ)</label>
                 <input
                     name="icecastUser"
                     type="text"
                     value={streamConfig.icecastUser}
                     onChange={handleChange}
                     placeholder="source"
-                    className="bg-stone-950 border border-stone-800 rounded p-2 text-stone-300 focus:border-blue-500 focus:outline-none"
+                    className="bg-deco-bg border border-deco-brass/30 rounded-[3px] px-[11px] py-[9px] text-deco-ink focus:border-deco-brass focus:outline-none"
                 />
             </div>
 
             <div className="flex flex-col gap-2">
-                <label className="text-stone-500 uppercase text-xs font-bold tracking-wider">Password</label>
+                <label className="text-deco-brassLabel uppercase text-[10px] font-ui font-semibold tracking-[2px]">Password</label>
                 <input
                     name="password"
                     type="password"
                     value={streamConfig.password}
                     onChange={handleChange}
-                    className="bg-stone-950 border border-stone-800 rounded p-2 text-stone-300 focus:border-blue-500 focus:outline-none"
+                    className="bg-deco-bg border border-deco-brass/30 rounded-[3px] px-[11px] py-[9px] text-deco-ink focus:border-deco-brass focus:outline-none"
                 />
             </div>
 
             <div className="flex flex-col gap-2">
-                <label className="text-stone-500 uppercase text-xs font-bold tracking-wider">Mount Point</label>
+                <label className="text-deco-brassLabel uppercase text-[10px] font-ui font-semibold tracking-[2px]">Mount Point</label>
                 <input
                     name="mount"
                     type="text"
                     value={streamConfig.mount}
                     onChange={handleChange}
-                    className="bg-stone-950 border border-stone-800 rounded p-2 text-stone-300 focus:border-blue-500 focus:outline-none"
+                    className="bg-deco-bg border border-deco-brass/30 rounded-[3px] px-[11px] py-[9px] text-deco-ink focus:border-deco-brass focus:outline-none"
                 />
             </div>
 
             <div className="flex flex-col gap-2">
-                <label className="text-stone-500 uppercase text-xs font-bold tracking-wider">Bitrate</label>
+                <label className="text-deco-brassLabel uppercase text-[10px] font-ui font-semibold tracking-[2px]">Bitrate</label>
                 <select
                     name="bitrate"
                     value={streamConfig.bitrate}
                     onChange={(e) => setStreamConfig({ bitrate: e.target.value })}
-                    className="bg-stone-950 border border-stone-800 rounded p-2 text-stone-300 focus:border-blue-500 focus:outline-none"
+                    className="bg-deco-bg border border-deco-brass/30 rounded-[3px] px-[11px] py-[9px] text-deco-ink focus:border-deco-brass focus:outline-none"
                 >
                     <option value="64">64 kbps</option>
                     <option value="96">96 kbps</option>
@@ -204,7 +204,7 @@ const SettingsPanel = () => {
                 </select>
             </div>
 
-            <p className="text-stone-600 text-xs italic">
+            <p className="text-deco-inkDim text-xs italic">
                 Input Volume è ora nella schermata principale, sotto il pulsante ON AIR.
             </p>
 

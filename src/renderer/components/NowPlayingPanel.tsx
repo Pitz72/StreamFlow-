@@ -65,32 +65,32 @@ const NowPlayingPanel = () => {
                     campo "song" formato come "Artist - Title", quindi non c'è motivo
                     di tenere una terza voce. */}
                 <div className="flex items-center gap-2">
-                    <label className="text-stone-500 text-xs w-14 shrink-0 text-right">Artist</label>
+                    <label className="text-deco-brassLabel uppercase font-ui font-semibold tracking-[2px] text-[10px] w-14 shrink-0 text-right">Artist</label>
                     <input
                         type="text"
                         placeholder="Artista / DJ"
                         value={streamMetadata.artist}
                         onChange={(e) => setStreamMetadata({ artist: e.target.value })}
                         onKeyDown={handleKeyDown}
-                        className="flex-1 bg-stone-950 border border-stone-800 rounded px-2 py-1.5 text-stone-300 text-sm focus:border-blue-500 focus:outline-none"
+                        className="flex-1 bg-deco-bg border border-deco-brass/30 rounded-[3px] px-2 py-1.5 text-deco-ink text-sm focus:border-deco-brass focus:outline-none"
                     />
-                    <label className="text-stone-500 text-xs shrink-0">—</label>
+                    <label className="text-deco-brass text-sm shrink-0">—</label>
                     <input
                         type="text"
                         placeholder="Titolo brano"
                         value={streamMetadata.title}
                         onChange={(e) => setStreamMetadata({ title: e.target.value })}
                         onKeyDown={handleKeyDown}
-                        className="flex-1 bg-stone-950 border border-stone-800 rounded px-2 py-1.5 text-stone-300 text-sm focus:border-blue-500 focus:outline-none"
+                        className="flex-1 bg-deco-bg border border-deco-brass/30 rounded-[3px] px-2 py-1.5 text-deco-ink text-sm focus:border-deco-brass focus:outline-none"
                     />
                     <button
                         onClick={handleSend}
                         disabled={!isStreaming || sendStatus === 'sending'}
                         title={isStreaming ? 'Invia metadati al server (Invio)' : 'Avvia lo stream per inviare'}
-                        className={`px-3 py-1.5 rounded text-xs font-bold transition-all shrink-0 ${
+                        className={`px-3 py-1.5 rounded-[2px] text-xs font-bold uppercase tracking-[1px] transition-all shrink-0 ${
                             isStreaming
-                                ? 'bg-blue-700 hover:bg-blue-600 text-white cursor-pointer'
-                                : 'bg-stone-800 text-stone-600 cursor-not-allowed'
+                                ? 'bg-deco-success hover:brightness-110 text-deco-bg cursor-pointer'
+                                : 'bg-deco-panel2 text-deco-inkDim border border-deco-brass/20 cursor-not-allowed'
                         } ${sendStatus === 'sending' ? 'opacity-60' : ''}`}
                     >
                         {sendStatus === 'sending' ? '...' : 'Invia'}
@@ -99,15 +99,15 @@ const NowPlayingPanel = () => {
 
                 {/* Send status feedback */}
                 {sendStatus === 'sent' && (
-                    <p className="text-green-400 text-xs text-right pr-1">✓ Inviato alle {sentAt}</p>
+                    <p className="text-deco-success text-xs text-right pr-1">✓ Inviato alle {sentAt}</p>
                 )}
                 {sendStatus === 'error' && (
-                    <p className="text-red-400 text-xs bg-red-950/30 border border-red-900/50 rounded px-2 py-1.5">
+                    <p className="text-deco-onair text-xs bg-deco-onair/10 border border-deco-onair/40 rounded-[3px] px-2 py-1.5">
                         ✗ {errorMsg}
                     </p>
                 )}
                 {!isStreaming && (
-                    <p className="text-stone-600 text-xs text-right pr-1">
+                    <p className="text-deco-inkDim text-xs text-right pr-1">
                         I metadati verranno inviati automaticamente all'avvio dello stream.
                     </p>
                 )}
@@ -116,15 +116,15 @@ const NowPlayingPanel = () => {
                     <div className="mt-2">
                         <button
                             onClick={() => setShowDebug((v) => !v)}
-                            className="text-stone-500 hover:text-stone-300 text-xs underline"
+                            className="text-deco-brass hover:text-deco-inkStrong text-xs underline"
                         >
                             {showDebug ? '▼' : '▶'} Dettagli risposta server (HTTP {lastDebug.httpStatus ?? '?'})
                         </button>
                         {showDebug && (
-                            <div className="mt-1 bg-stone-950 border border-stone-800 rounded p-2 font-mono text-[10px] text-stone-400 max-h-48 overflow-auto">
-                                <div className="text-stone-500 uppercase mb-1">Request</div>
+                            <div className="mt-1 bg-deco-bg border border-deco-brass/25 rounded-[3px] p-2 font-mono text-[10px] text-deco-inkDim max-h-48 overflow-auto">
+                                <div className="text-deco-brassLabel uppercase mb-1">Request</div>
                                 <pre className="whitespace-pre-wrap break-all">{lastDebug.requestLine || '—'}</pre>
-                                <div className="text-stone-500 uppercase mt-2 mb-1">Raw response</div>
+                                <div className="text-deco-brassLabel uppercase mt-2 mb-1">Raw response</div>
                                 <pre className="whitespace-pre-wrap break-all">{lastDebug.rawResponse || '(vuoto)'}</pre>
                             </div>
                         )}

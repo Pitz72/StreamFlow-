@@ -1,33 +1,77 @@
+type StreamStatus = 'disconnected' | 'connecting' | 'connected' | 'error' | 'reconnecting';
+
 interface OnAirButtonProps {
     isOn: boolean;
     onClick: () => void;
     disabled?: boolean;
+    /** Stato di streaming: puramente presentazionale, determina il look del
+     *  pulsante (live / idle / connecting / reconnecting). L'azione resta onClick. */
+    status?: StreamStatus;
 }
 
-const OnAirButton = ({ isOn, onClick, disabled = false }: OnAirButtonProps) => {
+const BRASS = '#C8A44E';
+
+// Riempimenti radiali per i due stati principali del quadrante centrale.
+const FILL_LIVE = 'radial-gradient(circle at 50% 35%, #E0483A, #B8302A 62%, #8F2418)';
+const FILL_IDLE = 'radial-gradient(circle at 50% 35%, #183F3A, #102E2B)';
+
+const OnAirButton = ({ isOn, onClick, disabled = false, status }: OnAirButtonProps) => {
+    // Modalità visiva: preferisce lo status esplicito, con fallback su isOn/disabled.
+    const mode: 'live' | 'connecting' | 'reconnecting' | 'idle' =
+        status === 'connected' ? 'live'
+        : status === 'connecting' ? 'connecting'
+        : status === 'reconnecting' ? 'reconnecting'
+        : status === 'error' || status === 'disconnected' ? 'idle'
+        : disabled ? 'connecting'
+        : isOn ? 'live'
+        : 'idle';
+
+    const face: Record<typeof mode, {
+        top: string; bottom: string; border: string; fill: string;
+        text: string; shadow: string;
+    }> = {
+        live: {
+            top: 'GO', bottom: 'ON AIR', border: BRASS, fill: FILL_LIVE, text: '#F2EAD2',
+            shadow: '0 0 40px rgba(224,72,58,.5), inset 0 3px 10px rgba(255,255,255,.3)',
+        },
+        connecting: {
+            top: '• • •', bottom: 'WAIT', border: '#E0B23A', fill: FILL_IDLE, text: '#E0B23A',
+            shadow: 'inset 0 3px 10px rgba(0,0,0,.35)',
+        },
+        reconnecting: {
+            top: 'ANNULLA', bottom: 'riconnessione', border: '#A07A1E', fill: FILL_IDLE, text: '#E0B23A',
+            shadow: 'inset 0 3px 10px rgba(0,0,0,.35)',
+        },
+        idle: {
+            top: 'GO', bottom: 'ON AIR', border: 'rgba(200,164,78,.5)', fill: FILL_IDLE, text: 'rgba(230,221,196,.55)',
+            shadow: 'inset 0 3px 10px rgba(0,0,0,.35)',
+        },
+    };
+    const f = face[mode];
+
     return (
-        <button
-            onClick={onClick}
-            disabled={disabled}
-            className={`
-        w-48 h-48 rounded-full border-8 transition-all duration-300 transform shadow-2xl flex items-center justify-center
-        ${disabled
-                    ? 'bg-stone-800 border-stone-700 opacity-50 cursor-not-allowed'
-                    : isOn
-                        ? 'bg-red-600 border-red-800 shadow-[0_0_50px_rgba(220,38,38,0.6)] animate-pulse active:scale-95'
-                        : 'bg-stone-800 border-stone-700 shadow-stone-900/50 hover:bg-stone-700 active:scale-95'
-                }
-      `}
+        // Cornice ottone con alone
+        <div
+            className="rounded-full p-2 border-2"
+            style={{
+                borderColor: 'rgba(200,164,78,.6)',
+                boxShadow: '0 0 0 6px rgba(200,164,78,.12)',
+            }}
         >
-            <div className="flex flex-col items-center">
-                <span className={`text-3xl font-black tracking-tighter ${isOn && !disabled ? 'text-white' : 'text-stone-500'}`}>
-                    {disabled ? '...' : 'GO'}
-                </span>
-                <span className={`text-4xl font-black tracking-tighter ${isOn && !disabled ? 'text-white' : 'text-stone-400'}`}>
-                    {disabled ? 'WAIT' : 'ON AIR'}
-                </span>
-            </div>
-        </button>
+            <button
+                onClick={onClick}
+                disabled={disabled}
+                className={`w-[140px] h-[140px] rounded-full border-[7px] flex items-center justify-center transition-all duration-300 ${disabled ? 'cursor-not-allowed' : 'active:scale-95 cursor-pointer'} ${mode === 'live' ? 'animate-pulse' : ''}`}
+                style={{ borderColor: f.border, background: f.fill, boxShadow: f.shadow }}
+            >
+                <div className="flex flex-col items-center leading-tight" style={{ color: f.text }}>
+                    <span className="font-display text-[20px] tracking-wide">{f.top}</span>
+                    <span className={`font-ui font-bold ${mode === 'reconnecting' ? 'text-[13px] tracking-normal lowercase' : 'text-[24px] tracking-wider'}`}>
+                        {f.bottom}
+                    </span>
+                </div>
+            </button>
+        </div>
     );
 };
 

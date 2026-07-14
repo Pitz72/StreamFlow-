@@ -46,8 +46,16 @@ const Timer = ({ isRunning }: TimerProps) => {
     };
 
     return (
-        <div className="font-mono text-8xl font-bold tracking-widest text-stone-200 drop-shadow-2xl">
-            {formatTime(seconds)}
+        <div className="flex flex-col items-center gap-2">
+            <span className="font-ui font-semibold text-[11px] tracking-[6px] text-deco-brass uppercase">
+                ◆ Session ◆
+            </span>
+            <div
+                className={`font-display text-[76px] leading-none text-deco-inkStrong transition-opacity duration-300 ${isRunning ? 'opacity-100' : 'opacity-55'}`}
+                style={{ letterSpacing: '6px' }}
+            >
+                {formatTime(seconds)}
+            </div>
         </div>
     );
 };

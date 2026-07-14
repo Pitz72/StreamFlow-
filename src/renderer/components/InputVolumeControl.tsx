@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useStore } from '../store/useStore';
 
 const InputVolumeControl = () => {
@@ -49,13 +49,16 @@ const InputVolumeControl = () => {
         }, 80);
     };
 
+    // Percentuale di riempimento della track (range 0-200 → 0-100%).
+    const fillPct = `${(Math.min(200, Math.max(0, gain)) / 200) * 100}%`;
+
     return (
-        <div className="flex flex-col gap-2 w-full max-w-md bg-stone-900/60 border border-stone-800 rounded-xl px-5 py-3">
+        <div className="flex flex-col gap-2 w-[390px] max-w-full bg-deco-panel2/60 border border-deco-brass/35 rounded-[3px] px-[17px] py-[13px]">
             <div className="flex items-center justify-between">
-                <label htmlFor="input-volume" className="text-stone-500 uppercase text-xs font-bold tracking-wider">
+                <label htmlFor="input-volume" className="text-deco-brassLabel uppercase text-[10px] font-ui font-semibold tracking-[2px]">
                     Input Volume
                 </label>
-                <span className={`text-xs font-mono tabular-nums ${overGain ? 'text-orange-400' : 'text-stone-300'}`}>
+                <span className={`text-xs font-mono font-bold tabular-nums ${overGain ? 'text-deco-error' : 'text-deco-inkStrong'}`}>
                     {gain}%
                 </span>
             </div>
@@ -67,25 +70,26 @@ const InputVolumeControl = () => {
                 step="5"
                 value={streamConfig.inputGain}
                 onChange={(e) => handleChange(e.target.value)}
-                className="w-full accent-blue-500"
+                className="deco-slider"
+                style={{ '--deco-fill': fillPct, '--deco-thumb': 'rgb(var(--deco-ink-strong))' } as CSSProperties}
             />
-            <div className="flex justify-between text-stone-600 text-[10px] font-mono">
+            <div className="flex justify-between text-deco-inkDim text-[10px] font-mono">
                 <span>0</span>
                 <span>100</span>
                 <span>200</span>
             </div>
             {live ? (
                 liveApplied === false ? (
-                    <p className="text-amber-500/80 text-[10px] leading-tight">
+                    <p className="text-deco-warn/90 text-[10px] leading-tight">
                         Canale live non disponibile: il valore si applicherà al prossimo avvio dello stream.
                     </p>
                 ) : (
-                    <p className="text-green-500/80 text-[10px] leading-tight">
+                    <p className="text-deco-success text-[10px] leading-tight">
                         ● In diretta — la regolazione ha effetto immediato sullo stream.
                     </p>
                 )
             ) : (
-                <p className="text-stone-600 text-[10px] leading-tight">
+                <p className="text-deco-inkDim text-[10px] leading-tight">
                     Verrà applicato all'avvio dello stream, poi regolabile in diretta.
                 </p>
             )}

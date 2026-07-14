@@ -11,6 +11,7 @@ import StreamLog from './components/StreamLog'
 import { useStore } from './store/useStore'
 
 type OpenModal = null | 'settings' | 'nowplaying';
+type Theme = 'dark' | 'light';
 
 const statusLabels: Record<string, string> = {
     disconnected: 'Ready',
@@ -20,21 +21,16 @@ const statusLabels: Record<string, string> = {
     reconnecting: 'Reconnecting...',
 };
 
-const statusColors: Record<string, string> = {
-    disconnected: 'bg-stone-600',
-    connecting: 'bg-yellow-500 animate-pulse',
-    connected: 'bg-red-500 animate-pulse',
-    error: 'bg-orange-500',
-    reconnecting: 'bg-amber-500 animate-pulse',
+// Colore del dot/pill di stato (identità "Deco Dial"): valori espliciti perché
+// non tematizzabili (rossi/ambra restano invariati tra tema chiaro e scuro).
+const statusColor: Record<string, string> = {
+    disconnected: '#5A6A4A',
+    connecting: '#E0B23A',
+    connected: '#E0483A',
+    error: '#E0742A',
+    reconnecting: '#E0B23A',
 };
-
-const statusTextColors: Record<string, string> = {
-    disconnected: 'text-stone-400',
-    connecting: 'text-yellow-400',
-    connected: 'text-red-400',
-    error: 'text-orange-400',
-    reconnecting: 'text-amber-400',
-};
+const statusPulses = (s: string) => s === 'connecting' || s === 'connected' || s === 'reconnecting';
 
 function App() {
     const {
@@ -54,6 +50,17 @@ function App() {
     const [openModal, setOpenModal] = useState<OpenModal>(null);
     // Dettaglio mostrato accanto allo status (countdown riconnessione dal main)
     const [statusDetail, setStatusDetail] = useState<string | null>(null);
+
+    // Tema chiaro/scuro: stato puramente presentazionale, persistito a parte
+    // (NON nello store Zustand). Applica la classe .theme-light su <html>, che
+    // commuta le variabili CSS del sistema Deco Dial.
+    const [theme, setTheme] = useState<Theme>(() => {
+        return (localStorage.getItem('streamflow-theme') as Theme) || 'dark';
+    });
+    useEffect(() => {
+        document.documentElement.classList.toggle('theme-light', theme === 'light');
+        localStorage.setItem('streamflow-theme', theme);
+    }, [theme]);
 
     // Guard sincrono anti doppio-GO: il disabled del pulsante arriva solo quando
     // lo status 'connecting' torna dal main via IPC — nel frattempo un secondo
@@ -76,7 +83,7 @@ function App() {
         return () => document.removeEventListener('visibilitychange', handler);
     }, []);
 
-    // Pipeline audio condivisa: le barre L/R sono guidate via ref direttamente
+    // Pipeline audio condivisa: le lancette L/R sono guidate via ref direttamente
     // dal loop rAF (nessun re-render React per frame).
     const { leftRef: vuLeftRef, rightRef: vuRightRef } = useAudioVisualizer(selectedDeviceId, pageVisible);
 
@@ -190,20 +197,29 @@ function App() {
         }
     }
 
-    const toolbarBtn = "px-4 py-2 rounded-lg text-sm font-medium border border-stone-700 bg-stone-800/60 hover:bg-stone-700 hover:border-stone-600 text-stone-300 hover:text-white transition-colors";
+    const toolbarBtn = "px-4 py-2 rounded-[2px] text-xs font-ui font-semibold uppercase tracking-[2px] border border-deco-brass/50 bg-transparent hover:bg-deco-brass/10 text-deco-brass transition-colors";
 
     return (
-        <div className="flex flex-col h-screen w-screen bg-stone-950 text-white overflow-hidden font-sans">
+        <div className="deco-panel-bg flex flex-col h-screen w-screen text-deco-ink overflow-hidden font-ui">
             {/* Header */}
-            <header className="flex justify-between items-center bg-stone-900/50 px-6 py-4 border-b border-stone-800 shrink-0">
+            <header className="flex justify-between items-center bg-deco-bg/40 px-[30px] py-[18px] border-b border-deco-brass/35 shrink-0">
                 <div className="flex items-center gap-3">
-                    <div className={`w-3 h-3 rounded-full ${statusColors[streamStatus] || 'bg-stone-600'}`}></div>
-                    <span className="text-xl font-bold tracking-wider text-stone-300">RUNTIME STREAMFLOW</span>
-                    <span className={`text-xs font-mono uppercase tracking-wider ml-2 ${statusTextColors[streamStatus] || 'text-stone-400'}`}>
+                    <div
+                        className={`w-3 h-3 rounded-full ${statusPulses(streamStatus) ? 'animate-pulse' : ''}`}
+                        style={{ background: statusColor[streamStatus] || '#5A6A4A' }}
+                    ></div>
+                    <span className="font-display text-[22px] tracking-[2px]">
+                        <span className="text-deco-ink">RUNTIME</span>{' '}
+                        <span className="text-deco-brass">STREAMFLOW</span>
+                    </span>
+                    <span
+                        className="ml-2 font-mono text-[11px] uppercase px-2 py-0.5 rounded-[3px] border"
+                        style={{ color: statusColor[streamStatus] || '#5A6A4A', borderColor: statusColor[streamStatus] || '#5A6A4A' }}
+                    >
                         {statusLabels[streamStatus] || 'Unknown'}
                     </span>
                     {statusDetail && (
-                        <span className="text-xs font-mono text-amber-400 ml-1">
+                        <span className="text-[11px] font-mono text-deco-warn ml-1">
                             {statusDetail}
                         </span>
                     )}
@@ -216,20 +232,33 @@ function App() {
                     <button onClick={() => setOpenModal('settings')} className={toolbarBtn}>
                         Configurazione
                     </button>
-                    <span className="text-stone-600 text-xs ml-3">v{__APP_VERSION__}</span>
+                    {/* Toggle tema chiaro/scuro (34×20 pill) */}
+                    <button
+                        onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+                        title={theme === 'dark' ? 'Passa al tema chiaro' : 'Passa al tema scuro'}
+                        className="relative w-[34px] h-[20px] rounded-full border border-deco-brass/50 transition-colors shrink-0 ml-1"
+                        style={{ background: 'rgba(200,164,78,.12)' }}
+                    >
+                        <span
+                            className="absolute top-[2px] w-[14px] h-[14px] rounded-full bg-deco-brass transition-all duration-200"
+                            style={{ left: theme === 'light' ? '17px' : '2px' }}
+                        ></span>
+                    </button>
+                    <span className="text-deco-brass/60 text-[10px] font-mono ml-2">v{__APP_VERSION__}</span>
                 </div>
             </header>
 
             {/* Central control panel */}
-            <main className="flex-1 flex flex-col items-center justify-center gap-12 p-8 overflow-hidden">
+            <main className="flex-1 flex flex-col items-center justify-center gap-[26px] px-[30px] overflow-hidden">
                 <Timer isRunning={isStreaming} />
 
-                <div className="flex items-center gap-16 justify-center">
+                <div className="flex items-center gap-[44px] justify-center">
                     <VuMeter label="L" active={isStreaming} barRef={vuLeftRef} />
                     <OnAirButton
                         isOn={sessionActive}
                         onClick={toggleStream}
                         disabled={streamStatus === 'connecting'}
+                        status={streamStatus}
                     />
                     <VuMeter label="R" active={isStreaming} barRef={vuRightRef} />
                 </div>
@@ -251,13 +280,19 @@ function App() {
 
             {/* Toast Notification (non-blocking) */}
             {errorMessage && (
-                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] animate-bounce">
-                    <div className="bg-red-900/90 border border-red-700 text-red-200 px-6 py-3 rounded-xl shadow-2xl flex items-center gap-3 max-w-lg">
-                        <span className="text-red-400 text-lg">⚠</span>
-                        <span className="text-sm font-medium">{errorMessage}</span>
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60]">
+                    <div
+                        className="border rounded-[10px] px-[17px] py-[13px] shadow-2xl flex items-center gap-3 max-w-lg"
+                        style={{
+                            background: 'linear-gradient(#3A1512, #2A0F0D)',
+                            borderColor: 'rgba(224,72,58,.55)',
+                        }}
+                    >
+                        <span className="text-deco-onair text-lg">⚠</span>
+                        <span className="text-sm font-mono" style={{ color: '#F0C9C4' }}>{errorMessage}</span>
                         <button
                             onClick={() => setErrorMessage(null)}
-                            className="text-red-400 hover:text-red-200 font-bold ml-2"
+                            className="text-deco-onair hover:opacity-80 font-bold ml-2"
                         >
                             ✕
                         </button>

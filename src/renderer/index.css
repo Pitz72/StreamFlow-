@@ -1,9 +1,119 @@
+@import './fonts.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   Sistema estetico "Deco Dial" — variabili di tema.
+   I valori sono triplette "R G B" così i token Tailwind possono
+   applicare l'opacità (rgb(var(--x) / <alpha-value>)).
+   Cambiare tema = togglare la classe .theme-light su <html>
+   (fatto da App.tsx). Nessuna logica applicativa coinvolta.
+   ============================================================ */
+:root {
+  /* Tema scuro (default) — petrolio & ottone */
+  --deco-bg: 8 32 31;            /* #08201F */
+  --deco-surface: 12 42 39;      /* #0C2A27 */
+  --deco-panel: 18 64 60;        /* #12403C petrol */
+  --deco-panel2: 10 42 40;       /* #0A2A28 */
+  --deco-ink: 230 221 196;       /* #E6DDC4 crema */
+  --deco-ink-strong: 242 234 210;/* #F2EAD2 */
+  --deco-ink-dim: 138 147 132;   /* #8A9384 muted */
+  --deco-brass: 200 164 78;      /* #C8A44E */
+  --deco-brass-label: 200 164 78;/* label in ottone */
+
+  /* Gradiente del pannello principale */
+  --deco-grad-a: #12403C;
+  --deco-grad-b: #0A2A28;
+
+  /* Quadrante VU ad ago (faccia analogica, resta chiara in entrambi i temi) */
+  --deco-vu-face: #ECE0C8;
+  --deco-vu-bezel: #2A2622;
+  --deco-vu-ink: #3A342C;
+  --deco-vu-needle: #1A1A1A;
+  --deco-vu-red: #C0392B;
+  --deco-vu-glow: #FFD9A0;
+}
+
+html.theme-light {
+  /* Tema chiaro — pergamena & ottone scuro */
+  --deco-bg: 242 236 216;        /* #F2ECD8 parchment */
+  --deco-surface: 228 217 188;   /* #E4D9BC */
+  --deco-panel: 235 226 198;     /* #EBE2C6 */
+  --deco-panel2: 228 217 188;    /* #E4D9BC */
+  --deco-ink: 23 58 54;          /* #173A36 petrolio */
+  --deco-ink-strong: 18 48 44;   /* #12302C */
+  --deco-ink-dim: 106 116 104;   /* #6A7468 */
+  --deco-brass: 168 128 46;      /* #A8802E brass-dark (contrasto AA) */
+  --deco-brass-label: 138 106 30;/* #8A6A1E */
+
+  --deco-grad-a: #F2ECD8;
+  --deco-grad-b: #E4D9BC;
+
+  /* VU: faccia ancora più chiara, cornice in ottone brunito */
+  --deco-vu-face: #FBF5E6;
+  --deco-vu-bezel: #9A7C3E;
+  --deco-vu-ink: #3A342C;
+  --deco-vu-needle: #1A1A1A;
+  --deco-vu-red: #C0392B;
+  --deco-vu-glow: #E8C88A;
+}
+
 @layer base {
-  body {
-    @apply bg-stone-950 text-white;
+  html, body {
+    @apply bg-deco-bg text-deco-ink;
+  }
+}
+
+@layer components {
+  /* Fondo del pannello centrale: gradiente radiale petrol (o pergamena in light). */
+  .deco-panel-bg {
+    background: radial-gradient(circle at 50% 32%, var(--deco-grad-a), var(--deco-grad-b));
+  }
+
+  /* Slider volume in stile déco: track sottile, fill ottone, thumb crema
+     con anello ottone. Stilizzato cross-browser. La logica (throttle ZMQ,
+     value/onChange) resta interamente in InputVolumeControl. */
+  .deco-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: linear-gradient(
+      to right,
+      rgb(var(--deco-brass)) 0%,
+      rgb(var(--deco-brass)) var(--deco-fill, 50%),
+      rgb(var(--deco-panel2)) var(--deco-fill, 50%),
+      rgb(var(--deco-panel2)) 100%
+    );
+    outline: none;
+    cursor: pointer;
+  }
+  .deco-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--deco-thumb, #E6DDC4);
+    border: 2px solid rgb(var(--deco-brass));
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .4);
+    cursor: pointer;
+  }
+  .deco-slider::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--deco-thumb, #E6DDC4);
+    border: 2px solid rgb(var(--deco-brass));
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .4);
+    cursor: pointer;
+  }
+  .deco-slider::-moz-range-track {
+    height: 6px;
+    border-radius: 3px;
+    background: transparent;
   }
 }

@@ -1,9 +1,17 @@
 import { useEffect, useRef, type RefObject } from 'react';
 
 export interface VisualizerRefs {
-    leftRef: RefObject<HTMLDivElement | null>;
-    rightRef: RefObject<HTMLDivElement | null>;
+    // I ref puntano alle lancette SVG dei VU meter ad ago: il loop scrive
+    // direttamente la rotazione (transform) senza passare per lo stato React.
+    leftRef: RefObject<SVGRectElement | null>;
+    rightRef: RefObject<SVGRectElement | null>;
 }
+
+// Mappatura livello→angolo della lancetta (gradi). Il quadrante déco copre
+// da riposo (a sinistra) alla zona rossa "+3" (a destra). Solo presentazione:
+// il calcolo del livello audio a monte è invariato.
+const NEEDLE_MIN_DEG = -42;
+const NEEDLE_MAX_DEG = 46;
 
 /**
  * VU meter L/R da un'UNICA pipeline Web Audio condivisa:
@@ -20,8 +28,8 @@ export interface VisualizerRefs {
  *   privacy OS spento) — usato quando la finestra è minimizzata.
  */
 export const useAudioVisualizer = (deviceId: string, enabled: boolean): VisualizerRefs => {
-    const leftRef = useRef<HTMLDivElement | null>(null);
-    const rightRef = useRef<HTMLDivElement | null>(null);
+    const leftRef = useRef<SVGRectElement | null>(null);
+    const rightRef = useRef<SVGRectElement | null>(null);
     const audioContextRef = useRef<AudioContext | null>(null);
     const requestRef = useRef<number | null>(null);
 
@@ -33,8 +41,14 @@ export const useAudioVisualizer = (deviceId: string, enabled: boolean): Visualiz
         let cancelled = false;
         let stream: MediaStream | null = null;
 
-        const setBar = (ref: RefObject<HTMLDivElement | null>, pct: number) => {
-            if (ref.current) ref.current.style.height = `${pct}%`;
+        // Unico punto di output visuale: converte il livello (0..100) nell'angolo
+        // della lancetta e lo scrive sul transform del <rect> SVG. Prima scriveva
+        // l'altezza di una barra; la pipeline audio a monte è identica.
+        const setNeedle = (ref: RefObject<SVGRectElement | null>, pct: number) => {
+            if (!ref.current) return;
+            const clamped = pct < 0 ? 0 : pct > 100 ? 100 : pct;
+            const deg = NEEDLE_MIN_DEG + (clamped / 100) * (NEEDLE_MAX_DEG - NEEDLE_MIN_DEG);
+            ref.current.style.transform = `rotate(${deg}deg)`;
         };
 
         const initAudio = async () => {
@@ -110,8 +124,8 @@ export const useAudioVisualizer = (deviceId: string, enabled: boolean): Visualiz
                     if (cancelled) return;
                     const left = readLevel(analyserL, bufL);
                     const right = analyserR ? readLevel(analyserR, bufR) : left;
-                    setBar(leftRef, left);
-                    setBar(rightRef, right);
+                    setNeedle(leftRef, left);
+                    setNeedle(rightRef, right);
                     requestRef.current = requestAnimationFrame(animate);
                 };
 
@@ -134,8 +148,8 @@ export const useAudioVisualizer = (deviceId: string, enabled: boolean): Visualiz
                 audioContextRef.current.close().catch(() => { /* già chiuso */ });
                 audioContextRef.current = null;
             }
-            setBar(leftRef, 0);
-            setBar(rightRef, 0);
+            setNeedle(leftRef, 0);
+            setNeedle(rightRef, 0);
         };
     }, [deviceId, enabled]);
 
