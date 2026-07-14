@@ -2,9 +2,11 @@ name: Build & Release
 
 # Trigger esclusivamente manuale (workflow_dispatch).
 # Nessun build su push o tag — la pubblicazione è una decisione esplicita.
-# Modello identico a Runtime TelegramBot Desktop / FeedDownloader Pro,
-# con in più il job macOS. Le tre piattaforme vengono buildate in parallelo,
-# poi il job `release` pubblica gli installer sul bridge repo pubblico.
+# Modello identico a Runtime TelegramBot Desktop / FeedDownloader Pro:
+# solo Windows e Linux. macOS escluso di proposito — richiederebbe firma
+# Developer ID + notarizzazione Apple (a pagamento), altrimenti Gatekeeper
+# segnala l'app come "danneggiata" sui Mac altrui. Le piattaforme vengono
+# buildate in parallelo, poi il job `release` pubblica sul bridge repo pubblico.
 
 on:
   workflow_dispatch:
@@ -77,41 +79,8 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  build-macos:
-    runs-on: macos-latest
-    env:
-      # Build non firmata (icona/installer temporanei): niente ricerca di
-      # certificati di firma, altrimenti electron-builder fallisce sul runner.
-      CSC_IDENTITY_AUTO_DISCOVERY: false
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-      - name: Cache Electron binary
-        uses: actions/cache@v4
-        with:
-          path: ~/Library/Caches/electron
-          key: electron-mac-${{ hashFiles('package-lock.json') }}
-      - name: Install dependencies
-        run: npm ci
-      - name: Build (macOS, no publish)
-        run: npm run build && npm run build:main && npx electron-builder --mac --publish never
-      - name: Upload macOS artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-artifacts
-          path: |
-            builds/*/*.dmg
-            builds/*/*.zip
-            builds/*/*.blockmap
-            builds/*/latest-mac.yml
-          if-no-files-found: error
-          retention-days: 30
-
   release:
-    needs: [build-linux, build-windows, build-macos]
+    needs: [build-linux, build-windows]
     runs-on: ubuntu-latest
     if: ${{ github.event.inputs.publish_release == 'true' }}
     steps:
@@ -133,12 +102,6 @@ jobs:
           name: windows-artifacts
           path: artifacts/windows
 
-      - name: Download macOS artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: macos-artifacts
-          path: artifacts/macos
-
       - name: Publish release to bridge repo
         uses: softprops/action-gh-release@v2
         with:
@@ -156,12 +119,11 @@ jobs:
             | Piattaforma | File |
             |-------------|------|
             | **Windows** | `*.exe` |
-            | **macOS** | `*.dmg` |
             | **Linux (AppImage)** | `*.AppImage` |
             | **Linux (deb)** | `*.deb` |
 
-            > Le build macOS e Windows non sono firmate: al primo avvio il sistema
-            > potrebbe mostrare un avviso di sicurezza (su macOS: click destro → Apri).
+            > La build Windows non è firmata: al primo avvio SmartScreen può
+            > mostrare un avviso ("Ulteriori informazioni" → "Esegui comunque").
           files: |
             artifacts/linux/**/*.AppImage
             artifacts/linux/**/*.deb
@@ -169,7 +131,3 @@ jobs:
             artifacts/windows/**/*.exe
             artifacts/windows/**/*.blockmap
             artifacts/windows/**/latest.yml
-            artifacts/macos/**/*.dmg
-            artifacts/macos/**/*.zip
-            artifacts/macos/**/*.blockmap
-            artifacts/macos/**/latest-mac.yml
