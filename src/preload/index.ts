@@ -9,6 +9,7 @@ interface StreamConfig {
     bitrate: string;
     inputGain: string;
     inputDeviceName: string;
+    recordLocal: boolean;
 }
 
 contextBridge.exposeInMainWorld('electronAPI', {

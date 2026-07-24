@@ -36,6 +36,9 @@ interface AppState {
     // "Ricorda password su questo computer" (cifrata via safeStorage nel main)
     rememberPassword: boolean;
     setRememberPassword: (remember: boolean) => void;
+    // C2: registra la diretta anche su file MP3 locale (Documenti/StreamFlow)
+    recordLocal: boolean;
+    setRecordLocal: (record: boolean) => void;
     // Now Playing metadata
     streamMetadata: StreamMetadata;
     setStreamMetadata: (meta: Partial<StreamMetadata>) => void;
@@ -77,6 +80,8 @@ export const useStore = create<AppState>()(
             })),
             rememberPassword: true,
             setRememberPassword: (remember) => set({ rememberPassword: remember }),
+            recordLocal: false,
+            setRecordLocal: (record) => set({ recordLocal: record }),
             // Now Playing metadata
             streamMetadata: { artist: '', title: '' },
             setStreamMetadata: (meta) => set((state) => ({
@@ -110,6 +115,7 @@ export const useStore = create<AppState>()(
                 selectedDeviceId: state.selectedDeviceId,
                 selectedDeviceLabel: state.selectedDeviceLabel,
                 rememberPassword: state.rememberPassword,
+                recordLocal: state.recordLocal,
                 streamConfig: {
                     // Persistiamo solo le scelte dell'utente; i parametri di
                     // connessione vengono comunque riforzati dal preset in merge().
@@ -133,6 +139,7 @@ export const useStore = create<AppState>()(
                     selectedDeviceId: p.selectedDeviceId ?? current.selectedDeviceId,
                     selectedDeviceLabel: p.selectedDeviceLabel ?? current.selectedDeviceLabel,
                     rememberPassword: p.rememberPassword ?? current.rememberPassword,
+                    recordLocal: p.recordLocal ?? current.recordLocal,
                     streamMetadata: {
                         artist: p.streamMetadata?.artist ?? '',
                         title: '',

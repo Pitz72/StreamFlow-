@@ -5,6 +5,23 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.7.1] — 2026-07-24
+
+Prima versione pensata per la **consegna interna** ai DJ di Runtime Radio.
+
+### Added
+- **Elenco DJ completo** nella tendina: Studio Milano 1 (`AlexGRaccu`), Studio RM 2 (`doomboy`), Studio Runtime Castelli Romani (`PixelDebh_Runtime`), Studio Centrale di Monterotondo (`pizzisimone1972@gmail.com`).
+- **C2 — Registrazione locale della diretta.** Nuova opzione in Configurazione: "Salva una copia MP3 della diretta in Documenti\StreamFlow". Implementata con il muxer `tee` di FFmpeg: **un solo encoding**, due destinazioni (server + file), stessa qualità dello stream. Un file per sessione (`RuntimeRadio_YYYY-MM-DD_HH-MM-SS.mp3`); con l'auto-reconnect ogni ripresa apre un file nuovo (split automatico). Un errore sul file (disco pieno, permessi) interrompe solo la registrazione, MAI la diretta (`onfail=ignore`); viceversa un errore di connessione fa uscire FFmpeg come prima (auto-reconnect invariato). Le opzioni HTTP BUTT-compat (PUT, headers, no-chunked) sono passate per-slave perché quelle globali non si propagano dentro il tee — **verificato headless byte-per-byte** contro un server locale.
+  - Caso limite gestito: se il server rifiuta la connessione, il tee proseguirebbe registrando "muto" facendo sembrare l'app ON AIR — ora viene riconosciuto (`Slave muxer #0 failed`) e trattato come errore di connessione con stop della sessione.
+- **VU meter post-gain**: le lancette ora riflettono il volume input impostato, anche quando lo si regola in diretta. Il moltiplicatore (lo stesso del filtro `volume` di FFmpeg, lineare) è applicato alla sola visualizzazione, letto dallo store via ref a ogni frame — pipeline audio e performance invariate.
+- **Nuova icona applicazione**: pulsante REC rosso acceso con "R" (glifo Georgia Bold convertito in path SVG), su piastra petrolio con cornice ottone in stile Deco Dial. Set completo rigenerato (ICO Windows multi-risoluzione, PNG Linux, ICNS).
+
+### Changed
+- Archiviato l'handoff grafico del redesign in `docs/archive/design_handoff_deco_dial.zip`.
+- Bump versione 0.7.0 → 0.7.1.
+
+---
+
 ## [0.7.0] — 2026-07-24
 
 **Cambio di direzione: StreamFlow diventa il client ufficiale INTERNO di Runtime Radio.** La configurazione di connessione validata in diretta (v0.6.0) è ora preimpostata e non modificabile dall'utente: chi trasmette sceglie solo il proprio nome utente dalla tendina e inserisce la password.

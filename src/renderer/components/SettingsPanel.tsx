@@ -17,6 +17,8 @@ const SettingsPanel = () => {
         setStreamConfig,
         rememberPassword,
         setRememberPassword,
+        recordLocal,
+        setRecordLocal,
     } = useStore();
 
     const knownDj = STATION_PRESET.djs.some(d => d.username === streamConfig.icecastUser);
@@ -136,6 +138,24 @@ const SettingsPanel = () => {
                         </option>
                     ))}
                 </select>
+            </div>
+
+            {/* C2: registrazione locale della diretta */}
+            <div className="flex flex-col gap-2">
+                <label className={labelCls}>Registrazione locale</label>
+                <label className="flex items-center gap-2 text-deco-ink text-xs cursor-pointer select-none">
+                    <input
+                        type="checkbox"
+                        checked={recordLocal}
+                        onChange={(e) => setRecordLocal(e.target.checked)}
+                        className="accent-[#C8A44E]"
+                    />
+                    Salva una copia MP3 della diretta in Documenti\StreamFlow
+                </label>
+                <p className="text-deco-inkDim text-[11px] leading-snug">
+                    Un file per sessione, stessa qualità dello stream. Un problema al file
+                    (es. disco pieno) non interrompe la diretta.
+                </p>
             </div>
 
             {/* Dettagli connessione (sola lettura, per diagnostica) */}

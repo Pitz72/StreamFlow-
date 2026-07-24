@@ -1,6 +1,8 @@
 import { spawn, ChildProcess, exec, execSync } from 'child_process';
 import ffmpegPathRaw from 'ffmpeg-static';
-import { BrowserWindow } from 'electron';
+import { app, BrowserWindow } from 'electron';
+import fs from 'fs';
+import path from 'path';
 import { sendFilterCommand, isPortFree } from './zmq-command';
 
 // In production (asar), ffmpeg-static resolves inside app.asar which cannot be spawned.
@@ -17,6 +19,33 @@ interface StreamConfig {
     bitrate?: string;
     /** Guadagno input come percentuale ("100" = 1.0x, range 0-200). */
     inputGain?: string;
+    /** true = registra la diretta anche su file MP3 locale (C2, via muxer tee). */
+    recordLocal?: boolean;
+}
+
+/**
+ * Escaping per i valori delle opzioni slave del muxer tee. Il tee fa DUE livelli
+ * di parsing (split degli slave su '|', poi opzioni su ':'), ciascuno dei quali
+ * consuma un livello di '\': un ':' letterale (es. negli header HTTP) deve
+ * arrivare al secondo livello ancora escapato → due backslash nell'argomento.
+ * Validato headless contro ffmpeg-static (vedi docs/log/0.7.1.md).
+ */
+function teeEscapeOptionValue(s: string): string {
+    return s
+        .replace(/\\/g, '\\\\\\\\')
+        .replace(/:/g, '\\\\:')
+        .replace(/\|/g, '\\\\|')
+        .replace(/\[/g, '\\\\[')
+        .replace(/\]/g, '\\\\]');
+}
+
+/** Escaping del percorso file nello slave tee (solo primo livello: '|' '[' ']'). */
+function teeEscapePath(s: string): string {
+    return s
+        .replace(/\\/g, '/')
+        .replace(/\|/g, '\\|')
+        .replace(/\[/g, '\\[')
+        .replace(/\]/g, '\\]');
 }
 
 type StreamStatus = 'connecting' | 'connected' | 'error' | 'disconnected' | 'reconnecting';
@@ -185,6 +214,46 @@ export class StreamManager {
 
         this.log('info', `Connecting → ${host}:${port}${cleanMount} as user="${user}" gain=${gainPct}% bitrate=${bitrate || '128'}k live-vol=${portFree ? 'on' : 'off'}`);
 
+        const httpHeaders = `User-Agent: FMLE/3.0\r\nExpect:\r\nIce-Public: 1\r\nAuthorization: Basic ${creds}\r\n`;
+
+        // Registrazione locale (C2): con recordLocal attivo l'output diventa un
+        // muxer tee — UN solo encoding, due destinazioni. Lo slave http replica
+        // ESATTAMENTE il PUT BUTT-compat (method/headers/chunked passati come
+        // opzioni per-slave: quelle globali NON si propagano dentro il tee —
+        // verificato headless). Lo slave file ha onfail=ignore: un errore disco
+        // interrompe la registrazione ma NON la diretta. Viceversa, un errore di
+        // connessione fa uscire FFmpeg come oggi (auto-reconnect invariato).
+        let recordPath: string | null = null;
+        if (config.recordLocal) {
+            try {
+                const dir = path.join(app.getPath('documents'), 'StreamFlow');
+                fs.mkdirSync(dir, { recursive: true });
+                const ts = new Date().toISOString().slice(0, 19).replace('T', '_').replace(/:/g, '-');
+                recordPath = path.join(dir, `RuntimeRadio_${ts}.mp3`);
+            } catch (e) {
+                this.log('error', `registrazione locale non disponibile (${(e as Error).message}) — lo stream parte comunque`);
+                recordPath = null;
+            }
+        }
+
+        let outputArgs: string[];
+        if (recordPath) {
+            const httpSlave =
+                `[f=mp3:method=PUT:chunked_post=0:content_type=audio/mpeg:headers=${teeEscapeOptionValue(httpHeaders)}]${targetUrl}`;
+            const fileSlave = `[f=mp3:onfail=ignore]${teeEscapePath(recordPath)}`;
+            outputArgs = ['-map', '0:a', '-f', 'tee', `${httpSlave}|${fileSlave}`];
+            this.log('info', `registrazione locale attiva → ${recordPath}`);
+        } else {
+            outputArgs = [
+                '-content_type', 'audio/mpeg',
+                '-f', 'mp3',
+                '-method', 'PUT',
+                '-chunked_post', '0',
+                '-headers', httpHeaders,
+                targetUrl
+            ];
+        }
+
         const args = [
             '-f', 'dshow',
             '-i', `audio=${cleanDevice}`,
@@ -192,12 +261,7 @@ export class StreamManager {
             '-acodec', 'libmp3lame',
             '-b:a', `${bitrate || '128'}k`,
             '-ar', '44100',
-            '-content_type', 'audio/mpeg',
-            '-f', 'mp3',
-            '-method', 'PUT',
-            '-chunked_post', '0',
-            '-headers', `User-Agent: FMLE/3.0\r\nExpect:\r\nIce-Public: 1\r\nAuthorization: Basic ${creds}\r\n`,
-            targetUrl
+            ...outputArgs,
         ];
 
         // NOTA SICUREZZA (audit S2, rischio accettato): l'header Authorization con le
@@ -228,6 +292,27 @@ export class StreamManager {
             if (!message.includes('frame=') && !message.includes('size=') && !message.includes('time=')) {
                 lastErrorLog += message;
                 if (lastErrorLog.length > 2000) lastErrorLog = lastErrorLog.substring(lastErrorLog.length - 2000);
+            }
+
+            // Tee (registrazione locale): se lo slave http (#0) fallisce in apertura,
+            // il tee CONTINUA con il solo file (osservato in test headless, anche
+            // senza onfail=ignore) — l'app sembrerebbe ON AIR mentre registra muta.
+            // Va trattato come errore di connessione fatale: stop e report.
+            if (/Slave muxer #0 failed/i.test(message)) {
+                if (!connectionConfirmed) {
+                    connectionConfirmed = true;
+                    cancelConnectionTimeout();
+                    this.log('error', '✗ connessione al server fallita (la registrazione da sola non ha senso): sessione fermata');
+                    this.killCurrentProcess();
+                    this.currentConfig = null;
+                    this.sendStatus('error', 'Connessione al server fallita.');
+                }
+                return;
+            }
+            // Slave file (#1) fallito: registrazione persa ma la diretta continua.
+            if (/Slave muxer #1 failed/i.test(message)) {
+                this.log('error', 'registrazione locale interrotta (errore file/disco) — la diretta continua');
+                return;
             }
 
             // Connection error detection (immediate feedback).

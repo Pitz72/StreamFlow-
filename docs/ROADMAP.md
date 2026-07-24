@@ -32,8 +32,8 @@ La 0.6.0 ha superato la prova del campo: **~1h30 di diretta + 1h di preshow con 
 | Integrazione AzuraCast (wizard) | ✅ Completato | Auto-config one-click (opzionale) |
 | D1 — Volume input LIVE | ✅ Implementato (v0.6.0) | Via azmq + client ZMTP puro-Node |
 | Generalizzazione multi-sistema | 🗄️ Archiviata (24 Lug) | StreamFlow è ora client interno Runtime Radio preconfigurato |
-| Registrazione locale (C2) | ❌ **Prossima priorità** | `-f tee`, costo ~zero |
-| VU meter post-gain | ⚠️ Da rifinire | I meter leggono l'input pre-gain (Web Audio); il gain è in FFmpeg |
+| Registrazione locale (C2) | ✅ Implementata (v0.7.1) | Muxer tee, un solo encoding, onfail=ignore sul file |
+| VU meter post-gain | ✅ Implementato (v0.7.1) | Moltiplicatore visivo dallo store, pipeline invariata |
 
 ---
 
@@ -257,9 +257,8 @@ v0.6.0  Volume input LIVE (azmq + client ZMTP puro-Node)           [✅ VALIDATO
 v0.7.0  RUNTIME RADIO EDITION: preset interno + tendina DJ +        [✅]
         password cifrata (safeStorage) — wizard e profili rimossi
 ─────── da qui: feature di conduzione per i DJ della radio ───────
-v0.7.x  Completare elenco DJ nel preset (username degli altri conduttori)
-v0.7.x  C2 Registrazione locale (-f tee, costo ~zero) — la più richiesta
-v0.7.x  Rifinitura VU meter post-gain (riflette il volume live)
+v0.7.1  Elenco DJ completo (4 studi) + C2 Registrazione locale (tee) [✅]
+        + VU meter post-gain + icona REC — prima build consegnabile
 v0.8.0  C4 Statistiche live (bitrate/KB/uptime da stderr FFmpeg) + E1 tray/hotkey + E2 notifiche
 v0.9.x  FASE D: codec configurabile (AAC/Opus), mixer mic+sistema, soundboard
 v1.0.0  Stabilizzazione finale, auto-update, documentazione utente

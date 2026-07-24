@@ -46,6 +46,7 @@ function App() {
         errorMessage,
         setErrorMessage,
         rememberPassword,
+        recordLocal,
         appendLog,
     } = useStore()
 
@@ -228,7 +229,8 @@ function App() {
 
             window.electronAPI.startStream({
                 ...streamConfig,
-                inputDeviceName: selectedDeviceLabel
+                inputDeviceName: selectedDeviceLabel,
+                recordLocal,
             });
             // Il flag viene rilasciato dal primo status IPC in arrivo;
             // fallback di sicurezza se il main non risponde.

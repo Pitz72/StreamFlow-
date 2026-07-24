@@ -25,7 +25,10 @@ export const STATION_PRESET = {
     mount: '/',
     bitrate: '192',
     djs: [
-        { username: 'pizzisimone1972@gmail.com', displayName: 'Simone' },
+        { username: 'AlexGRaccu', displayName: 'Studio Milano 1' },
+        { username: 'doomboy', displayName: 'Studio RM 2' },
+        { username: 'PixelDebh_Runtime', displayName: 'Studio Runtime Castelli Romani' },
+        { username: 'pizzisimone1972@gmail.com', displayName: 'Studio Centrale di Monterotondo' },
     ] as DjAccount[],
 } as const;
 

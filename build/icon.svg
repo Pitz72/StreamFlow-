@@ -5,11 +5,17 @@
       <stop offset="60%" stop-color="#0C2A27"/>
       <stop offset="100%" stop-color="#08201F"/>
     </radialGradient>
-    <radialGradient id="dot" cx="50%" cy="42%" r="70%">
-      <stop offset="0%" stop-color="#F06456"/>
-      <stop offset="55%" stop-color="#E0483A"/>
-      <stop offset="100%" stop-color="#B8302A"/>
+    <!-- Disco REC: rosso acceso con gloss in alto a sinistra -->
+    <radialGradient id="rec" cx="42%" cy="34%" r="80%">
+      <stop offset="0%" stop-color="#FF6A57"/>
+      <stop offset="45%" stop-color="#EE3B2B"/>
+      <stop offset="85%" stop-color="#C81E14"/>
+      <stop offset="100%" stop-color="#A31510"/>
     </radialGradient>
+    <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
   </defs>
 
   <!-- Fondo petrolio -->
@@ -18,17 +24,20 @@
   <rect x="48" y="48" width="928" height="928" rx="184" ry="184" fill="none" stroke="#C8A44E" stroke-width="14" stroke-opacity="0.85"/>
   <rect x="86" y="86" width="852" height="852" rx="152" ry="152" fill="none" stroke="#C8A44E" stroke-width="4" stroke-opacity="0.35"/>
 
-  <!-- Onde di trasmissione (ottone) -->
-  <g fill="none" stroke="#C8A44E" stroke-width="34" stroke-linecap="round">
-    <!-- destra -->
-    <path d="M 632 340 A 210 210 0 0 1 632 684"/>
-    <path d="M 705 282 A 300 300 0 0 1 705 742"/>
-    <!-- sinistra -->
-    <path d="M 392 340 A 210 210 0 0 0 392 684" stroke-opacity="0.9"/>
-    <path d="M 319 282 A 300 300 0 0 0 319 742" stroke-opacity="0.9"/>
-  </g>
+  <!-- Ombra morbida sotto il disco -->
+  <ellipse cx="512" cy="552" rx="352" ry="340" fill="#000000" opacity="0.35"/>
 
-  <!-- Punto ON AIR -->
-  <circle cx="512" cy="512" r="128" fill="url(#dot)"/>
-  <circle cx="512" cy="512" r="128" fill="none" stroke="#F2EAD2" stroke-width="6" stroke-opacity="0.35"/>
+  <!-- Pulsante REC -->
+  <circle cx="512" cy="512" r="344" fill="url(#rec)"/>
+  <!-- Ghiera ottone del pulsante -->
+  <circle cx="512" cy="512" r="344" fill="none" stroke="#C8A44E" stroke-width="12" stroke-opacity="0.9"/>
+  <circle cx="512" cy="512" r="316" fill="none" stroke="#7E0F0A" stroke-width="6" stroke-opacity="0.55"/>
+  <!-- Gloss superiore -->
+  <path d="M 232 400 A 296 296 0 0 1 792 400 Q 660 320 512 320 Q 364 320 232 400 Z" fill="url(#gloss)"/>
+
+  <!-- R (Georgia Bold, glifo convertito in path) -->
+  <g>
+    <path transform="translate(6,8)" fill="#5E0B07" opacity="0.55" d="M748.1 681.1L748.1 702L602.4 702Q564.6 644.2 539.6 609.9Q514.5 575.6 477.3 530.6L477.3 530.6L462.6 530.6L462.6 646.0Q462.6 655.7 466.2 662.4Q469.8 669.1 480.0 673.6L480.0 673.6Q485.1 675.8 495.9 678.0Q506.8 680.3 514.5 681.1L514.5 681.1L514.5 702L311.8 702L311.8 681.1Q319.6 680.3 332.3 678.8Q345.0 677.4 350.4 675.2L350.4 675.2Q360.6 670.9 364.0 664.4Q367.5 657.8 367.5 647.6L367.5 647.6L367.5 379.6Q367.5 369.9 364.6 363.5Q361.6 357.1 350.4 352.3L350.4 352.3Q341.8 348.8 330.2 346.4Q318.5 344.0 311.8 342.9L311.8 342.9L311.8 322L525.0 322Q596.5 322 633.6 344.4Q670.7 366.7 670.7 412.0L670.7 412.0Q670.7 451.9 647.8 476.1Q624.9 500.4 578.0 514.0L578.0 514.0Q596.2 537.6 620.5 568.6Q644.7 599.7 670.9 632.1L670.9 632.1Q679.2 642.5 693.6 657.7Q707.9 672.8 718.9 676.3L718.9 676.3Q725.0 678.2 734.5 679.5Q744.0 680.8 748.1 681.1L748.1 681.1ZM565.7 419.5L565.7 419.5Q565.7 381.5 544.4 363.9Q523.1 346.4 483.7 346.4L483.7 346.4L462.6 346.4L462.6 505.4L482.9 505.4Q522.3 505.4 544.0 484.8Q565.7 464.2 565.7 419.5Z"/>
+    <path fill="#FBF3E4" d="M748.1 681.1L748.1 702L602.4 702Q564.6 644.2 539.6 609.9Q514.5 575.6 477.3 530.6L477.3 530.6L462.6 530.6L462.6 646.0Q462.6 655.7 466.2 662.4Q469.8 669.1 480.0 673.6L480.0 673.6Q485.1 675.8 495.9 678.0Q506.8 680.3 514.5 681.1L514.5 681.1L514.5 702L311.8 702L311.8 681.1Q319.6 680.3 332.3 678.8Q345.0 677.4 350.4 675.2L350.4 675.2Q360.6 670.9 364.0 664.4Q367.5 657.8 367.5 647.6L367.5 647.6L367.5 379.6Q367.5 369.9 364.6 363.5Q361.6 357.1 350.4 352.3L350.4 352.3Q341.8 348.8 330.2 346.4Q318.5 344.0 311.8 342.9L311.8 342.9L311.8 322L525.0 322Q596.5 322 633.6 344.4Q670.7 366.7 670.7 412.0L670.7 412.0Q670.7 451.9 647.8 476.1Q624.9 500.4 578.0 514.0L578.0 514.0Q596.2 537.6 620.5 568.6Q644.7 599.7 670.9 632.1L670.9 632.1Q679.2 642.5 693.6 657.7Q707.9 672.8 718.9 676.3L718.9 676.3Q725.0 678.2 734.5 679.5Q744.0 680.8 748.1 681.1L748.1 681.1ZM565.7 419.5L565.7 419.5Q565.7 381.5 544.4 363.9Q523.1 346.4 483.7 346.4L483.7 346.4L462.6 346.4L462.6 505.4L482.9 505.4Q522.3 505.4 544.0 484.8Q565.7 464.2 565.7 419.5Z"/>
+  </g>
 </svg>

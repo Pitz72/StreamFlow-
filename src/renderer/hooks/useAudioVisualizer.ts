@@ -1,4 +1,5 @@
 import { useEffect, useRef, type RefObject } from 'react';
+import { useStore } from '../store/useStore';
 
 export interface VisualizerRefs {
     // I ref puntano alle lancette SVG dei VU meter ad ago: il loop scrive
@@ -32,6 +33,24 @@ export const useAudioVisualizer = (deviceId: string, enabled: boolean): Visualiz
     const rightRef = useRef<SVGRectElement | null>(null);
     const audioContextRef = useRef<AudioContext | null>(null);
     const requestRef = useRef<number | null>(null);
+
+    // VU POST-GAIN: le lancette riflettono il volume input impostato (anche live).
+    // Web Audio legge il device grezzo (pre-gain); il guadagno reale è applicato
+    // dentro FFmpeg. Per la sola VISUALIZZAZIONE moltiplichiamo il livello per lo
+    // stesso fattore, letto dallo store via ref (nessun re-render, il filtro
+    // volume di FFmpeg è lineare quindi la scala è equivalente).
+    const gainMulRef = useRef(1);
+    useEffect(() => {
+        const readGain = (raw: string) => {
+            const pct = parseInt(raw, 10);
+            return Number.isFinite(pct) ? Math.max(0, Math.min(200, pct)) / 100 : 1;
+        };
+        gainMulRef.current = readGain(useStore.getState().streamConfig.inputGain);
+        const unsubscribe = useStore.subscribe((state) => {
+            gainMulRef.current = readGain(state.streamConfig.inputGain);
+        });
+        return unsubscribe;
+    }, []);
 
     useEffect(() => {
         if (!deviceId || !enabled) return;
@@ -122,10 +141,11 @@ export const useAudioVisualizer = (deviceId: string, enabled: boolean): Visualiz
 
                 const animate = () => {
                     if (cancelled) return;
-                    const left = readLevel(analyserL, bufL);
-                    const right = analyserR ? readLevel(analyserR, bufR) : left;
-                    setNeedle(leftRef, left);
-                    setNeedle(rightRef, right);
+                    const mul = gainMulRef.current;
+                    const rawLeft = readLevel(analyserL, bufL);
+                    const rawRight = analyserR ? readLevel(analyserR, bufR) : rawLeft;
+                    setNeedle(leftRef, rawLeft * mul);
+                    setNeedle(rightRef, rawRight * mul);
                     requestRef.current = requestAnimationFrame(animate);
                 };
 
