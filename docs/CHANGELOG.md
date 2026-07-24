@@ -5,6 +5,27 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.7.0] — 2026-07-24
+
+**Cambio di direzione: StreamFlow diventa il client ufficiale INTERNO di Runtime Radio.** La configurazione di connessione validata in diretta (v0.6.0) è ora preimpostata e non modificabile dall'utente: chi trasmette sceglie solo il proprio nome utente dalla tendina e inserisce la password.
+
+### Added
+- **Preset di stazione** (`src/renderer/config/stationPreset.ts`): host `player.runtimeradio.com`, porta harbor `8005`, mount `/`, MP3 `192 kbps` — fissi e mostrati in sola lettura nel pannello Configurazione. L'elenco DJ vive nello stesso file: per aggiungere un DJ si aggiorna l'array e si rilascia una nuova build.
+- **Tendina "Nome utente (DJ)"** al posto dei campi manuali, con voce "Altro utente…" per un DJ non ancora in elenco (inserimento manuale, nessun rebuild necessario per casi occasionali).
+- **"Ricorda la password su questo computer"** (attivo di default): la password è salvata **cifrata** via Electron `safeStorage` (DPAPI, decifrabile solo dall'account Windows dell'utente) in `userData/dj-credentials.json`, una voce per nome utente. Viene salvata solo DOPO una connessione riuscita (mai una password sbagliata), precompilata all'avvio e al cambio utente, ed eliminata deselezionando la casella. Mai in chiaro su disco né nel localStorage.
+
+### Changed
+- Pannello Configurazione ridotto all'essenziale: nome utente, password, dispositivo audio. Banner "Runtime Radio — client interno" + riepilogo connessione in sola lettura per diagnostica.
+- Migrazione automatica: una config manuale pre-0.7.0 nel localStorage viene sovrascritta dal preset (l'utente selezionato e il volume input vengono conservati).
+- Validazione GO: ora richiede anche il nome utente non vuoto.
+- Bump versione 0.6.0 → 0.7.0.
+
+### Removed
+- **Wizard AzuraCast** (`AzuraCastWizard.tsx`) e API AzuraCast nel main (`azuracast-api.ts`, handler IPC `azuracast-*`): superati dal preset. Recuperabili dalla history git se in futuro servirà sincronizzare l'elenco DJ via API.
+- **Profili server** (salva/carica/elimina) dallo store e dal pannello: con la configurazione unica preimpostata non hanno più ragione d'essere.
+
+---
+
 ## [0.6.0] — 2026-07-13
 
 ### Added

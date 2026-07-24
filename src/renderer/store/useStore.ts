@@ -1,15 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-
-export interface ServerProfile {
-    name: string;
-    host: string;
-    port: string;
-    mount: string;
-    icecastUser: string;
-    bitrate: string;
-    inputGain: string;
-}
+import { STATION_PRESET } from '../config/stationPreset';
 
 interface StreamMetadata {
     artist: string;
@@ -42,6 +33,9 @@ interface AppState {
     setSelectedDeviceLabel: (label: string) => void;
     streamConfig: StreamConfig;
     setStreamConfig: (config: Partial<StreamConfig>) => void;
+    // "Ricorda password su questo computer" (cifrata via safeStorage nel main)
+    rememberPassword: boolean;
+    setRememberPassword: (remember: boolean) => void;
     // Now Playing metadata
     streamMetadata: StreamMetadata;
     setStreamMetadata: (meta: Partial<StreamMetadata>) => void;
@@ -53,41 +47,36 @@ interface AppState {
     // Error notification (non-blocking toast)
     errorMessage: string | null;
     setErrorMessage: (message: string | null) => void;
-    // Server profiles (B1)
-    profiles: ServerProfile[];
-    saveProfile: (name: string) => void;
-    loadProfile: (name: string) => void;
-    deleteProfile: (name: string) => void;
-    // AzuraCast context for cover art (B2)
-    azuraCastUrl: string;
-    azuraCastApiKey: string;
-    azuraCastStationId: number | null;
-    setAzuraCastContext: (url: string, apiKey: string, stationId: number) => void;
     // Event log (rolling buffer, last 50 events)
     logEvents: LogEvent[];
     appendLog: (e: Omit<LogEvent, 'id' | 'ts'>) => void;
     clearLog: () => void;
 }
 
+/** Config di partenza: parametri di connessione SEMPRE dal preset Runtime Radio. */
+const presetStreamConfig = (): StreamConfig => ({
+    host: STATION_PRESET.host,
+    port: STATION_PRESET.port,
+    mount: STATION_PRESET.mount,
+    bitrate: STATION_PRESET.bitrate,
+    icecastUser: STATION_PRESET.djs[0]?.username ?? '',
+    password: '',
+    inputGain: '100',
+});
+
 export const useStore = create<AppState>()(
     persist(
-        (set, get) => ({
+        (set) => ({
             selectedDeviceId: 'default',
             selectedDeviceLabel: 'default',
             setSelectedDeviceId: (id) => set({ selectedDeviceId: id }),
             setSelectedDeviceLabel: (label) => set({ selectedDeviceLabel: label }),
-            streamConfig: {
-                host: 'stream.example.com',
-                port: '8000',
-                password: '',
-                mount: '/live',
-                icecastUser: 'source',
-                bitrate: '128',
-                inputGain: '100',
-            },
+            streamConfig: presetStreamConfig(),
             setStreamConfig: (config) => set((state) => ({
                 streamConfig: { ...state.streamConfig, ...config }
             })),
+            rememberPassword: true,
+            setRememberPassword: (remember) => set({ rememberPassword: remember }),
             // Now Playing metadata
             streamMetadata: { artist: '', title: '' },
             setStreamMetadata: (meta) => set((state) => ({
@@ -101,46 +90,6 @@ export const useStore = create<AppState>()(
             // Error notification
             errorMessage: null,
             setErrorMessage: (message) => set({ errorMessage: message }),
-            // Server profiles (B1)
-            profiles: [],
-            saveProfile: (name) => {
-                const { streamConfig, profiles } = get();
-                const profile: ServerProfile = {
-                    name: name.trim(),
-                    host: streamConfig.host,
-                    port: streamConfig.port,
-                    mount: streamConfig.mount,
-                    icecastUser: streamConfig.icecastUser,
-                    bitrate: streamConfig.bitrate,
-                    inputGain: streamConfig.inputGain,
-                };
-                const filtered = profiles.filter(p => p.name !== profile.name);
-                set({ profiles: [...filtered, profile] });
-            },
-            loadProfile: (name) => {
-                const profile = get().profiles.find(p => p.name === name);
-                if (!profile) return;
-                set((state) => ({
-                    streamConfig: {
-                        ...state.streamConfig,
-                        host: profile.host,
-                        port: profile.port,
-                        mount: profile.mount,
-                        icecastUser: profile.icecastUser,
-                        bitrate: profile.bitrate,
-                        inputGain: profile.inputGain ?? '100',
-                    }
-                }));
-            },
-            deleteProfile: (name) => {
-                set((state) => ({ profiles: state.profiles.filter(p => p.name !== name) }));
-            },
-            // AzuraCast context (B2) — apiKey is session-only (not persisted)
-            azuraCastUrl: '',
-            azuraCastApiKey: '',
-            azuraCastStationId: null,
-            setAzuraCastContext: (url, apiKey, stationId) =>
-                set({ azuraCastUrl: url, azuraCastApiKey: apiKey, azuraCastStationId: stationId }),
             // Event log
             logEvents: [],
             appendLog: (e) => set((state) => {
@@ -160,24 +109,41 @@ export const useStore = create<AppState>()(
             partialize: (state) => ({
                 selectedDeviceId: state.selectedDeviceId,
                 selectedDeviceLabel: state.selectedDeviceLabel,
+                rememberPassword: state.rememberPassword,
                 streamConfig: {
-                    host: state.streamConfig.host,
-                    port: state.streamConfig.port,
-                    mount: state.streamConfig.mount,
+                    // Persistiamo solo le scelte dell'utente; i parametri di
+                    // connessione vengono comunque riforzati dal preset in merge().
                     icecastUser: state.streamConfig.icecastUser,
-                    bitrate: state.streamConfig.bitrate,
                     inputGain: state.streamConfig.inputGain,
-                    password: '', // never persisted to localStorage
                 },
                 streamMetadata: {
                     artist: state.streamMetadata.artist,
                     title: '', // current song title is session-only
                 },
-                profiles: state.profiles,
-                azuraCastUrl: state.azuraCastUrl,
-                azuraCastStationId: state.azuraCastStationId,
-                // azuraCastApiKey: intentionally excluded
             }),
+            // Merge custom: host/porta/mount/bitrate arrivano SEMPRE dal preset,
+            // anche se nel localStorage c'è una config vecchia (pre-0.7.0) con
+            // valori manuali o profili salvati.
+            merge: (persisted, current) => {
+                const p = (persisted ?? {}) as Partial<AppState> & {
+                    streamConfig?: Partial<StreamConfig>;
+                };
+                return {
+                    ...current,
+                    selectedDeviceId: p.selectedDeviceId ?? current.selectedDeviceId,
+                    selectedDeviceLabel: p.selectedDeviceLabel ?? current.selectedDeviceLabel,
+                    rememberPassword: p.rememberPassword ?? current.rememberPassword,
+                    streamMetadata: {
+                        artist: p.streamMetadata?.artist ?? '',
+                        title: '',
+                    },
+                    streamConfig: {
+                        ...presetStreamConfig(),
+                        icecastUser: p.streamConfig?.icecastUser || current.streamConfig.icecastUser,
+                        inputGain: p.streamConfig?.inputGain ?? current.streamConfig.inputGain,
+                    },
+                };
+            },
         }
     )
 );

@@ -1,7 +1,7 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import { StreamManager } from './streaming/ffmpeg-manager';
 import { MetadataManager } from './streaming/metadata-manager';
-import { fetchStations, fetchStationDetail } from './azuracast/azuracast-api';
+import { savePassword, loadPassword, deletePassword } from './credentials';
 
 let streamManager: StreamManager | null = null;
 const metadataManager = new MetadataManager();
@@ -99,21 +99,16 @@ export const initializeIpc = (mainWindow: BrowserWindow) => {
         };
     });
 
-    ipcMain.handle('azuracast-fetch-stations', async (_event, { url, apiKey }: { url: string; apiKey: string }) => {
-        try {
-            const stations = await fetchStations(url, apiKey);
-            return { ok: true, stations };
-        } catch (err) {
-            return { ok: false, error: (err as Error).message };
-        }
+    // Memoria password DJ (cifrata via safeStorage, file in userData)
+    ipcMain.handle('dj-password-save', async (_event, { username, password }: { username: string; password: string }) => {
+        return { ok: savePassword(username, password) };
     });
 
-    ipcMain.handle('azuracast-fetch-station-detail', async (_event, { url, apiKey, stationId }: { url: string; apiKey: string; stationId: number }) => {
-        try {
-            const detail = await fetchStationDetail(url, apiKey, stationId);
-            return { ok: true, detail };
-        } catch (err) {
-            return { ok: false, error: (err as Error).message };
-        }
+    ipcMain.handle('dj-password-load', async (_event, { username }: { username: string }) => {
+        return { password: loadPassword(username) };
+    });
+
+    ipcMain.handle('dj-password-delete', async (_event, { username }: { username: string }) => {
+        deletePassword(username);
     });
 };

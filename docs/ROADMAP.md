@@ -1,7 +1,18 @@
 # Roadmap — Runtime StreamFlow
 
 Documento ripristinato dalla conversazione strategica originale (Gemini AI Studio, 5 Mar 2026).
-Aggiornato al 13 Luglio 2026 (v0.6.0) dopo audit completo, stabilizzazione e validazione in diretta reale.
+Aggiornato al 24 Luglio 2026 (v0.7.0) dopo il cambio di direzione: client interno Runtime Radio.
+
+---
+
+## 🧭 CAMBIO DI DIREZIONE (24 Lug 2026, v0.7.0)
+
+StreamFlow è ora il **software ufficiale INTERNO di Runtime Radio**, non un client generico da distribuire. Conseguenze:
+
+- **Preset di stazione hardcoded** (`stationPreset.ts`): host/porta/mount/bitrate fissi, validati in diretta. L'utente sceglie solo il nome utente DJ dalla tendina + password (memorizzabile cifrata via safeStorage).
+- **Archiviata la priorità "generalizzazione multi-sistema"** (Icecast puro/Shoutcast): il core HTTP PUT resta generico, ma non è più un obiettivo di prodotto. Wizard AzuraCast e profili server rimossi (recuperabili dalla history git).
+- **Le priorità diventano le feature di conduzione**: registrazione locale (C2), VU meter post-gain, statistiche live (C4), tray + hotkey (E1) — ciò che serve ai DJ della radio, non al mercato.
+- **Elenco DJ da completare** nel preset (oggi solo Simone): servono gli username AzuraCast degli altri conduttori.
 
 ---
 
@@ -20,8 +31,8 @@ La 0.6.0 ha superato la prova del campo: **~1h30 di diretta + 1h di preshow con 
 | Now Playing / metadata | ✅ Validato in diretta | Raw socket BUTT-compat, arriva rapido al player |
 | Integrazione AzuraCast (wizard) | ✅ Completato | Auto-config one-click (opzionale) |
 | D1 — Volume input LIVE | ✅ Implementato (v0.6.0) | Via azmq + client ZMTP puro-Node |
-| **Generalizzazione multi-sistema** | ❌ **Prossima priorità** | Testare Icecast puro / Shoutcast, non solo AzuraCast |
-| Registrazione locale (C2) | ❌ Non iniziato | `-f tee`, costo ~zero |
+| Generalizzazione multi-sistema | 🗄️ Archiviata (24 Lug) | StreamFlow è ora client interno Runtime Radio preconfigurato |
+| Registrazione locale (C2) | ❌ **Prossima priorità** | `-f tee`, costo ~zero |
 | VU meter post-gain | ⚠️ Da rifinire | I meter leggono l'input pre-gain (Web Audio); il gain è in FFmpeg |
 
 ---
@@ -242,16 +253,19 @@ v0.5.7  Audit: 3 gravissime (race FFmpeg, error spurio, C1 reconnect) [✅]
 v0.5.8  Audit: tutte le gravi/medie/lievi (hardening completo)      [✅]
 v0.5.9  Fix VU meter fluido (ref DOM + backgroundThrottling)        [✅]
 v0.6.0  Volume input LIVE (azmq + client ZMTP puro-Node)           [✅ VALIDATO IN DIRETTA]
-─────── stabilizzazione conclusa · da qui: integrazioni e rifiniture ───────
-v0.6.x  GENERALIZZAZIONE: test/supporto Icecast puro + Shoutcast   [prossimo, priorità max]
-v0.6.x  Rifinitura VU meter post-gain (riflette il volume live)
-v0.7.0  FASE C2/C3/C4: Registrazione locale, multi-stream, stats
-v0.7.x  FASE D: Codec configurabile (AAC/Opus), mixer mic+sistema
-v0.8.0  FASE E: System tray + Hotkey + Notifiche
+─────── stabilizzazione conclusa ───────
+v0.7.0  RUNTIME RADIO EDITION: preset interno + tendina DJ +        [✅]
+        password cifrata (safeStorage) — wizard e profili rimossi
+─────── da qui: feature di conduzione per i DJ della radio ───────
+v0.7.x  Completare elenco DJ nel preset (username degli altri conduttori)
+v0.7.x  C2 Registrazione locale (-f tee, costo ~zero) — la più richiesta
+v0.7.x  Rifinitura VU meter post-gain (riflette il volume live)
+v0.8.0  C4 Statistiche live (bitrate/KB/uptime da stderr FFmpeg) + E1 tray/hotkey + E2 notifiche
+v0.9.x  FASE D: codec configurabile (AAC/Opus), mixer mic+sistema, soundboard
 v1.0.0  Stabilizzazione finale, auto-update, documentazione utente
 ```
 
-**Nota direzione (13 Lug 2026):** priorità assoluta della prossima fase è rendere StreamFlow **universale** — non legato ad AzuraCast ma funzionante con qualsiasi server Icecast/Shoutcast. Il core HTTP PUT + metadata è già generico; va testato contro server non-AzuraCast. Il wizard AzuraCast resta un plus opzionale.
+**Nota direzione (24 Lug 2026):** la generalizzazione multi-sistema (nota del 13 Lug) è **archiviata**: StreamFlow è il client interno di Runtime Radio, preconfigurato. Le energie vanno sulle feature che migliorano la conduzione quotidiana.
 
 Feature avanzate (D3 Mixer, D4 Soundboard, D5 Monitor, C3 Stream multipli, E3 Schedule) da valutare dopo v1.0 in base al feedback utenti reali.
 

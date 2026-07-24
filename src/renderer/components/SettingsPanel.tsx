@@ -1,8 +1,12 @@
-import { useState } from 'react';
 import { useAudioDevices } from '../hooks/useAudioDevices';
 import { useStore } from '../store/useStore';
-import AzuraCastWizard from './AzuraCastWizard';
+import { STATION_PRESET, OTHER_DJ } from '../config/stationPreset';
 
+/**
+ * Configurazione "interna Runtime Radio": i parametri di connessione sono
+ * preimpostati dal preset di stazione. L'utente sceglie solo il proprio nome
+ * utente DJ, inserisce la password e seleziona il dispositivo audio.
+ */
 const SettingsPanel = () => {
     const { devices } = useAudioDevices();
     const {
@@ -11,18 +15,30 @@ const SettingsPanel = () => {
         setSelectedDeviceLabel,
         streamConfig,
         setStreamConfig,
-        profiles,
-        saveProfile,
-        loadProfile,
-        deleteProfile,
+        rememberPassword,
+        setRememberPassword,
     } = useStore();
 
-    const [savingName, setSavingName] = useState('');
-    const [showSaveInput, setShowSaveInput] = useState(false);
-    const [selectedProfile, setSelectedProfile] = useState('');
+    const knownDj = STATION_PRESET.djs.some(d => d.username === streamConfig.icecastUser);
+    // Utente fuori elenco (config migrata o inserimento manuale) → modalità "Altro".
+    const selectValue = knownDj ? streamConfig.icecastUser : OTHER_DJ;
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setStreamConfig({ [e.target.name]: e.target.value });
+    const loadSavedPassword = async (username: string) => {
+        if (!window.electronAPI?.loadDjPassword || !username) return;
+        try {
+            const { password } = await window.electronAPI.loadDjPassword({ username });
+            if (password) setStreamConfig({ password });
+        } catch { /* nessuna password salvata */ }
+    };
+
+    const handleDjChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const value = e.target.value;
+        if (value === OTHER_DJ) {
+            setStreamConfig({ icecastUser: '', password: '' });
+            return;
+        }
+        setStreamConfig({ icecastUser: value, password: '' });
+        if (rememberPassword) void loadSavedPassword(value);
     };
 
     const handleDeviceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -32,95 +48,86 @@ const SettingsPanel = () => {
         setSelectedDeviceLabel(device ? device.label : 'default');
     };
 
-    const handleProfileLoad = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        const name = e.target.value;
-        setSelectedProfile(name);
-        if (name) loadProfile(name);
+    const handleRememberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const remember = e.target.checked;
+        setRememberPassword(remember);
+        // Disattivando la memoria, la password salvata per questo utente viene rimossa.
+        if (!remember && streamConfig.icecastUser && window.electronAPI?.deleteDjPassword) {
+            void window.electronAPI.deleteDjPassword({ username: streamConfig.icecastUser });
+        }
     };
 
-    const handleSave = () => {
-        const name = savingName.trim();
-        if (!name) return;
-        saveProfile(name);
-        setSelectedProfile(name);
-        setSavingName('');
-        setShowSaveInput(false);
-    };
-
-    const handleDelete = () => {
-        if (!selectedProfile) return;
-        deleteProfile(selectedProfile);
-        setSelectedProfile('');
-    };
+    const inputCls = "bg-deco-bg border border-deco-brass/30 rounded-[3px] px-[11px] py-[9px] text-deco-ink focus:border-deco-brass focus:outline-none";
+    const labelCls = "text-deco-brassLabel uppercase text-[10px] font-ui font-semibold tracking-[2px]";
 
     return (
         <div className="flex flex-col gap-6 text-sm relative">
-            <AzuraCastWizard />
-
-            {/* Server Profiles (B1) */}
-            <div className="flex flex-col gap-2">
-                <label className="text-deco-brassLabel uppercase text-[10px] font-ui font-semibold tracking-[2px]">Server Profiles</label>
-                <select
-                    value={selectedProfile}
-                    onChange={handleProfileLoad}
-                    className="bg-deco-bg border border-deco-brass/30 rounded-[3px] px-[11px] py-[9px] text-deco-ink focus:border-deco-brass focus:outline-none w-full"
-                >
-                    <option value="">— Seleziona profilo —</option>
-                    {profiles.map((p) => (
-                        <option key={p.name} value={p.name}>{p.name}</option>
-                    ))}
-                </select>
-                <div className="flex gap-2">
-                    {!showSaveInput ? (
-                        <button
-                            onClick={() => { setSavingName(selectedProfile || ''); setShowSaveInput(true); }}
-                            className="flex-1 text-xs font-ui uppercase tracking-[1px] bg-transparent hover:bg-deco-brass/10 text-deco-brass border border-deco-brass/40 rounded-[2px] px-3 py-1.5 transition-colors"
-                        >
-                            + Salva profilo
-                        </button>
-                    ) : (
-                        <>
-                            <input
-                                autoFocus
-                                type="text"
-                                placeholder="Nome profilo"
-                                value={savingName}
-                                onChange={(e) => setSavingName(e.target.value)}
-                                onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setShowSaveInput(false); }}
-                                className="flex-1 bg-deco-bg border border-deco-brass rounded-[3px] px-2 py-1 text-deco-ink text-xs focus:outline-none"
-                            />
-                            <button
-                                onClick={handleSave}
-                                disabled={!savingName.trim()}
-                                className="text-xs bg-deco-success hover:brightness-110 disabled:opacity-40 text-deco-bg font-bold rounded-[2px] px-3 py-1 transition-all"
-                            >
-                                ✓
-                            </button>
-                            <button
-                                onClick={() => setShowSaveInput(false)}
-                                className="text-xs bg-transparent hover:bg-deco-brass/10 text-deco-inkDim border border-deco-brass/30 rounded-[2px] px-2 py-1 transition-colors"
-                            >
-                                ✕
-                            </button>
-                        </>
-                    )}
-                    {selectedProfile && !showSaveInput && (
-                        <button
-                            onClick={handleDelete}
-                            className="text-xs bg-transparent hover:bg-deco-onair/15 text-deco-onair border border-deco-onair/40 rounded-[2px] px-3 py-1.5 transition-colors"
-                        >
-                            Elimina
-                        </button>
-                    )}
-                </div>
+            {/* Banner stazione preconfigurata */}
+            <div className="bg-deco-bg border border-deco-brass/30 rounded-[8px] px-4 py-3">
+                <p className="text-deco-brass font-ui font-semibold uppercase tracking-[2px] text-[11px]">
+                    {STATION_PRESET.stationName} — client interno
+                </p>
+                <p className="text-deco-inkDim text-xs mt-1">
+                    Server, porta e qualità sono già impostati. Scegli il tuo nome utente,
+                    inserisci la password e sei pronto.
+                </p>
             </div>
 
+            {/* Nome utente DJ */}
             <div className="flex flex-col gap-2">
-                <label className="text-deco-brassLabel uppercase text-[10px] font-ui font-semibold tracking-[2px]">Audio Input Device</label>
+                <label className={labelCls}>Nome utente (DJ)</label>
+                <select
+                    value={selectValue}
+                    onChange={handleDjChange}
+                    className={`${inputCls} w-full`}
+                >
+                    {STATION_PRESET.djs.map((dj) => (
+                        <option key={dj.username} value={dj.username}>
+                            {dj.displayName} ({dj.username})
+                        </option>
+                    ))}
+                    <option value={OTHER_DJ}>Altro utente…</option>
+                </select>
+                {selectValue === OTHER_DJ && (
+                    <input
+                        type="text"
+                        placeholder="Nome utente DJ (streamer AzuraCast)"
+                        value={streamConfig.icecastUser}
+                        onChange={(e) => setStreamConfig({ icecastUser: e.target.value })}
+                        onBlur={() => { if (rememberPassword) void loadSavedPassword(streamConfig.icecastUser); }}
+                        className={inputCls}
+                    />
+                )}
+            </div>
+
+            {/* Password */}
+            <div className="flex flex-col gap-2">
+                <label className={labelCls}>Password</label>
+                <input
+                    name="password"
+                    type="password"
+                    value={streamConfig.password}
+                    onChange={(e) => setStreamConfig({ password: e.target.value })}
+                    className={inputCls}
+                />
+                <label className="flex items-center gap-2 text-deco-inkDim text-xs cursor-pointer select-none">
+                    <input
+                        type="checkbox"
+                        checked={rememberPassword}
+                        onChange={handleRememberChange}
+                        className="accent-[#C8A44E]"
+                    />
+                    Ricorda la password su questo computer (salvata cifrata)
+                </label>
+            </div>
+
+            {/* Dispositivo audio */}
+            <div className="flex flex-col gap-2">
+                <label className={labelCls}>Audio Input Device</label>
                 <select
                     value={selectedDeviceId}
                     onChange={handleDeviceChange}
-                    className="bg-deco-bg border border-deco-brass/30 rounded-[3px] px-[11px] py-[9px] text-deco-ink focus:border-deco-brass focus:outline-none w-full"
+                    className={`${inputCls} w-full`}
                 >
                     <option value="default">Default System Device</option>
                     {devices.map((device) => (
@@ -131,83 +138,17 @@ const SettingsPanel = () => {
                 </select>
             </div>
 
-            <div className="flex flex-col gap-2">
-                <label className="text-deco-brassLabel uppercase text-[10px] font-ui font-semibold tracking-[2px]">Host</label>
-                <input
-                    name="host"
-                    type="text"
-                    value={streamConfig.host}
-                    onChange={handleChange}
-                    className="bg-deco-bg border border-deco-brass/30 rounded-[3px] px-[11px] py-[9px] text-deco-ink focus:border-deco-brass focus:outline-none"
-                />
-            </div>
-
-            <div className="flex flex-col gap-2">
-                <label className="text-deco-brassLabel uppercase text-[10px] font-ui font-semibold tracking-[2px]">Port</label>
-                <input
-                    name="port"
-                    type="text"
-                    value={streamConfig.port}
-                    onChange={handleChange}
-                    className="bg-deco-bg border border-deco-brass/30 rounded-[3px] px-[11px] py-[9px] text-deco-ink focus:border-deco-brass focus:outline-none"
-                />
-            </div>
-
-            <div className="flex flex-col gap-2">
-                <label className="text-deco-brassLabel uppercase text-[10px] font-ui font-semibold tracking-[2px]">Icecast User (DJ)</label>
-                <input
-                    name="icecastUser"
-                    type="text"
-                    value={streamConfig.icecastUser}
-                    onChange={handleChange}
-                    placeholder="source"
-                    className="bg-deco-bg border border-deco-brass/30 rounded-[3px] px-[11px] py-[9px] text-deco-ink focus:border-deco-brass focus:outline-none"
-                />
-            </div>
-
-            <div className="flex flex-col gap-2">
-                <label className="text-deco-brassLabel uppercase text-[10px] font-ui font-semibold tracking-[2px]">Password</label>
-                <input
-                    name="password"
-                    type="password"
-                    value={streamConfig.password}
-                    onChange={handleChange}
-                    className="bg-deco-bg border border-deco-brass/30 rounded-[3px] px-[11px] py-[9px] text-deco-ink focus:border-deco-brass focus:outline-none"
-                />
-            </div>
-
-            <div className="flex flex-col gap-2">
-                <label className="text-deco-brassLabel uppercase text-[10px] font-ui font-semibold tracking-[2px]">Mount Point</label>
-                <input
-                    name="mount"
-                    type="text"
-                    value={streamConfig.mount}
-                    onChange={handleChange}
-                    className="bg-deco-bg border border-deco-brass/30 rounded-[3px] px-[11px] py-[9px] text-deco-ink focus:border-deco-brass focus:outline-none"
-                />
-            </div>
-
-            <div className="flex flex-col gap-2">
-                <label className="text-deco-brassLabel uppercase text-[10px] font-ui font-semibold tracking-[2px]">Bitrate</label>
-                <select
-                    name="bitrate"
-                    value={streamConfig.bitrate}
-                    onChange={(e) => setStreamConfig({ bitrate: e.target.value })}
-                    className="bg-deco-bg border border-deco-brass/30 rounded-[3px] px-[11px] py-[9px] text-deco-ink focus:border-deco-brass focus:outline-none"
-                >
-                    <option value="64">64 kbps</option>
-                    <option value="96">96 kbps</option>
-                    <option value="128">128 kbps</option>
-                    <option value="192">192 kbps</option>
-                    <option value="256">256 kbps</option>
-                    <option value="320">320 kbps</option>
-                </select>
+            {/* Dettagli connessione (sola lettura, per diagnostica) */}
+            <div className="flex flex-col gap-1">
+                <label className={labelCls}>Connessione (preimpostata)</label>
+                <div className="bg-deco-bg border border-deco-brass/20 rounded-[3px] px-3 py-2 font-mono text-xs text-deco-inkDim">
+                    {STATION_PRESET.host}:{STATION_PRESET.port}{STATION_PRESET.mount} · MP3 {STATION_PRESET.bitrate} kbps
+                </div>
             </div>
 
             <p className="text-deco-inkDim text-xs italic">
-                Input Volume è ora nella schermata principale, sotto il pulsante ON AIR.
+                Input Volume è nella schermata principale, sotto il pulsante ON AIR.
             </p>
-
         </div>
     );
 };

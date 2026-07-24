@@ -35,6 +35,7 @@ const statusPulses = (s: string) => s === 'connecting' || s === 'connected' || s
 function App() {
     const {
         streamConfig,
+        setStreamConfig,
         streamMetadata,
         selectedDeviceId,
         selectedDeviceLabel,
@@ -44,6 +45,7 @@ function App() {
         setStreamStatus,
         errorMessage,
         setErrorMessage,
+        rememberPassword,
         appendLog,
     } = useStore()
 
@@ -73,6 +75,33 @@ function App() {
     useEffect(() => {
         metadataRef.current = streamMetadata;
     }, [streamMetadata]);
+
+    // Ref sulle credenziali correnti: il listener IPC salva la password (cifrata,
+    // via safeStorage nel main) solo DOPO una connessione riuscita — così non
+    // memorizziamo mai una password sbagliata.
+    const credsRef = useRef({ username: '', password: '', remember: true });
+    useEffect(() => {
+        credsRef.current = {
+            username: streamConfig.icecastUser,
+            password: streamConfig.password,
+            remember: rememberPassword,
+        };
+    }, [streamConfig.icecastUser, streamConfig.password, rememberPassword]);
+
+    // All'avvio: se "ricorda password" è attivo, precompila la password salvata
+    // per l'utente selezionato (l'utente apre l'app e preme solo GO).
+    useEffect(() => {
+        const { username, password, remember } = credsRef.current;
+        if (!remember || !username || password) return;
+        if (!window.electronAPI?.loadDjPassword) return;
+        window.electronAPI.loadDjPassword({ username })
+            .then(({ password: saved }) => {
+                if (saved) setStreamConfig({ password: saved });
+            })
+            .catch(() => { /* nessuna password salvata */ });
+        // Solo al mount: i cambi utente successivi sono gestiti dal SettingsPanel.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Il microfono per i VU meter è attivo solo quando la finestra è visibile:
     // niente capture (e indicatore privacy OS) con app minimizzata.
@@ -105,6 +134,14 @@ function App() {
                         window.electronAPI.updateMetadata({
                             artist: meta.artist,
                             title: meta.title,
+                        });
+                    }
+                    // Connessione riuscita → la password è giusta: memorizzala (cifrata).
+                    const creds = credsRef.current;
+                    if (creds.remember && creds.username && creds.password && window.electronAPI?.saveDjPassword) {
+                        void window.electronAPI.saveDjPassword({
+                            username: creds.username,
+                            password: creds.password,
                         });
                     }
                 } else if (status === 'disconnected' || status === 'error') {
@@ -157,6 +194,11 @@ function App() {
         }
         if (!streamConfig.host.trim()) {
             setErrorMessage('Host obbligatorio.');
+            setOpenModal('settings');
+            return;
+        }
+        if (!streamConfig.icecastUser.trim()) {
+            setErrorMessage('Scegli il tuo nome utente in Configurazione.');
             setOpenModal('settings');
             return;
         }

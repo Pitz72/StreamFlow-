@@ -28,8 +28,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     updateMetadata: (meta: { artist: string; title: string }) =>
         ipcRenderer.invoke('update-metadata', meta),
     setInputGain: (pct: number) => ipcRenderer.invoke('set-input-gain', pct),
-    azuraCastFetchStations: (args: { url: string; apiKey: string }) =>
-        ipcRenderer.invoke('azuracast-fetch-stations', args),
-    azuraCastFetchStationDetail: (args: { url: string; apiKey: string; stationId: number }) =>
-        ipcRenderer.invoke('azuracast-fetch-station-detail', args),
+    saveDjPassword: (args: { username: string; password: string }) =>
+        ipcRenderer.invoke('dj-password-save', args),
+    loadDjPassword: (args: { username: string }) =>
+        ipcRenderer.invoke('dj-password-load', args),
+    deleteDjPassword: (args: { username: string }) =>
+        ipcRenderer.invoke('dj-password-delete', args),
 });
