@@ -4,6 +4,7 @@ import { app, BrowserWindow } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import { sendFilterCommand, isPortFree } from './zmq-command';
+import { writeRaw } from '../file-logger';
 
 // In production (asar), ffmpeg-static resolves inside app.asar which cannot be spawned.
 // We replace 'app.asar' with 'app.asar.unpacked' to point to the extracted binary.
@@ -83,6 +84,27 @@ export class StreamManager {
     private log(level: 'info' | 'success' | 'error', msg: string) {
         if (this.logSink) this.logSink(level, msg);
         console.log(`[StreamManager] ${level}: ${msg}`);
+    }
+
+    /**
+     * Traduce l'errore di FFmpeg in una causa comprensibile a chi trasmette.
+     * Serve a chi riceve il log senza saperlo leggere: "401" non dice niente,
+     * "password DJ errata" sì.
+     */
+    private explainConnectError(raw: string): string {
+        if (/\b401\b|Unauthorized/i.test(raw)) {
+            return 'credenziali rifiutate dal server (nome utente o password DJ errati)';
+        }
+        if (/\b403\b|access denied/i.test(raw)) {
+            return 'accesso negato: utente valido ma non autorizzato su questo mount, oppure un altro DJ è già collegato';
+        }
+        if (/\b404\b/.test(raw)) {
+            return 'mount inesistente sul server';
+        }
+        if (/Connection refused/i.test(raw)) {
+            return 'nessun servizio in ascolto sulla porta indicata, oppure la porta è bloccata da firewall/antivirus';
+        }
+        return 'connessione al server fallita';
     }
 
     public static async getWindowsAudioDevices(): Promise<string[]> {
@@ -292,6 +314,10 @@ export class StreamManager {
             if (!message.includes('frame=') && !message.includes('size=') && !message.includes('time=')) {
                 lastErrorLog += message;
                 if (lastErrorLog.length > 2000) lastErrorLog = lastErrorLog.substring(lastErrorLog.length - 2000);
+                // D1: stderr grezzo su file. Le righe di progresso (frame=/size=/time=)
+                // sono escluse: arrivano ogni mezzo secondo e sommergerebbero il file
+                // proprio nelle sessioni lunghe in cui serve rileggerlo.
+                writeRaw('ffmpeg', message);
             }
 
             // Tee (registrazione locale): se lo slave http (#0) fallisce in apertura,
@@ -323,7 +349,12 @@ export class StreamManager {
                 if (!connectionConfirmed) {
                     connectionConfirmed = true;
                     cancelConnectionTimeout();
-                    this.sendStatus('error', message.trim().substring(0, 150));
+                    const raw = message.trim().substring(0, 150);
+                    // Questo ramo era l'unico a NON scrivere nel log: l'errore finiva
+                    // solo nel toast a video, che sparisce da solo. Risultato: il
+                    // pannello si fermava su "Connecting" e la causa era irrecuperabile.
+                    this.log('error', `✗ ${this.explainConnectError(message)} — FFmpeg: ${raw}`);
+                    this.sendStatus('error', raw);
                 }
                 return;
             }
@@ -408,6 +439,10 @@ export class StreamManager {
         connectionTimeoutId = setTimeout(() => {
             if (this.ffmpegProcess === proc && !proc.killed && !connectionConfirmed) {
                 connectionConfirmed = true;
+                // Questo stato è una SCOMMESSA, non una conferma: nessun dato è ancora
+                // passato. Va detto, altrimenti un input dshow che non si apre o un
+                // firewall che scarta in silenzio si presentano come ON AIR regolare.
+                this.log('info', '⚠ nessuna conferma da FFmpeg dopo 5s: stato "connesso" presunto, non verificato');
                 this.sendStatus('connected');
             }
         }, 5000);

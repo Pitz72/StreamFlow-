@@ -35,4 +35,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.invoke('dj-password-load', args),
     deleteDjPassword: (args: { username: string }) =>
         ipcRenderer.invoke('dj-password-delete', args),
+    openLogFolder: () => ipcRenderer.invoke('open-log-folder'),
 });

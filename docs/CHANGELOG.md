@@ -5,6 +5,24 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.7.2] — 2026-07-25
+
+Versione **diagnostica**, nata da un caso reale: un DJ non riusciva a connettersi e non c'era modo di sapere perché. La causa era visibile solo per 5 secondi in un toast che poi spariva.
+
+### Fixed
+- **Errore di connessione invisibile nel log (D1, critico per l'assistenza).** Il ramo `CONNECT_ERROR` di `ffmpeg-manager.ts` era l'unico a chiamare `sendStatus('error')` **senza** una corrispondente `this.log()`. Il pannello Log si fermava quindi su `Connecting → …` e la causa reale (401, Connection refused, 403…) non compariva da nessuna parte in modo persistente. Ora l'errore viene loggato, con una **spiegazione in italiano** accanto al messaggio grezzo di FFmpeg (`explainConnectError`): credenziali rifiutate, mount inesistente, porta bloccata, altro DJ già collegato.
+- **Toast di errore autocancellante.** Il messaggio di errore spariva dopo 5 secondi (`App.tsx`), portandosi via l'unica spiegazione disponibile. Ora resta finché non lo si chiude con la ✕.
+- **Buffer del log troppo corto.** 50 eventi si esaurivano in pochi secondi durante un ciclo di riconnessioni, cancellando proprio la riga con la causa iniziale del problema. Portato a 400.
+- **Stato "connesso" presunto e silenzioso.** Il fallback a 5 s dichiarava `connected` senza che fosse passato un solo byte, senza scrivere nulla nel log: un input dshow che non si apre o un firewall che scarta in silenzio si presentavano come ON AIR regolare. Lo stato resta invariato (per non rompere i server lenti a rispondere) ma ora emette un avviso esplicito nel log.
+
+### Added
+- **Log diagnostico su file (D1).** Nuovo modulo `src/main/file-logger.ts`. Ogni evento del pannello viene scritto anche in `Documenti\StreamFlow\logs\streamflow-YYYY-MM-DD.log`, insieme allo **stderr grezzo di FFmpeg** — che è dove sta la diagnosi vera e che finora finiva solo in `console.log`, invisibile senza DevTools. Intestazione con versione app, piattaforma, Electron e Node. Storico di 7 giorni, poi i file vecchi vengono eliminati all'avvio.
+  - **Nessuna credenziale nel file**: `redact()` maschera l'header `Authorization: Basic`, i campi `password=` e le credenziali inline negli URL. L'header Basic è decodificabile da chiunque riceva il file, quindi la redazione è un requisito, non una precauzione.
+  - Il logger non può far fallire l'app: ogni operazione è in `try/catch` silenzioso. Se `Documenti` non è scrivibile, l'app parte comunque e lo segnala nel pannello Log.
+- **Pulsante "Apri cartella log"** in Configurazione → Diagnostica, così un utente non tecnico può allegare il file con due click.
+
+---
+
 ## [0.7.1] — 2026-07-24
 
 Prima versione pensata per la **consegna interna** ai DJ di Runtime Radio.

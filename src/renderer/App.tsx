@@ -166,13 +166,10 @@ function App() {
         }
     }, [appendLog]);
 
-    // Auto-dismiss toast after 5 seconds
-    useEffect(() => {
-        if (errorMessage) {
-            const timer = setTimeout(() => setErrorMessage(null), 5000);
-            return () => clearTimeout(timer);
-        }
-    }, [errorMessage, setErrorMessage]);
+    // Il toast NON si autocancella più: spariva dopo 5s portandosi via l'unica
+    // spiegazione dell'errore di connessione (il pannello Log non la riceveva).
+    // Ora resta finché non la si chiude con la ✕, e l'errore è comunque
+    // ricostruibile dal pannello Log e dal file di log.
 
     // Durante la riconnessione automatica la sessione è "attiva": il pulsante
     // funziona da annulla-riconnessione (chiama stopStream).

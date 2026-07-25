@@ -2,6 +2,7 @@ import { ipcMain, BrowserWindow } from 'electron';
 import { StreamManager } from './streaming/ffmpeg-manager';
 import { MetadataManager } from './streaming/metadata-manager';
 import { savePassword, loadPassword, deletePassword } from './credentials';
+import { initFileLogger, writeLog, getLogDir, openLogFolder } from './file-logger';
 
 let streamManager: StreamManager | null = null;
 const metadataManager = new MetadataManager();
@@ -12,6 +13,9 @@ let boundWindow: BrowserWindow | null = null;
 let handlersRegistered = false;
 
 const emitLog = (level: 'info' | 'success' | 'error', source: 'stream' | 'metadata' | 'system', message: string) => {
+    // Su file PRIMA che a video: il pannello tiene 50 eventi in memoria e muore
+    // con l'app, il file no. È l'unica traccia che un utente può allegare.
+    writeLog(source, level, message);
     if (!boundWindow || boundWindow.isDestroyed()) return;
     try {
         boundWindow.webContents.send('LOG_EVENT', { level, source, message });
@@ -36,6 +40,8 @@ export const cleanupIpc = () => {
 export const initializeIpc = (mainWindow: BrowserWindow) => {
     boundWindow = mainWindow;
 
+    const fileLogOk = initFileLogger();
+
     if (!streamManager) {
         streamManager = new StreamManager(mainWindow);
     } else {
@@ -49,6 +55,13 @@ export const initializeIpc = (mainWindow: BrowserWindow) => {
     // Atteso che la finestra abbia finito di caricare, altrimenti il send va perso.
     mainWindow.webContents.once('did-finish-load', () => {
         emitLog('info', 'system', `StreamFlow pronto — in attesa di eventi.`);
+        emitLog(
+            fileLogOk ? 'info' : 'error',
+            'system',
+            fileLogOk
+                ? `log su file attivo → ${getLogDir()}`
+                : 'log su file NON disponibile (cartella Documenti non scrivibile)',
+        );
     });
 
     if (handlersRegistered) return;
@@ -110,5 +123,10 @@ export const initializeIpc = (mainWindow: BrowserWindow) => {
 
     ipcMain.handle('dj-password-delete', async (_event, { username }: { username: string }) => {
         deletePassword(username);
+    });
+
+    ipcMain.handle('open-log-folder', async () => {
+        const dir = await openLogFolder();
+        return { ok: dir !== null, dir };
     });
 };

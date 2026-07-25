@@ -32,6 +32,7 @@ interface ElectronAPI {
     saveDjPassword: (args: { username: string; password: string }) => Promise<{ ok: boolean }>;
     loadDjPassword: (args: { username: string }) => Promise<{ password: string | null }>;
     deleteDjPassword: (args: { username: string }) => Promise<void>;
+    openLogFolder: () => Promise<{ ok: boolean; dir: string | null }>;
 }
 
 interface Window {

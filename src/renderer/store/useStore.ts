@@ -104,7 +104,9 @@ export const useStore = create<AppState>()(
                     ...e,
                 };
                 const next = [...state.logEvents, entry];
-                if (next.length > 50) next.splice(0, next.length - 50);
+                // 50 eventi si esaurivano in pochi secondi durante un ciclo di
+                // riconnessioni, cancellando proprio la riga con la causa iniziale.
+                if (next.length > 400) next.splice(0, next.length - 400);
                 return { logEvents: next };
             }),
             clearLog: () => set({ logEvents: [] }),

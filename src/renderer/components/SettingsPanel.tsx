@@ -166,6 +166,23 @@ const SettingsPanel = () => {
                 </div>
             </div>
 
+            {/* D1: accesso al log diagnostico, per farsi mandare il file dall'utente */}
+            <div className="flex flex-col gap-2">
+                <label className={labelCls}>Diagnostica</label>
+                <button
+                    type="button"
+                    onClick={() => window.electronAPI.openLogFolder()}
+                    className="self-start px-4 py-2 rounded-[2px] text-xs font-ui font-semibold uppercase tracking-[2px] border border-deco-brass/50 bg-transparent hover:bg-deco-brass/10 text-deco-brass transition-colors"
+                >
+                    Apri cartella log
+                </button>
+                <p className="text-deco-inkDim text-[11px] leading-snug">
+                    In caso di problemi di connessione, apri questa cartella e invia il file
+                    del giorno. Contiene i dettagli tecnici dell&apos;errore; le password non
+                    vengono mai scritte nel log.
+                </p>
+            </div>
+
             <p className="text-deco-inkDim text-xs italic">
                 Input Volume è nella schermata principale, sotto il pulsante ON AIR.
             </p>
