@@ -4,6 +4,23 @@ import { useStore } from '../store/useStore';
 import { STATION_PRESET, OTHER_DJ } from '../config/stationPreset';
 
 /**
+ * Ripulisce la password incollata.
+ *
+ * Caso reale (25/07/2026): una DJ selezionava la password con doppio click e la
+ * incollava portandosi dentro caratteri invisibili. Il server rispondeva 401, ma
+ * FFmpeg non legge la risposta e mostrava solo un errore di rete (-10054): un
+ * pomeriggio di diagnosi per uno spazio di troppo.
+ *
+ * Toglie a capo, tabulazioni e spazi a inizio/fine — nessuno dei quali può far
+ * parte di una password digitata a mano — e gli spazi a larghezza zero, che il
+ * doppio click sui browser si porta dietro con allegria.
+ */
+const sanitizePassword = (raw: string) =>
+    // Gli spazi interni restano: potrebbero far parte davvero della password.
+    // trim() toglie anche gli spazi unicode (NBSP incluso) alle estremita'.
+    raw.replace(/[\r\n\t\u200B-\u200D\uFEFF]/g, '').trim();
+
+/**
  * Configurazione "interna Runtime Radio": i parametri di connessione sono
  * preimpostati dal preset di stazione. L'utente sceglie solo il proprio nome
  * utente DJ, inserisce la password e seleziona il dispositivo audio.
@@ -141,7 +158,7 @@ const SettingsPanel = () => {
                     name="password"
                     type="password"
                     value={streamConfig.password}
-                    onChange={(e) => setStreamConfig({ password: e.target.value })}
+                    onChange={(e) => setStreamConfig({ password: sanitizePassword(e.target.value) })}
                     className={inputCls}
                 />
                 <label className="flex items-center gap-2 text-deco-inkDim text-xs cursor-pointer select-none">
