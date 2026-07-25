@@ -3,6 +3,7 @@ import { StreamManager } from './streaming/ffmpeg-manager';
 import { MetadataManager } from './streaming/metadata-manager';
 import { savePassword, loadPassword, deletePassword } from './credentials';
 import { initFileLogger, writeLog, getLogDir, openLogFolder } from './file-logger';
+import { runConnectionDiagnostic, DiagnosticConfig } from './streaming/connection-diagnostic';
 
 let streamManager: StreamManager | null = null;
 const metadataManager = new MetadataManager();
@@ -128,5 +129,13 @@ export const initializeIpc = (mainWindow: BrowserWindow) => {
     ipcMain.handle('open-log-folder', async () => {
         const dir = await openLogFolder();
         return { ok: dir !== null, dir };
+    });
+
+    // D2: diagnostica attiva. Occupa il mount per una ventina di secondi, quindi
+    // il renderer disabilita il pulsante mentre una sessione è in corso.
+    ipcMain.handle('run-connection-test', async (_event, config: DiagnosticConfig) => {
+        return await runConnectionDiagnostic(config, (level, message) =>
+            emitLog(level, 'system', message),
+        );
     });
 };

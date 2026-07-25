@@ -5,6 +5,43 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.7.3] — 2026-07-25
+
+### La scoperta
+
+L'errore `-10054` (`WSAECONNRESET`) che faceva cadere la diretta dopo ~1 secondo è stato **riprodotto in laboratorio usando una password volutamente errata**. Byte per byte lo stesso esito:
+
+```
+Error muxing a packet
+Error writing trailer: Error number -10054 occurred
+Conversion failed!          →  a time=00:00:00.65
+```
+
+Il motivo: con `-chunked_post 0` FFmpeg **non legge mai la risposta HTTP**. Manda gli header, comincia a scrivere il corpo e continua finché il socket non gli muore sotto. Il server risponde regolarmente `401 Unauthorized` e chiude, ma quella risposta non arriva mai all'utente: quello che si vede è un errore di socket che sembra un guasto di rete.
+
+Verificato con un client HTTP che la risposta la legge:
+
+| Credenziali | Risposta dell'harbor |
+|---|---|
+| utente sconosciuto | connessione azzerata, nessuna risposta |
+| utente esistente, password errata | `401 Unauthorized` |
+
+Nota metodologica: la prima versione della sonda **non riproduceva il guasto**, perché senza `-re` FFmpeg spinge `anullsrc` a ~50x e i secondi di prova finiscono nel buffer del socket in un istante. Con `-re` il fallimento compare a 0,65s.
+
+### Added
+- **Test connessione** (Configurazione → Diagnostica). Sequenza attiva su quattro strati, con esito riga per riga nel pannello Log e nel file:
+  1. **DNS** — elenca gli indirizzi IPv4 e IPv6, segnalando il caso dual-stack in cui un percorso IPv6 difettoso apre la connessione e la fa morire subito dopo.
+  2. **TCP** — connessione grezza verso *ciascun* indirizzo separatamente, con i tempi. Distingue "porta bloccata" da "host irraggiungibile".
+  3. **Credenziali** — stesso `PUT` della diretta ma con il client HTTP di Node, che **la risposta la legge**: `401` e `403` diventano messaggi espliciti invece di un errore di rete. Se fallisce, la sequenza si ferma qui.
+  4. **Trasmissione** — 20 secondi di silenzio generato (`anullsrc -re`), stesso bitrate e stessi header della diretta, con FFmpeg in `-loglevel verbose` così il dialogo HTTP completo finisce nel file di log. Riporta secondi sopravvissuti e kB trasmessi.
+
+  Non serve il microfono. Occupa il canale per una ventina di secondi, quindi il pulsante è disabilitato durante una diretta.
+
+### Changed
+- **Diagnosi della caduta immediata.** Quando la diretta cade entro 3 secondi con un RST, il log non parla più genericamente di connessione persa: indica le credenziali come causa quasi certa, spiega perché FFmpeg riporta un errore di rete al posto del 401, e rimanda al Test connessione.
+
+---
+
 ## [0.7.2] — 2026-07-25
 
 Versione **diagnostica**, nata da un caso reale: un DJ non riusciva a connettersi e non c'era modo di sapere perché. La causa era visibile solo per 5 secondi in un toast che poi spariva.

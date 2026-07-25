@@ -36,4 +36,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     deleteDjPassword: (args: { username: string }) =>
         ipcRenderer.invoke('dj-password-delete', args),
     openLogFolder: () => ipcRenderer.invoke('open-log-folder'),
+    runConnectionTest: (config: {
+        host: string;
+        port: string;
+        mount: string;
+        icecastUser: string;
+        password: string;
+        bitrate: string;
+    }) => ipcRenderer.invoke('run-connection-test', config),
 });

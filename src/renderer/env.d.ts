@@ -33,6 +33,14 @@ interface ElectronAPI {
     loadDjPassword: (args: { username: string }) => Promise<{ password: string | null }>;
     deleteDjPassword: (args: { username: string }) => Promise<void>;
     openLogFolder: () => Promise<{ ok: boolean; dir: string | null }>;
+    runConnectionTest: (config: {
+        host: string;
+        port: string;
+        mount: string;
+        icecastUser: string;
+        password: string;
+        bitrate: string;
+    }) => Promise<{ ok: boolean; summary: string }>;
 }
 
 interface Window {

@@ -416,8 +416,15 @@ export class StreamManager {
             const kicked = streamingStarted && liveSeconds <= 30 && rstPattern.test(lastErrorLog);
 
             let errorReason: string;
-            if (kicked) {
-                errorReason = `il server ha chiuso di netto la connessione (RST) dopo ${liveSeconds}s di diretta. L'audio stava già passando, quindi credenziali, porta e mount sono corretti. Cause tipiche, in ordine: account DJ fuori dalla fascia oraria consentita su AzuraCast; un altro client collegato con le stesse credenziali; antivirus o firewall locale che tronca l'upload. Controlla il log di Liquidsoap sul server nel minuto del tentativo.`;
+            if (kicked && liveSeconds <= 3) {
+                // Riprodotto in laboratorio (25/07/2026): con credenziali errate il
+                // server risponde 401 e chiude, ma FFmpeg quella risposta non la legge
+                // mai (chunked_post=0 scrive e basta) — continua a scrivere su un
+                // socket morente e riporta solo -10054. Il messaggio grezzo sembra un
+                // guasto di rete: è quasi sempre una password sbagliata.
+                errorReason = `caduta dopo ${liveSeconds}s. Quasi certamente CREDENZIALI RIFIUTATE: il server risponde "401 Unauthorized" e chiude, ma FFmpeg non legge la risposta e riporta solo un errore di rete. Verifica la password DJ, poi usa Configurazione → Diagnostica → "Test connessione" che la risposta la legge davvero.`;
+            } else if (kicked) {
+                errorReason = `il server ha chiuso di netto la connessione (RST) dopo ${liveSeconds}s di diretta. Cause tipiche: un'altra sorgente collegata sullo stesso account, oppure un antivirus o un intermediario di rete che tronca l'upload HTTP. Usa Configurazione → Diagnostica → "Test connessione" per isolare il punto di rottura.`;
             } else if (earlyDrop) {
                 errorReason = `Server ha chiuso la connessione subito dopo l'auth. Probabile causa: mount/porta sbagliati (stai puntando a Icecast invece che al harbor Liquidsoap?). Verifica che porta=${port} e mount=${cleanMount} corrispondano a "Icecast Clients" nel pannello AzuraCast → Broadcasting → How do I connect?`;
             } else if (firstMeaningful) {
