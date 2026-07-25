@@ -296,6 +296,8 @@ export class StreamManager {
 
         let connectionConfirmed = false;
         let streamingStarted = false;
+        /** Istante del primo byte realmente trasmesso: serve a misurare quanto è durata la diretta. */
+        let streamingStartedAt = 0;
         let lastErrorLog = '';
         let connectionTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
@@ -361,6 +363,7 @@ export class StreamManager {
 
             // Connection success: FFmpeg reports progress (size/time) only when actively streaming
             if (message.includes('size=') || message.includes('time=')) {
+                if (!streamingStarted) streamingStartedAt = Date.now();
                 streamingStarted = true;
                 // Stream sano: un eventuale drop futuro riparte dal primo tentativo di retry.
                 this.reconnectAttempt = 0;
@@ -403,8 +406,19 @@ export class StreamManager {
             const dropPattern = /(10053|WSAECONNABORTED|Error muxing|Connection reset)/i;
             const earlyDrop = !streamingStarted && dropPattern.test(lastErrorLog);
 
+            // Pattern "kicked": lo stream era PARTITO e il peer ha chiuso con un RST
+            // (-10054 / WSAECONNRESET) dopo pochi secondi. Non è un guasto di rete
+            // generico: un taglio così rapido e ripetibile è quasi sempre una
+            // decisione del server (DJ fuori fascia oraria, doppia connessione sullo
+            // stesso account) oppure un antivirus che tronca l'upload HTTP continuo.
+            const rstPattern = /(10054|10053|WSAECONNRESET|WSAECONNABORTED|Connection reset)/i;
+            const liveSeconds = streamingStartedAt ? Math.round((Date.now() - streamingStartedAt) / 1000) : 0;
+            const kicked = streamingStarted && liveSeconds <= 30 && rstPattern.test(lastErrorLog);
+
             let errorReason: string;
-            if (earlyDrop) {
+            if (kicked) {
+                errorReason = `il server ha chiuso di netto la connessione (RST) dopo ${liveSeconds}s di diretta. L'audio stava già passando, quindi credenziali, porta e mount sono corretti. Cause tipiche, in ordine: account DJ fuori dalla fascia oraria consentita su AzuraCast; un altro client collegato con le stesse credenziali; antivirus o firewall locale che tronca l'upload. Controlla il log di Liquidsoap sul server nel minuto del tentativo.`;
+            } else if (earlyDrop) {
                 errorReason = `Server ha chiuso la connessione subito dopo l'auth. Probabile causa: mount/porta sbagliati (stai puntando a Icecast invece che al harbor Liquidsoap?). Verifica che porta=${port} e mount=${cleanMount} corrispondano a "Icecast Clients" nel pannello AzuraCast → Broadcasting → How do I connect?`;
             } else if (firstMeaningful) {
                 errorReason = firstMeaningful.substring(0, 200);

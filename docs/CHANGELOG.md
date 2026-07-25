@@ -20,6 +20,7 @@ Versione **diagnostica**, nata da un caso reale: un DJ non riusciva a connetters
   - **Nessuna credenziale nel file**: `redact()` maschera l'header `Authorization: Basic`, i campi `password=` e le credenziali inline negli URL. L'header Basic è decodificabile da chiunque riceva il file, quindi la redazione è un requisito, non una precauzione.
   - Il logger non può far fallire l'app: ogni operazione è in `try/catch` silenzioso. Se `Documenti` non è scrivibile, l'app parte comunque e lo segnala nel pannello Log.
 - **Pulsante "Apri cartella log"** in Configurazione → Diagnostica, così un utente non tecnico può allegare il file con due click.
+- **Riconoscimento del pattern "kicked".** Quando lo stream è realmente partito e il peer chiude con un RST (`-10054`/`WSAECONNRESET`) entro 30 secondi, il log non riporta più il criptico `Error muxing a packet / Error number -10054` ma spiega che credenziali, porta e mount sono corretti (l'audio stava passando) e che la causa va cercata altrove: account DJ fuori fascia oraria su AzuraCast, doppia connessione sullo stesso account, o antivirus locale che tronca l'upload HTTP continuo. Riporta anche **quanti secondi è durata** la diretta prima del taglio.
 
 ---
 
