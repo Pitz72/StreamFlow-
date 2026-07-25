@@ -85,6 +85,14 @@ export const initializeIpc = (mainWindow: BrowserWindow) => {
         }
     });
 
+    // MIX MODE: flusso PCM dal mixer del renderer verso stdin di FFmpeg.
+    // `on` e non `handle`: arriva ~23 volte al secondo per tutta la diretta e non
+    // serve nessuna risposta — un invoke pagherebbe un round-trip a ogni blocco.
+    ipcMain.on('mix-audio-chunk', (_event, data: Uint8Array) => {
+        if (!streamManager || !(data instanceof Uint8Array)) return;
+        streamManager.writeAudioChunk(Buffer.from(data.buffer, data.byteOffset, data.byteLength));
+    });
+
     ipcMain.handle('set-input-gain', async (_event, pct: number) => {
         if (!streamManager) return { appliedLive: false };
         const appliedLive = await streamManager.setInputGain(pct);

@@ -6,9 +6,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <!-- CSP di produzione. In dev il plugin Vite "streamflow-dev-csp" rilassa
        script-src per il preamble di react-refresh. style-src 'unsafe-inline'
-       resta necessario per gli attributi style inline (VU meter). -->
+       resta necessario per gli attributi style inline (VU meter).
+       `blob:` serve all'AudioWorklet della MIX MODE: il suo modulo è generato in
+       memoria dal renderer (un .js su disco non è caricabile da file:// in
+       produzione). Nessun codice remoto: il renderer non naviga fuori da qui. -->
   <meta http-equiv="Content-Security-Policy"
-    content="script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:;">
+    content="script-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:;">
   <title>Runtime StreamFlow</title>
 </head>
 

@@ -5,6 +5,30 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.8.0] — 2026-07-26 · *Deborah Edition*
+
+Il mixer per chi non ha un mixer. Dettagli tecnici in [log/0.8.0.md](./log/0.8.0.md).
+
+### Added
+- **MIX MODE.** StreamFlow somma il **microfono** e l'**audio di sistema** (la musica di Runtime Live Machine Pro) e manda in onda il risultato. Nessun driver, nessuna scheda audio virtuale, nessun *Missaggio Stereo*: la cattura in loopback la fa Electron. Si attiva in Configurazione **prima** della diretta — cambia la sorgente dell'encoder, quindi il pannello la blocca mentre si è in onda.
+  - Il mix avviene nel renderer con Web Audio e arriva a FFmpeg come PCM su `stdin` (`-f s16le -ar 48000 -ac 2 -i pipe:0`). Due input dshow con `amix` non erano praticabili: su Windows non esiste un device che catturi l'uscita audio, e due device separati hanno clock indipendenti che vanno in deriva sulle sessioni lunghe.
+  - Il PCM esce da un `AudioWorkletProcessor`, quindi dal thread audio: il mixer non si ferma se l'interfaccia è occupata o la finestra passa in secondo piano.
+  - Il mix non viene **mai** riprodotto (unico collegamento all'uscita tramite un gain a zero): altrimenti il loopback lo ricatturerebbe all'infinito.
+- **Volume musica** separato in Configurazione, regolabile anche in diretta. Il volume della voce resta *Input Volume* nella schermata principale.
+- **Spia MIX nell'intestazione.** Diventa rossa quando dal computer non arriva audio da più di 4 secondi. Intercetta il guasto silenzioso di questa modalità: il player impostato su un'uscita diversa da quella predefinita di Windows, con la musica che si sente in cuffia e il silenzio in onda.
+- **VU meter post-mix**: in MIX MODE le lancette mostrano quello che va davvero in onda, non il solo microfono.
+
+### Changed
+- I tre processori audio di Chrome (cancellazione d'eco, riduzione rumore, **controllo automatico del guadagno**) vengono disattivati sul microfono in MIX MODE: sono pensati per le videochiamate, e l'AGC in particolare pomperebbe il respiro nei silenzi schiacciando la voce sui picchi.
+- CSP: aggiunto `blob:` a `script-src`, necessario al modulo dell'AudioWorklet (un `.js` su disco non è caricabile come modulo da `file://` in produzione).
+
+### Note d'uso
+- **Cuffie obbligatorie**: con le casse il microfono ripiglia la musica.
+- Va in onda **tutto** l'audio del computer, notifiche di Windows comprese.
+- **Limite noto**: gli eventi della MIX MODE compaiono nel pannello Log ma non nel file di log (il mixer vive nel renderer).
+
+---
+
 ## [0.7.3] — 2026-07-25
 
 ### La scoperta

@@ -1,8 +1,37 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, desktopCapturer, session } from 'electron';
 import path from 'path';
 import { initializeIpc, cleanupIpc } from './ipcp';
 
 let mainWindow: BrowserWindow | null = null;
+
+/**
+ * MIX MODE — abilita la cattura dell'audio di sistema (loopback WASAPI).
+ *
+ * Senza questo handler `getDisplayMedia` nel renderer viene rifiutata da
+ * Electron. Con `audio: 'loopback'` catturiamo quello che il PC sta suonando —
+ * cioè Runtime Live Machine Pro — SENZA driver o schede audio virtuali: è
+ * questo che rende la modalità mix configurazione-zero per chi trasmette.
+ *
+ * Il video è richiesto solo perché getDisplayMedia pretende una traccia video:
+ * il renderer la ferma e la scarta subito (nessuna cattura schermo attiva).
+ * thumbnailSize 0×0 evita di generare anteprime che non guarderà nessuno.
+ */
+const enableSystemAudioLoopback = () => {
+    session.defaultSession.setDisplayMediaRequestHandler((_request, callback) => {
+        desktopCapturer
+            .getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 } })
+            .then((sources) => {
+                if (sources.length === 0) {
+                    // Nessuno schermo enumerabile: negando la richiesta il renderer
+                    // riceve un errore esplicito e lo mostra, invece di restare muto.
+                    callback({});
+                    return;
+                }
+                callback({ video: sources[0], audio: 'loopback' });
+            })
+            .catch(() => callback({}));
+    }, { useSystemPicker: false });
+};
 
 function createWindow() {
     mainWindow = new BrowserWindow({
@@ -59,6 +88,7 @@ if (!gotSingleInstanceLock) {
     });
 
     app.whenReady().then(() => {
+        enableSystemAudioLoopback();
         createWindow();
 
         app.on('activate', () => {

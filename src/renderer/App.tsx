@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import Timer from './components/Timer'
 import VuMeter from './components/VuMeter'
 import { useAudioVisualizer } from './hooks/useAudioVisualizer'
+import { useMixEngine } from './hooks/useMixEngine'
 import OnAirButton from './components/OnAirButton'
 import InputVolumeControl from './components/InputVolumeControl'
 import SettingsPanel from './components/SettingsPanel'
@@ -47,6 +48,8 @@ function App() {
         setErrorMessage,
         rememberPassword,
         recordLocal,
+        mixMode,
+        musicDetected,
         appendLog,
     } = useStore()
 
@@ -115,7 +118,19 @@ function App() {
 
     // Pipeline audio condivisa: le lancette L/R sono guidate via ref direttamente
     // dal loop rAF (nessun re-render React per frame).
-    const { leftRef: vuLeftRef, rightRef: vuRightRef } = useAudioVisualizer(selectedDeviceId, pageVisible);
+    //
+    // Le due pipeline si escludono a vicenda e comandano le STESSE lancette:
+    // in MIX MODE il mixer resta acceso anche a finestra ridotta (è la sorgente
+    // della diretta, non solo un indicatore) e i VU mostrano il livello post-mix.
+    const { leftRef: vuLeftRef, rightRef: vuRightRef } = useAudioVisualizer(
+        selectedDeviceId,
+        pageVisible && !mixMode,
+    );
+    useMixEngine({
+        enabled: mixMode,
+        micDeviceName: selectedDeviceId,
+        needles: { leftRef: vuLeftRef, rightRef: vuRightRef },
+    });
 
     // Listen for status updates from Main process
     useEffect(() => {
@@ -228,6 +243,7 @@ function App() {
                 ...streamConfig,
                 inputDeviceName: selectedDeviceLabel,
                 recordLocal,
+                mixMode,
             });
             // Il flag viene rilasciato dal primo status IPC in arrivo;
             // fallback di sicurezza se il main non risponde.
@@ -264,6 +280,26 @@ function App() {
                             {statusDetail}
                         </span>
                     )}
+                    {/* MIX MODE: la spia diventa rossa quando dall'audio di sistema non
+                        arriva niente — il caso in cui la musica si sente in cuffia ma in
+                        onda va il silenzio (player su un'uscita diversa da quella di
+                        Windows). Senza questa spia sarebbe un guasto invisibile. */}
+                    {mixMode && (
+                        <span
+                            className="font-mono text-[11px] uppercase px-2 py-0.5 rounded-[3px] border ml-1"
+                            style={{
+                                color: musicDetected ? '#C8A44E' : '#E0483A',
+                                borderColor: musicDetected ? '#C8A44E' : '#E0483A',
+                            }}
+                            title={
+                                musicDetected
+                                    ? 'Mix attivo: microfono + musica del computer'
+                                    : 'Mix attivo ma dal computer non arriva musica: controlla che il player suoni sul dispositivo audio predefinito di Windows'
+                            }
+                        >
+                            {musicDetected ? 'Mix' : 'Mix · no musica'}
+                        </span>
+                    )}
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -285,7 +321,9 @@ function App() {
                             style={{ left: theme === 'light' ? '17px' : '2px' }}
                         ></span>
                     </button>
-                    <span className="text-deco-brass/60 text-[10px] font-mono ml-2">v{__APP_VERSION__}</span>
+                    <span className="text-deco-brass/60 text-[10px] font-mono ml-2">
+                        v{__APP_VERSION__} · Deborah Edition
+                    </span>
                 </div>
             </header>
 

@@ -22,7 +22,15 @@ interface StreamConfig {
     inputGain?: string;
     /** true = registra la diretta anche su file MP3 locale (C2, via muxer tee). */
     recordLocal?: boolean;
+    /**
+     * MIX MODE: l'audio non arriva più da dshow ma già mixato (microfono +
+     * audio di sistema) dal renderer, come PCM grezzo su stdin.
+     */
+    mixMode?: boolean;
 }
+
+/** Formato del PCM che il mixer del renderer scrive su stdin. Deve combaciare con useMixEngine. */
+export const MIX_PCM = { sampleRate: 48000, channels: 2 } as const;
 
 /**
  * Escaping per i valori delle opzioni slave del muxer tee. Il tee fa DUE livelli
@@ -68,6 +76,10 @@ export class StreamManager {
     private countdownTimer: ReturnType<typeof setInterval> | null = null;
     /** true quando il filtro azmq è attivo → volume regolabile in diretta. */
     private liveVolumeActive = false;
+    /** true quando FFmpeg legge da stdin (MIX MODE): abilita writeAudioChunk. */
+    private mixInputActive = false;
+    /** Log "una volta sola" quando scartiamo PCM per pipe intasata. */
+    private mixBackpressureLogged = false;
 
     constructor(mainWindow: BrowserWindow | null) {
         this.mainWindow = mainWindow;
@@ -192,6 +204,7 @@ export class StreamManager {
         }
 
         const { inputDeviceName, host, port, password, mount, icecastUser, bitrate, inputGain } = config;
+        const mixMode = config.mixMode === true;
 
         // I NOMI DISPOSITIVO ARRIVANO ORA DIRETTAMENTE DA DSHOW VIA IPC.
         // NON È PIÙ NECESSARIA NESSUNA PULIZIA REGEX PER COMPENSARE A CHROME.
@@ -219,22 +232,30 @@ export class StreamManager {
         // e potremo cambiare il guadagno in diretta senza riavviare l'encoder.
         // Se la porta è occupata, degradiamo al filtro statico (solo se ≠ 100%) — lo
         // stream parte comunque, ma il volume non sarà regolabile live.
-        const portFree = await isPortFree(StreamManager.ZMQ_PORT);
-        // La porta va ri-verificata dopo l'await: un nuovo start()/stop() nel frattempo
-        // ha cambiato currentConfig e questo launch è ormai obsoleto.
-        if (this.currentConfig !== config) return false;
-        this.liveVolumeActive = portFree;
-
-        let audioFilter: string | null;
-        if (portFree) {
-            audioFilter = `azmq,volume=eval=frame:volume=${gainMul}`;
+        let audioFilter: string | null = null;
+        if (mixMode) {
+            // In MIX MODE il guadagno è già applicato dal mixer Web Audio del
+            // renderer, prima che il PCM arrivi qui: aggiungere azmq/volume
+            // significherebbe due controlli in serie sullo stesso volume.
+            this.liveVolumeActive = false;
         } else {
-            audioFilter = gainPct === 100 ? null : `volume=${gainMul}`;
+            const portFree = await isPortFree(StreamManager.ZMQ_PORT);
+            // La porta va ri-verificata dopo l'await: un nuovo start()/stop() nel frattempo
+            // ha cambiato currentConfig e questo launch è ormai obsoleto.
+            if (this.currentConfig !== config) return false;
+            this.liveVolumeActive = portFree;
+
+            if (portFree) {
+                audioFilter = `azmq,volume=eval=frame:volume=${gainMul}`;
+            } else {
+                audioFilter = gainPct === 100 ? null : `volume=${gainMul}`;
+            }
         }
 
         this.sendStatus('connecting');
 
-        this.log('info', `Connecting → ${host}:${port}${cleanMount} as user="${user}" gain=${gainPct}% bitrate=${bitrate || '128'}k live-vol=${portFree ? 'on' : 'off'}`);
+        const sourceLabel = mixMode ? 'MIX MODE (microfono + audio di sistema)' : `dshow "${cleanDevice}"`;
+        this.log('info', `Connecting → ${host}:${port}${cleanMount} as user="${user}" source=${sourceLabel} gain=${gainPct}% bitrate=${bitrate || '128'}k live-vol=${this.liveVolumeActive ? 'on' : 'off'}`);
 
         const httpHeaders = `User-Agent: FMLE/3.0\r\nExpect:\r\nIce-Public: 1\r\nAuthorization: Basic ${creds}\r\n`;
 
@@ -276,9 +297,15 @@ export class StreamManager {
             ];
         }
 
+        // MIX MODE: l'input è il PCM che il renderer scrive su stdin (già mixato),
+        // non più il singolo device dshow. Tutto il resto della catena — filtri,
+        // encoder, tee di registrazione, PUT BUTT-compat — resta identico.
+        const inputArgs = mixMode
+            ? ['-f', 's16le', '-ar', String(MIX_PCM.sampleRate), '-ac', String(MIX_PCM.channels), '-i', 'pipe:0']
+            : ['-f', 'dshow', '-i', `audio=${cleanDevice}`];
+
         const args = [
-            '-f', 'dshow',
-            '-i', `audio=${cleanDevice}`,
+            ...inputArgs,
             ...(audioFilter ? ['-af', audioFilter] : []),
             '-acodec', 'libmp3lame',
             '-b:a', `${bitrate || '128'}k`,
@@ -293,6 +320,14 @@ export class StreamManager {
         // tipo. Mitigazioni: windowsHide, mai loggare `args`, doc in AUDIT-2026-07-13.
         const proc = spawn(ffmpegPath, args, { windowsHide: true });
         this.ffmpegProcess = proc;
+        this.mixInputActive = mixMode;
+        this.mixBackpressureLogged = false;
+
+        // In MIX MODE stdin È la sorgente audio. Quando FFmpeg muore (server caduto,
+        // riconnessione, stop) una write già in volo emette EPIPE: senza questo
+        // listener l'evento 'error' non gestito abbatterebbe il processo main,
+        // cioè l'intera applicazione, in piena diretta.
+        proc.stdin?.on('error', () => { /* pipe chiusa: si perde il chunk, non la sessione */ });
 
         let connectionConfirmed = false;
         let streamingStarted = false;
@@ -386,6 +421,7 @@ export class StreamManager {
             }
             cancelConnectionTimeout();
             this.ffmpegProcess = null;
+            this.mixInputActive = false;
 
             if (code === 0 || code === null) {
                 this.log('info', 'stream chiuso correttamente');
@@ -531,6 +567,36 @@ export class StreamManager {
         }
     }
 
+    /**
+     * MIX MODE: inoltra a FFmpeg un blocco di PCM già mixato dal renderer.
+     *
+     * Silenzioso per costruzione — viene chiamato ~23 volte al secondo e non deve
+     * mai diventare una sorgente di rumore nel log: se non c'è un processo che
+     * legge (stream fermo, riconnessione in corso) il blocco viene semplicemente
+     * scartato, e la diretta riprende dal PCM successivo quando FFmpeg torna su.
+     */
+    public writeAudioChunk(chunk: Buffer) {
+        const proc = this.ffmpegProcess;
+        if (!proc || !this.mixInputActive) return;
+        const stdin = proc.stdin;
+        if (!stdin || stdin.destroyed || !stdin.writable) return;
+
+        // Se FFmpeg non consuma (disco/rete bloccati) il buffer di Node cresce senza
+        // limite fino a mangiarsi la RAM. Oltre ~4 MB (≈20s di audio) scartiamo:
+        // in diretta l'audio vecchio non serve a nessuno, la memoria sì.
+        if (stdin.writableLength > 4 * 1024 * 1024) {
+            if (!this.mixBackpressureLogged) {
+                this.mixBackpressureLogged = true;
+                this.log('error', 'MIX MODE: FFmpeg non sta consumando l\'audio, blocchi scartati (possibile stallo di rete)');
+            }
+            return;
+        }
+
+        try {
+            stdin.write(chunk);
+        } catch { /* pipe chiusa tra il controllo e la write */ }
+    }
+
     private cancelReconnect() {
         if (this.reconnectTimer !== null) {
             clearTimeout(this.reconnectTimer);
@@ -555,6 +621,10 @@ export class StreamManager {
         // vedono this.ffmpegProcess !== proc e non alterano lo stato (niente falso
         // 'error' da exit code 1 di taskkill, niente clobber del processo nuovo).
         this.ffmpegProcess = null;
+        this.mixInputActive = false;
+        // MIX MODE: chiudiamo la sorgente PCM prima di uccidere il processo, così
+        // FFmpeg vede un EOF regolare e chiude il muxer invece di essere troncato.
+        try { proc.stdin?.end(); } catch { /* già chiusa */ }
         if (process.platform === 'win32' && proc.pid) {
             // Su Windows, kill() normale spesso lascia orfani. Usiamo taskkill.
             try {

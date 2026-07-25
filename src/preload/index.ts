@@ -10,6 +10,7 @@ interface StreamConfig {
     inputGain: string;
     inputDeviceName: string;
     recordLocal: boolean;
+    mixMode: boolean;
 }
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -29,6 +30,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     updateMetadata: (meta: { artist: string; title: string }) =>
         ipcRenderer.invoke('update-metadata', meta),
     setInputGain: (pct: number) => ipcRenderer.invoke('set-input-gain', pct),
+    /** MIX MODE: blocco di PCM 16 bit già mixato, diretto a stdin di FFmpeg. */
+    sendMixAudio: (pcm: Uint8Array) => ipcRenderer.send('mix-audio-chunk', pcm),
     saveDjPassword: (args: { username: string; password: string }) =>
         ipcRenderer.invoke('dj-password-save', args),
     loadDjPassword: (args: { username: string }) =>

@@ -37,6 +37,10 @@ const SettingsPanel = () => {
         setRememberPassword,
         recordLocal,
         setRecordLocal,
+        mixMode,
+        setMixMode,
+        musicGain,
+        setMusicGain,
         isStreaming,
         setErrorMessage,
     } = useStore();
@@ -172,9 +176,73 @@ const SettingsPanel = () => {
                 </label>
             </div>
 
+            {/* MIX MODE: microfono + audio del PC senza mixer hardware */}
+            <div className="flex flex-col gap-2 border border-deco-brass/30 rounded-[8px] px-4 py-3">
+                <label className={labelCls}>Mix Mode</label>
+                <label className={`flex items-center gap-2 text-deco-ink text-xs select-none ${isStreaming ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+                    <input
+                        type="checkbox"
+                        checked={mixMode}
+                        disabled={isStreaming}
+                        onChange={(e) => setMixMode(e.target.checked)}
+                        className="accent-[#C8A44E]"
+                    />
+                    Manda in onda microfono <strong className="text-deco-brass">+</strong> musica del computer
+                </label>
+                <p className="text-deco-inkDim text-[11px] leading-snug">
+                    Per chi non ha un mixer: StreamFlow somma la tua voce a quello che il PC
+                    sta suonando (Runtime Live Machine Pro). Non serve installare niente.
+                </p>
+                {mixMode && (
+                    <>
+                        <div className="flex items-center justify-between mt-1">
+                            <label htmlFor="music-volume" className={labelCls}>Volume musica</label>
+                            <span className="text-xs font-mono font-bold tabular-nums text-deco-inkStrong">
+                                {parseInt(musicGain || '100', 10)}%
+                            </span>
+                        </div>
+                        <input
+                            id="music-volume"
+                            type="range"
+                            min="0"
+                            max="200"
+                            step="5"
+                            value={musicGain}
+                            onChange={(e) => setMusicGain(e.target.value)}
+                            className="deco-slider"
+                            style={{
+                                '--deco-fill': `${(Math.min(200, Math.max(0, parseInt(musicGain || '100', 10))) / 200) * 100}%`,
+                                '--deco-thumb': 'rgb(var(--deco-ink-strong))',
+                            } as React.CSSProperties}
+                        />
+                        <p className="text-deco-inkDim text-[11px] leading-snug">
+                            Il volume della voce resta quello di <strong className="text-deco-ink">Input Volume</strong>,
+                            nella schermata principale. Entrambi si regolano anche durante la diretta.
+                        </p>
+                        <div className="bg-deco-bg border border-deco-brass/25 rounded-[3px] px-3 py-2 mt-1">
+                            <p className="text-deco-warn text-[11px] leading-snug">
+                                <strong>Ascolta in cuffia.</strong> Con le casse il microfono ripiglia
+                                la musica e in onda si sente doppia.
+                            </p>
+                            <p className="text-deco-inkDim text-[11px] leading-snug mt-1">
+                                Va in onda <strong className="text-deco-ink">tutto</strong> l&apos;audio del computer,
+                                comprese le notifiche di Windows. Il player deve suonare sul dispositivo
+                                predefinito di Windows: se ne usa un altro, tu senti la musica ma in onda
+                                non arriva — l&apos;etichetta MIX in alto diventa rossa per avvisarti.
+                            </p>
+                        </div>
+                    </>
+                )}
+                {isStreaming && (
+                    <p className="text-deco-inkDim text-[11px] italic">
+                        Si cambia solo a microfono spento: ferma la diretta per attivarla o disattivarla.
+                    </p>
+                )}
+            </div>
+
             {/* Dispositivo audio */}
             <div className="flex flex-col gap-2">
-                <label className={labelCls}>Audio Input Device</label>
+                <label className={labelCls}>{mixMode ? 'Microfono (la tua voce)' : 'Audio Input Device'}</label>
                 <select
                     value={selectedDeviceId}
                     onChange={handleDeviceChange}

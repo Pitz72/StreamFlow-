@@ -13,8 +13,8 @@ const devCsp: Plugin = {
   apply: 'serve',
   transformIndexHtml(html) {
     return html.replace(
-      "script-src 'self';",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval';",
+      "script-src 'self' blob:;",
+      "script-src 'self' blob: 'unsafe-inline' 'unsafe-eval';",
     )
   },
 }

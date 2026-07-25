@@ -12,6 +12,7 @@ interface ElectronAPI {
         bitrate: string;
         inputGain: string;
         recordLocal: boolean;
+        mixMode: boolean;
     }) => Promise<void>;
     stopStream: () => Promise<void>;
     onStreamStatus: (
@@ -29,6 +30,7 @@ interface ElectronAPI {
         rawResponse?: string;
     }>;
     setInputGain: (pct: number) => Promise<{ appliedLive: boolean }>;
+    sendMixAudio: (pcm: Uint8Array) => void;
     saveDjPassword: (args: { username: string; password: string }) => Promise<{ ok: boolean }>;
     loadDjPassword: (args: { username: string }) => Promise<{ password: string | null }>;
     deleteDjPassword: (args: { username: string }) => Promise<void>;

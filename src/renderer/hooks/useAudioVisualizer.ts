@@ -1,18 +1,11 @@
-import { useEffect, useRef, type RefObject } from 'react';
+import { useEffect, useRef } from 'react';
 import { useStore } from '../store/useStore';
+import { readLevel, setNeedle, type NeedleRefs } from './vuNeedle';
+import { resolveInputDeviceId } from './resolveInputDevice';
 
-export interface VisualizerRefs {
-    // I ref puntano alle lancette SVG dei VU meter ad ago: il loop scrive
-    // direttamente la rotazione (transform) senza passare per lo stato React.
-    leftRef: RefObject<SVGRectElement | null>;
-    rightRef: RefObject<SVGRectElement | null>;
-}
-
-// Mappatura livello→angolo della lancetta (gradi). Il quadrante déco copre
-// da riposo (a sinistra) alla zona rossa "+3" (a destra). Solo presentazione:
-// il calcolo del livello audio a monte è invariato.
-const NEEDLE_MIN_DEG = -42;
-const NEEDLE_MAX_DEG = 46;
+// I ref puntano alle lancette SVG dei VU meter ad ago: il loop scrive
+// direttamente la rotazione (transform) senza passare per lo stato React.
+export type VisualizerRefs = NeedleRefs;
 
 /**
  * VU meter L/R da un'UNICA pipeline Web Audio condivisa:
@@ -60,40 +53,14 @@ export const useAudioVisualizer = (deviceId: string, enabled: boolean): Visualiz
         let cancelled = false;
         let stream: MediaStream | null = null;
 
-        // Unico punto di output visuale: converte il livello (0..100) nell'angolo
-        // della lancetta e lo scrive sul transform del <rect> SVG. Prima scriveva
-        // l'altezza di una barra; la pipeline audio a monte è identica.
-        const setNeedle = (ref: RefObject<SVGRectElement | null>, pct: number) => {
-            if (!ref.current) return;
-            const clamped = pct < 0 ? 0 : pct > 100 ? 100 : pct;
-            const deg = NEEDLE_MIN_DEG + (clamped / 100) * (NEEDLE_MAX_DEG - NEEDLE_MIN_DEG);
-            ref.current.style.transform = `rotate(${deg}deg)`;
-        };
-
         const initAudio = async () => {
             try {
                 audioContextRef.current = new AudioContext();
 
                 // Traduci il nome DSHOW (deviceId) nell'hash Chrome per getUserMedia
-                let targetDeviceId: { exact: string } | undefined = undefined;
-                if (deviceId && deviceId !== 'default') {
-                    const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    if (cancelled) {
-                        tempStream.getTracks().forEach(t => t.stop());
-                        return;
-                    }
-                    const allDevices = await navigator.mediaDevices.enumerateDevices();
-                    tempStream.getTracks().forEach(t => t.stop());
-                    if (cancelled) return;
-
-                    const matched = allDevices.find(d =>
-                        d.kind === 'audioinput' &&
-                        (d.label.includes(deviceId) || deviceId.includes(d.label.replace(/^(Default|Communications) - /, '').trim()))
-                    );
-                    if (matched) {
-                        targetDeviceId = { exact: matched.deviceId };
-                    }
-                }
+                const resolvedId = await resolveInputDeviceId(deviceId);
+                if (cancelled) return;
+                const targetDeviceId = resolvedId ? { exact: resolvedId } : undefined;
 
                 stream = await navigator.mediaDevices.getUserMedia({
                     audio: targetDeviceId ? { deviceId: targetDeviceId } : true
@@ -131,13 +98,6 @@ export const useAudioVisualizer = (deviceId: string, enabled: boolean): Visualiz
 
                 const bufL = new Uint8Array(analyserL.frequencyBinCount);
                 const bufR = new Uint8Array(analyserL.frequencyBinCount);
-                const readLevel = (analyser: AnalyserNode, buf: Uint8Array<ArrayBuffer>) => {
-                    analyser.getByteFrequencyData(buf);
-                    let sum = 0;
-                    for (let i = 0; i < buf.length; i++) sum += buf[i];
-                    const average = sum / buf.length;
-                    return Math.min(100, (average / 128) * 100 * 1.5);
-                };
 
                 const animate = () => {
                     if (cancelled) return;
