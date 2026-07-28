@@ -5,6 +5,20 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.8.1] — 2026-07-28
+
+Il sottofondo musicale si alzava e si abbassava da solo in onda. Dettagli e misure in [log/0.8.1.md](./log/0.8.1.md).
+
+### Fixed
+- **Il volume della musica ondeggiava da solo (MIX MODE).** L'audio di sistema veniva catturato con `getDisplayMedia({ audio: true })`, cioè senza vincoli espliciti: Chromium ci applicava allora il suo trattamento da videochiamata, **controllo automatico del guadagno compreso**. L'AGC inseguiva un livello di riferimento e gonfiava il sottofondo fino a coprire la voce. Ora i tre processori sono spenti sulla cattura di sistema come già lo erano sul microfono.
+  - Spiega anche perché abbassare il cursore *Volume musica* non risolveva: l'AGC agisce dentro la traccia, quindi **prima** del cursore, che si limitava a moltiplicare un segnale già gonfiato.
+  - Misurato su una registrazione reale di 17'30'': 120 variazioni ≥ 6 dB del sottofondo, non correlate al parlato. Nessun ducking (1,4 dB di differenza tra voce presente e voce assente).
+
+### Added
+- **Riga di diagnostica all'avvio della MIX MODE**: il log riporta le impostazioni effettive della traccia di sistema (`AGC spento, eco spento, rumore spento, 48000 Hz, 2 canali`). Un vincolo su `getDisplayMedia` può essere ignorato in silenzio a seconda di Chromium e del driver di loopback; se l'AGC risulta ancora acceso, il log lo dichiara in rosso.
+
+---
+
 ## [0.8.0] — 2026-07-26 · *Deborah Edition*
 
 Il mixer per chi non ha un mixer. Dettagli tecnici in [log/0.8.0.md](./log/0.8.0.md).

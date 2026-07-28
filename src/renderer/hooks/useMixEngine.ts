@@ -111,14 +111,53 @@ export const useMixEngine = ({ enabled, micDeviceName, needles }: MixEngineOptio
             // 1) AUDIO DI SISTEMA. La traccia video esiste solo perché
             // getDisplayMedia la pretende: la fermiamo subito, così Windows non
             // cattura davvero nessuno schermo.
-            systemStream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: true });
+            //
+            // I tre vincoli non sono decorativi. Con `audio: true` e basta,
+            // Chromium applica alla cattura il suo trattamento da videochiamata,
+            // AGC compreso: il sottofondo musicale — materiale piatto, senza
+            // dinamica propria — veniva inseguito e gonfiato fino a coprire la
+            // voce. E siccome l'AGC agisce a monte di `musicGain`, abbassare il
+            // cursore della musica non serviva a niente: il livello si rialzava.
+            systemStream = await navigator.mediaDevices.getDisplayMedia({
+                audio: {
+                    echoCancellation: false,
+                    noiseSuppression: false,
+                    autoGainControl: false,
+                },
+                video: true,
+            });
             systemStream.getVideoTracks().forEach((t) => {
                 systemStream?.removeTrack(t);
                 t.stop();
             });
             if (cancelled) return;
-            if (systemStream.getAudioTracks().length === 0) {
+            const systemTrack = systemStream.getAudioTracks()[0];
+            if (!systemTrack) {
                 throw new Error('Windows non ha fornito l\'audio di sistema');
+            }
+
+            // Un vincolo su getDisplayMedia può essere ignorato senza che nessuno
+            // se ne lamenti: dipende da Chromium e dal driver. Questa riga è
+            // l'unico modo di sapere, leggendo il log di una diretta vera, se
+            // sulla macchina della DJ l'AGC è davvero spento.
+            const sys = systemTrack.getSettings();
+            const flag = (v: boolean | undefined) =>
+                v === undefined ? 'non riportato' : v ? 'ACCESO' : 'spento';
+            appendLog({
+                level: 'info',
+                source: 'system',
+                message: `MIX MODE: audio di sistema — AGC ${flag(sys.autoGainControl)}, `
+                    + `eco ${flag(sys.echoCancellation)}, rumore ${flag(sys.noiseSuppression)}, `
+                    + `${sys.sampleRate ?? '?'} Hz, ${sys.channelCount ?? '?'} canali`,
+            });
+            if (sys.autoGainControl) {
+                appendLog({
+                    level: 'error',
+                    source: 'system',
+                    message: 'MIX MODE: Windows non ha accettato di spegnere il controllo '
+                        + 'automatico del guadagno sull\'audio di sistema. Il sottofondo può '
+                        + 'alzarsi e abbassarsi da solo in onda.',
+                });
             }
 
             // 2) MICROFONO. I tre processori di Chrome vanno spenti: sono pensati
