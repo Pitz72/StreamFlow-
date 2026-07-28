@@ -32,6 +32,30 @@ const SAMPLE_RATE = 48000;
 const CHUNK_FRAMES = 2048;
 /** Sotto questo picco consideriamo il canale musica muto. */
 const MUSIC_SILENCE_THRESHOLD = 6;
+
+/**
+ * LIMITATORE DI SICUREZZA. Somma di due sorgenti indipendenti, ciascuna con un
+ * cursore che arriva al 200%: i picchi vanno fermati prima del worklet, che
+ * altrimenti li taglia di netto (`if (sl > 1) sl = 1`, distorsione dura).
+ *
+ * I numeri non sono di listino, sono misurati sul DynamicsCompressorNode di
+ * questo Chromium (log/0.8.2.md). Il motivo: il nodo applica un MAKEUP GAIN
+ * IMPLICITO che vale ~0,57 dB per ogni dB di soglia e che si somma a TUTTO il
+ * segnale, anche a -60 dBFS dove non comprime niente. Non è quindi mai
+ * "trasparente": va compensato a mano, ed è il compito di LIMITER_TRIM_DB.
+ *
+ * Con questi valori, misurati: differenza 0,00 dB da -60 a -3 dBFS (il
+ * programma normale non viene toccato), tetto a -2,75 dBFS su segnale a fondo
+ * scala e mai sopra -1,20 dBFS nemmeno con 24 dB di sovraccarico.
+ */
+const LIMITER_THRESHOLD_DB = -3;
+const LIMITER_RATIO = 20;
+const LIMITER_ATTACK_S = 0.002;
+const LIMITER_RELEASE_S = 0.1;
+/** Compensazione esatta del makeup gain implicito misurato alla soglia qui sopra. */
+const LIMITER_TRIM_DB = -1.71;
+
+const dbToMul = (db: number) => Math.pow(10, db / 20);
 /** Quanto il "musica assente" aspetta prima di allarmare (pause tra i brani). */
 const MUSIC_GRACE_MS = 4000;
 
@@ -214,7 +238,24 @@ export const useMixEngine = ({ enabled, micDeviceName, needles }: MixEngineOptio
                 musicGain.gain.setTargetAtTime(nextMusic, now, 0.02);
             });
 
-            // 4) USCITA verso FFmpeg.
+            // 4) LIMITATORE. Ultimo anello prima dell'uscita: quello che passa di
+            // qui è quello che va in onda, quindi il tetto vale su qualunque
+            // combinazione dei due cursori.
+            const limiter = ctx.createDynamicsCompressor();
+            limiter.threshold.value = LIMITER_THRESHOLD_DB;
+            limiter.ratio.value = LIMITER_RATIO;
+            limiter.knee.value = 0;
+            limiter.attack.value = LIMITER_ATTACK_S;
+            limiter.release.value = LIMITER_RELEASE_S;
+
+            // Annulla il makeup gain implicito di Chromium: senza questo, un
+            // segnale a -30 dBFS uscirebbe a -28,3 dBFS pur senza compressione.
+            const limiterTrim = ctx.createGain();
+            limiterTrim.gain.value = dbToMul(LIMITER_TRIM_DB);
+
+            const out = bus.connect(limiter).connect(limiterTrim);
+
+            // 5) USCITA verso FFmpeg.
             workletUrl = URL.createObjectURL(new Blob([PCM_SINK_WORKLET], { type: 'application/javascript' }));
             await ctx.audioWorklet.addModule(workletUrl);
             if (cancelled) return;
@@ -232,7 +273,7 @@ export const useMixEngine = ({ enabled, micDeviceName, needles }: MixEngineOptio
                 const pcm = event.data;
                 window.electronAPI?.sendMixAudio(new Uint8Array(pcm.buffer, pcm.byteOffset, pcm.byteLength));
             };
-            bus.connect(sink);
+            out.connect(sink);
 
             // Il worklet gira solo se è collegato all'uscita: il gain a zero lo
             // tiene vivo senza che una singola goccia di audio arrivi alle casse
@@ -241,9 +282,10 @@ export const useMixEngine = ({ enabled, micDeviceName, needles }: MixEngineOptio
             silentOut.gain.value = 0;
             sink.connect(silentOut).connect(ctx.destination);
 
-            // 5) VU post-mix: le lancette mostrano quello che va davvero in onda.
+            // 6) VU post-mix: le lancette mostrano quello che va davvero in onda,
+            // limitatore compreso — è lo stesso punto da cui parte il PCM.
             const splitter = ctx.createChannelSplitter(2);
-            bus.connect(splitter);
+            out.connect(splitter);
             const analyserL = ctx.createAnalyser();
             const analyserR = ctx.createAnalyser();
             analyserL.fftSize = 256;
@@ -261,7 +303,7 @@ export const useMixEngine = ({ enabled, micDeviceName, needles }: MixEngineOptio
             };
             animate();
 
-            // 6) SPIA MUSICA. Il caso che deve intercettare: RRLMP che suona su
+            // 7) SPIA MUSICA. Il caso che deve intercettare: RRLMP che suona su
             // un'uscita diversa da quella predefinita di Windows. La DJ sente la
             // musica in cuffia e in onda va il silenzio, senza un solo errore da
             // nessuna parte. Su setInterval e non su rAF: deve continuare a

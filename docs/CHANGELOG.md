@@ -5,6 +5,21 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.8.2] — 2026-07-28
+
+Un tetto ai picchi che non sia il taglio netto del worklet. Misure in [log/0.8.2.md](./log/0.8.2.md).
+
+### Added
+- **Limitatore di sicurezza in MIX MODE**, ultimo nodo prima dell'uscita verso FFmpeg. Serviva perché il bus somma due sorgenti indipendenti con due cursori che arrivano al 200%, e finora l'unico controllo dei picchi era il taglio netto della forma d'onda dentro l'AudioWorklet (`if (sl > 1) sl = 1`).
+  - Misurato: **trasparente da -60 a -3 dBFS** (differenza 0,00 dB, il programma normale non viene toccato), tetto a **-2,75 dBFS** su segnale a fondo scala e **mai sopra -1,20 dBFS** nemmeno con 24 dB di sovraccarico. Dopo un transiente il fondo torna al livello esatto di prima: nessun pompaggio.
+  - **Il `DynamicsCompressorNode` di Chromium non è mai trasparente**: applica un makeup gain implicito di circa 0,57 dB per ogni dB di soglia, a *tutto* il segnale, anche a -60 dBFS dove non comprime nulla. Viene annullato con un guadagno fisso di compensazione misurato sul nodo reale.
+  - La soglia è a -3 dBFS e non a -1: con -1 il tetto effettivo superava 0 dBFS già a +6 dB di sovraccarico, perché un rapporto 20:1 non è un muro e il makeup fa partire la curva più in alto.
+
+### Changed
+- Le lancette del VU in MIX MODE pescano dall'uscita del limitatore invece che dal bus: è lo stesso punto da cui parte il PCM verso FFmpeg. Sul programma normale non cambia nulla; quando il limitatore lavora, le lancette lo mostrano.
+
+---
+
 ## [0.8.1] — 2026-07-28
 
 Il sottofondo musicale si alzava e si abbassava da solo in onda. Dettagli e misure in [log/0.8.1.md](./log/0.8.1.md).
