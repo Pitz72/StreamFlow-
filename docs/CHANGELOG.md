@@ -5,6 +5,22 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.8.3] — 2026-07-28 · *Stop the Volume Edition*
+
+Il livello d'uscita, e la fine del sottofondo che si muoveva da solo. Misure in [log/0.8.3.md](./log/0.8.3.md).
+
+### Changed
+- **La MIX MODE va in onda al livello giusto.** La diretta era stata misurata a **-22,3 LUFS** contro i -16 LUFS d'uso in radio: sei dB sotto gli altri streamer. Aggiunti +6 dB fissi al mix, **prima** del limitatore — così l'ultima parola sui picchi resta al limitatore della 0.8.2.
+  - Non è una questione di comodità d'ascolto: arrivando basso, il compressore di AzuraCast deve recuperare tutto quel guadagno proprio su questa sorgente, e nel farlo amplifica ogni ondeggiamento residuo. Alzare il livello gli toglie il motivo di intervenire.
+  - Misurato sulla catena reale: **+6,00 dB esatti** su tutto il programma fino a -9 dBFS (il limitatore non interviene affatto), il true peak reale della diretta esce a **-2,55 dBFS**, e nemmeno un ingresso a fondo scala supera -2,32 dBFS.
+  - Non è un terzo cursore: la dose di volume resta a *Input Volume* e *Volume musica*. Questo è il punto di lavoro della catena (`OUTPUT_GAIN_DB` in `useMixEngine.ts`).
+- Il log d'avvio della MIX MODE riporta livello d'uscita e soglia del limitatore.
+
+### Da verificare in diretta
+Registrare 2-3 minuti di prova con voce e sottofondo, poi `ffmpeg -i prova.mp3 -af ebur128=peak=true -f null -`. Atteso: integrata vicina a **-16 LUFS**, true peak sotto **-1 dBFS**, loudness range molto più stretto dei 16,2 LU di partenza. E il sottofondo fermo dove lo mette il cursore.
+
+---
+
 ## [0.8.2] — 2026-07-28
 
 Un tetto ai picchi che non sia il taglio netto del worklet. Misure in [log/0.8.2.md](./log/0.8.2.md).

@@ -55,6 +55,24 @@ const LIMITER_RELEASE_S = 0.1;
 /** Compensazione esatta del makeup gain implicito misurato alla soglia qui sopra. */
 const LIMITER_TRIM_DB = -1.71;
 
+/**
+ * LIVELLO D'USCITA. Una diretta reale in MIX MODE è stata misurata a
+ * -22,3 LUFS integrati, contro i -16 LUFS d'uso in radio: arrivavamo circa
+ * 6 dB sotto gli altri streamer. Il guaio non è il volume in sé, è che il
+ * compressore di AzuraCast deve allora recuperare tutto quel guadagno proprio
+ * su questa sorgente, e nel farlo amplifica ogni ondeggiamento residuo.
+ *
+ * Sta PRIMA del limitatore, non dopo: dopo sarebbe l'ultimo nodo della catena
+ * e rimetterebbe i picchi sopra il tetto appena stabilito. Qui invece è il
+ * limitatore ad avere l'ultima parola. Con il true peak misurato (-2,9 dBFS)
+ * questi 6 dB portano i picchi a +3,1 dBFS in ingresso al limitatore, che li
+ * riporta a circa -2,3 dBFS: dentro l'obiettivo, con margine.
+ *
+ * Non è un cursore: la dose di volume la fanno *Input Volume* e *Volume
+ * musica*. Questo è il punto di lavoro della catena, e si cambia qui.
+ */
+const OUTPUT_GAIN_DB = 6;
+
 const dbToMul = (db: number) => Math.pow(10, db / 20);
 /** Quanto il "musica assente" aspetta prima di allarmare (pause tra i brani). */
 const MUSIC_GRACE_MS = 4000;
@@ -238,9 +256,12 @@ export const useMixEngine = ({ enabled, micDeviceName, needles }: MixEngineOptio
                 musicGain.gain.setTargetAtTime(nextMusic, now, 0.02);
             });
 
-            // 4) LIMITATORE. Ultimo anello prima dell'uscita: quello che passa di
-            // qui è quello che va in onda, quindi il tetto vale su qualunque
-            // combinazione dei due cursori.
+            // 4) LIVELLO D'USCITA e LIMITATORE. Il limitatore è l'ultimo anello
+            // prima dell'uscita: quello che passa di qui è quello che va in onda,
+            // quindi il tetto vale su qualunque combinazione dei due cursori.
+            const outputGain = ctx.createGain();
+            outputGain.gain.value = dbToMul(OUTPUT_GAIN_DB);
+
             const limiter = ctx.createDynamicsCompressor();
             limiter.threshold.value = LIMITER_THRESHOLD_DB;
             limiter.ratio.value = LIMITER_RATIO;
@@ -253,7 +274,7 @@ export const useMixEngine = ({ enabled, micDeviceName, needles }: MixEngineOptio
             const limiterTrim = ctx.createGain();
             limiterTrim.gain.value = dbToMul(LIMITER_TRIM_DB);
 
-            const out = bus.connect(limiter).connect(limiterTrim);
+            const out = bus.connect(outputGain).connect(limiter).connect(limiterTrim);
 
             // 5) USCITA verso FFmpeg.
             workletUrl = URL.createObjectURL(new Blob([PCM_SINK_WORKLET], { type: 'application/javascript' }));
@@ -332,7 +353,8 @@ export const useMixEngine = ({ enabled, micDeviceName, needles }: MixEngineOptio
             appendLog({
                 level: 'success',
                 source: 'system',
-                message: 'MIX MODE attiva — microfono + audio di sistema mixati in uscita',
+                message: 'MIX MODE attiva — microfono + audio di sistema mixati in uscita '
+                    + `(livello +${OUTPUT_GAIN_DB} dB, limitatore a ${LIMITER_THRESHOLD_DB} dBFS)`,
             });
         };
 
