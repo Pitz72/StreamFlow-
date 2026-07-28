@@ -1,6 +1,6 @@
 # Documentazione StreamFlow
 
-Hub centrale della documentazione tecnica di **Runtime StreamFlow** (v0.8.0 — *Deborah Edition*).
+Hub centrale della documentazione tecnica di **Runtime StreamFlow** (v0.8.3 — *Stop the Volume Edition*).
 
 ## Guide
 
@@ -14,7 +14,7 @@ Hub centrale della documentazione tecnica di **Runtime StreamFlow** (v0.8.0 — 
 
 | Documento | Contenuto |
 |---|---|
-| [CHANGELOG.md](./CHANGELOG.md) | Tutte le versioni dalla 0.0.1 alla 0.8.0 |
+| [CHANGELOG.md](./CHANGELOG.md) | Tutte le versioni dalla 0.0.1 alla 0.8.3 |
 | [log/](./log/) | Log tecnici dettagliati per ogni singola sessione di sviluppo |
 
 ## Archivio
