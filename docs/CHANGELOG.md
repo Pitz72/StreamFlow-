@@ -5,6 +5,24 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.8.4] — 2026-08-08
+
+Lo sfarfallio su Fast Sync. Diagnosi, vincoli e misure in [SFARFALLIO_FAST_SYNC.md](./SFARFALLIO_FAST_SYNC.md) e [log/0.8.4.md](./log/0.8.4.md).
+
+### Fixed
+- **StreamFlow sfarfallava sulle macchine con la sincronizzazione verticale NVIDIA su «Veloce» (Fast Sync).** Non è un difetto di StreamFlow: ce l'ha qualunque applicazione Electron con un'interfaccia ferma. Chromium ripresenta una superficie solo quando qualcosa cambia; Fast Sync rende senza freno e a ogni scansione serve al monitor l'ultima copia completa che trova nella catena di buffer — e se nessuno le riscrive, quelle copie contengono ancora una schermata **abbandonata anche minuti prima**.
+  - Rimedio (`src/renderer/components/PresentazioneContinua.tsx`): uno strato a tutto schermo, invisibile, `pointer-events: none`, agganciato a `document.body`, il cui **colore di fondo** cambia di quattro millesimi di alfa a ogni `requestAnimationFrame`. Obbliga a ridisegnare la superficie principale, così tutte le copie restano fresche.
+  - ⛔ **Permanente e senza interruttore**, per costruzione: tolto lo strato il difetto non torna subito (le copie sono già tutte uguali) ma ricompare al primo cambio di contenuto. Un interruttore arriverebbe sempre tardi di una schermata.
+  - ⭐ Le animazioni non erano la causa: erano l'unica parte pulita. Un elemento animato vive su uno strato di composizione proprio, ripresentato a ogni fotogramma. In StreamFlow è la lancetta del VU (`transform: rotate()` riscritto dal loop rAF) — ed è il motivo per cui lo strato del rimedio anima il colore di fondo e **non** `transform` o `opacity`.
+  - Diagnosi originale: *Il Mistero della Santa Maria*, 7 agosto 2026, altro progetto Electron.
+
+### Note
+- **Costo misurato** sulle build impacchettate, a riposo, tre repliche per versione: GPU media da **0,65 % a 2,51 %**, CPU da **14,8 % a 19,5 % di un core** (0,92 % → 1,22 % di una macchina a 16 core logici), RAM invariata. Sulla CPU la dispersione fra repliche è dello stesso ordine della differenza fra versioni: la direzione è credibile, la cifra secca no. Su un fisso non si nota; su un portatile a batteria è una scelta consapevole.
+- **Non verificato visivamente con Fast Sync accesa** su StreamFlow: il rimedio è quello già collaudato altrove, ma qui non è ancora stato *visto* funzionare.
+- Il rischio «il ridisegno continuo toglie un `<video>` dalla corsia hardware» **non ha bersaglio**: StreamFlow non riproduce nessun video: l'unica traccia video del progetto è quella che `getDisplayMedia` pretende in MIX MODE, rimossa e fermata subito.
+
+---
+
 ## [0.8.3] — 2026-07-28 · *Stop the Volume Edition*
 
 Il livello d'uscita, e la fine del sottofondo che si muoveva da solo. Misure in [log/0.8.3.md](./log/0.8.3.md).
