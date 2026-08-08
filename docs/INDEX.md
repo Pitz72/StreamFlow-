@@ -1,6 +1,6 @@
 # Documentazione StreamFlow
 
-Hub centrale della documentazione tecnica di **Runtime StreamFlow** (v0.8.3 — *Stop the Volume Edition*).
+Hub centrale della documentazione tecnica di **Runtime StreamFlow** (v0.8.4).
 
 ## Guide
 
@@ -9,12 +9,13 @@ Hub centrale della documentazione tecnica di **Runtime StreamFlow** (v0.8.3 — 
 | [ROADMAP.md](./ROADMAP.md) | Visione del prodotto, fasi di sviluppo, feature pianificate |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | Struttura multi-processo, flusso audio, IPC bridge, state machine |
 | [SETUP.md](./SETUP.md) | Prerequisiti, comandi di sviluppo, build, troubleshooting |
+| [SFARFALLIO_FAST_SYNC.md](./SFARFALLIO_FAST_SYNC.md) | ⛔ Perché esiste `PresentazioneContinua.tsx` e perché non va tolto — diagnosi, i tre vincoli, come si collauda, il costo misurato |
 
 ## Cronologia
 
 | Documento | Contenuto |
 |---|---|
-| [CHANGELOG.md](./CHANGELOG.md) | Tutte le versioni dalla 0.0.1 alla 0.8.3 |
+| [CHANGELOG.md](./CHANGELOG.md) | Tutte le versioni dalla 0.0.1 alla 0.8.4 |
 | [log/](./log/) | Log tecnici dettagliati per ogni singola sessione di sviluppo |
 
 ## Archivio
