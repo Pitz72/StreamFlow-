@@ -9,6 +9,7 @@ import SettingsPanel from './components/SettingsPanel'
 import NowPlayingPanel from './components/NowPlayingPanel'
 import Modal from './components/Modal'
 import StreamLog from './components/StreamLog'
+import PresentazioneContinua from './components/PresentazioneContinua'
 import { useStore } from './store/useStore'
 
 type OpenModal = null | 'settings' | 'nowplaying';
@@ -258,6 +259,12 @@ function App() {
 
     return (
         <div className="deco-panel-bg flex flex-col h-screen w-screen text-deco-ink overflow-hidden font-ui">
+            {/* Rimedio allo sfarfallio da Fast Sync — strato invisibile agganciato
+                a document.body, sempre attivo, senza interruttore. NON è un
+                effetto e non è codice morto: leggere il commento in testa a
+                PresentazioneContinua.tsx prima di toccarlo. */}
+            <PresentazioneContinua />
+
             {/* Header */}
             <header className="flex justify-between items-center bg-deco-bg/40 px-[30px] py-[18px] border-b border-deco-brass/35 shrink-0">
                 <div className="flex items-center gap-3">
