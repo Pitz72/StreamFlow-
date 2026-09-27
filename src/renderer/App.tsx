@@ -173,6 +173,22 @@ function App() {
         }
     }, [setIsStreaming, setStreamStatus, setErrorMessage]);
 
+    // Riallineamento dopo un ricaricamento (crash dell'interfaccia): la diretta
+    // può essere ancora viva nel main. Solo lo stato, senza gli effetti del
+    // 'connected' normale (metadati re-inviati, password salvata).
+    useEffect(() => {
+        if (!window.electronAPI?.getStreamStatus) return;
+        window.electronAPI.getStreamStatus()
+            .then(({ status, message }) => {
+                // Un 'error' residuo non va riproposto: il toast è già stato visto.
+                if (status === 'disconnected' || status === 'error') return;
+                setStreamStatus(status);
+                setStatusDetail(status === 'reconnecting' ? (message || null) : null);
+                setIsStreaming(status === 'connected');
+            })
+            .catch(() => { /* main non raggiungibile: resta lo stato iniziale */ });
+    }, [setIsStreaming, setStreamStatus]);
+
     // Subscribe to log events from main process
     useEffect(() => {
         if (window.electronAPI && window.electronAPI.onLogEvent) {

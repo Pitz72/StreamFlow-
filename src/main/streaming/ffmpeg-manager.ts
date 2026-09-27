@@ -1,12 +1,13 @@
 import { spawn, ChildProcess, exec, execSync } from 'child_process';
 import ffmpegPathRaw from 'ffmpeg-static';
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, powerSaveBlocker } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import { sendFilterCommand, isPortFree } from './zmq-command';
 import { writeRaw } from '../file-logger';
 import { deletePassword } from '../credentials';
 import { httpAuthCheck } from './connection-diagnostic';
+import { classifyExit } from './exit-classifier';
 
 // In production (asar), ffmpeg-static resolves inside app.asar which cannot be spawned.
 // We replace 'app.asar' with 'app.asar.unpacked' to point to the extracted binary.
@@ -41,7 +42,7 @@ export const MIX_PCM = { sampleRate: 48000, channels: 2 } as const;
  * arrivare al secondo livello ancora escapato → due backslash nell'argomento.
  * Validato headless contro ffmpeg-static (vedi docs/log/0.7.1.md).
  */
-function teeEscapeOptionValue(s: string): string {
+export function teeEscapeOptionValue(s: string): string {
     return s
         .replace(/\\/g, '\\\\\\\\')
         .replace(/:/g, '\\\\:')
@@ -51,7 +52,7 @@ function teeEscapeOptionValue(s: string): string {
 }
 
 /** Escaping del percorso file nello slave tee (solo primo livello: '|' '[' ']'). */
-function teeEscapePath(s: string): string {
+export function teeEscapePath(s: string): string {
     return s
         .replace(/\\/g, '/')
         .replace(/\|/g, '\\|')
@@ -107,6 +108,11 @@ export class StreamManager {
      * credenziali, che ritentare non risolve).
      */
     private sessionWasLive = false;
+    /** Id del powerSaveBlocker attivo durante la sessione (null = PC libero di andare in standby). */
+    private powerBlockId: number | null = null;
+    /** Ultimo stato inviato: serve a riallineare un'interfaccia ricaricata dopo un crash. */
+    private lastStatus: StreamStatus = 'disconnected';
+    private lastStatusMessage: string | undefined;
 
     constructor(mainWindow: BrowserWindow | null) {
         this.mainWindow = mainWindow;
@@ -194,7 +200,50 @@ export class StreamManager {
         });
     }
 
+    /**
+     * true finché c'è una sessione da proteggere: diretta in corso, collegamento
+     * in corso o riconnessione in attesa. È il criterio della conferma di
+     * chiusura e del blocco dello standby.
+     */
+    public isSessionActive(): boolean {
+        return this.currentConfig !== null || this.ffmpegProcess !== null || this.reconnectTimer !== null;
+    }
+
+    /** Ultimo stato inviato all'interfaccia, per riallinearla dopo un ricaricamento. */
+    public getStatusSnapshot(): { status: StreamStatus; message?: string } {
+        return { status: this.lastStatus, message: this.lastStatusMessage };
+    }
+
+    /**
+     * Tiene sveglio il PC finché la sessione è attiva. Senza, una diretta lunga
+     * senza tocchi di tastiera (pre-show a rotazione, brani lunghi) lascia che
+     * Windows mandi in sospensione il portatile: la diretta muore in silenzio.
+     * 'prevent-app-suspension' blocca la sospensione ma lascia spegnere lo schermo.
+     */
+    private updatePowerBlock(status: StreamStatus) {
+        const active = status === 'connecting' || status === 'connected' || status === 'reconnecting';
+        if (active && this.powerBlockId === null) {
+            try {
+                this.powerBlockId = powerSaveBlocker.start('prevent-app-suspension');
+                this.log('info', 'standby del computer bloccato per tutta la sessione');
+            } catch (e) {
+                this.log('error', `impossibile bloccare lo standby del computer: ${(e as Error).message}`);
+            }
+        } else if (!active && this.powerBlockId !== null) {
+            try {
+                if (powerSaveBlocker.isStarted(this.powerBlockId)) powerSaveBlocker.stop(this.powerBlockId);
+            } catch { /* già rilasciato */ }
+            this.powerBlockId = null;
+            this.log('info', 'standby del computer di nuovo consentito');
+        }
+    }
+
     private sendStatus(status: StreamStatus, message?: string) {
+        this.lastStatus = status;
+        this.lastStatusMessage = message;
+        // Prima dell'invio: il blocco dello standby non dipende dall'esistenza
+        // della finestra (un'interfaccia in crash non deve lasciar dormire il PC).
+        this.updatePowerBlock(status);
         // La finestra può essere già distrutta (quit mentre si è ON AIR):
         // inviare su webContents distrutto lancia "Object has been destroyed".
         if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
@@ -490,51 +539,17 @@ export class StreamManager {
                 return;
             }
 
-            const errorLines = lastErrorLog.split('\n').map(l => l.trim()).filter(l => l);
-            // Priorità alla prima riga che contiene un errore riconoscibile
-            // (es. "401", "Connection refused") — le ultime righe sono spesso
-            // cleanup noise di FFmpeg (Error muxing, Error writing trailer, ecc.)
-            const HTTP_ERROR = /\b(40[0-9]|Connection refused|Unauthorized|access denied|No route|Name or service)\b/i;
-            const firstMeaningful = errorLines.find(l => HTTP_ERROR.test(l));
-
-            // Pattern "harbor occupied / wrong port": auth accettata, poi RST
-            // immediato dal server senza che lo streaming sia mai partito.
-            // Sintomi: -10053 / WSAECONNABORTED / "Error muxing" e mai un "time="
-            const dropPattern = /(10053|WSAECONNABORTED|Error muxing|Connection reset)/i;
-            const earlyDrop = !streamingStarted && dropPattern.test(lastErrorLog);
-
-            // Pattern "kicked": lo stream era PARTITO e il peer ha chiuso con un RST
-            // (-10054 / WSAECONNRESET) dopo pochi secondi. Non è un guasto di rete
-            // generico: un taglio così rapido e ripetibile è quasi sempre una
-            // decisione del server (DJ fuori fascia oraria, doppia connessione sullo
-            // stesso account) oppure un antivirus che tronca l'upload HTTP continuo.
-            const rstPattern = /(10054|10053|WSAECONNRESET|WSAECONNABORTED|Connection reset)/i;
             const liveSeconds = streamingStartedAt ? Math.round((Date.now() - streamingStartedAt) / 1000) : 0;
-            const kicked = streamingStarted && liveSeconds <= 30 && rstPattern.test(lastErrorLog);
-
-            // Caduto prima della conferma, al primo collegamento della sessione, con
-            // un reset di rete: è la firma del rifiuto delle credenziali (25/07/2026).
-            const credentialsSuspect = !liveConfirmed && !this.sessionWasLive && kicked && liveSeconds <= 3;
-
-            let errorReason: string;
-            if (credentialsSuspect) {
-                errorReason = `caduta dopo ${liveSeconds}s, prima della conferma. Quasi certamente CREDENZIALI RIFIUTATE: il server risponde "401 Unauthorized" e chiude, ma FFmpeg non legge la risposta e riporta solo un errore di rete. Verifico le credenziali leggendo la risposta vera del server...`;
-            } else if (kicked && liveSeconds <= 3) {
-                // Qui si arriva solo durante una riconnessione (al primo collegamento
-                // è il ramo credentialsSuspect): la password ha già funzionato in
-                // questa sessione, quindi il sospetto è il server che non accetta
-                // ancora il flusso — tipicamente la sorgente vecchia non ancora
-                // scaduta sull'harbor.
-                errorReason = `tentativo caduto dopo ${liveSeconds}s: il server non accetta ancora il flusso (spesso la connessione precedente non è ancora scaduta). Se succede fino all'ultimo tentativo, usa Configurazione → Diagnostica → "Test connessione".`;
-            } else if (kicked) {
-                errorReason = `il server ha chiuso di netto la connessione (RST) dopo ${liveSeconds}s di diretta. Cause tipiche: un'altra sorgente collegata sullo stesso account, oppure un antivirus o un intermediario di rete che tronca l'upload HTTP. Usa Configurazione → Diagnostica → "Test connessione" per isolare il punto di rottura.`;
-            } else if (earlyDrop) {
-                errorReason = `Server ha chiuso la connessione subito dopo l'auth. Probabile causa: mount/porta sbagliati (stai puntando a Icecast invece che al harbor Liquidsoap?). Verifica che porta=${port} e mount=${cleanMount} corrispondano a "Icecast Clients" nel pannello AzuraCast → Broadcasting → How do I connect?`;
-            } else if (firstMeaningful) {
-                errorReason = firstMeaningful.substring(0, 200);
-            } else {
-                errorReason = errorLines.slice(-3).join(' | ') || `Exited with code ${code}`;
-            }
+            const { reason: errorReason, credentialsSuspect } = classifyExit({
+                lastErrorLog,
+                streamingStarted,
+                liveSeconds,
+                liveConfirmed,
+                sessionWasLive: this.sessionWasLive,
+                port,
+                mount: cleanMount,
+                code,
+            });
 
             // Auto-reconnect (Fase C1): solo se in questa sessione la diretta è stata
             // CONFERMATA almeno una volta. Un fallimento al primo collegamento

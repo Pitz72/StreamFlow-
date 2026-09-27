@@ -3,10 +3,12 @@ name: Build & Release
 # Trigger esclusivamente manuale (workflow_dispatch).
 # Nessun build su push o tag — la pubblicazione è una decisione esplicita.
 # Modello identico a Runtime TelegramBot Desktop / FeedDownloader Pro:
-# solo Windows e Linux. macOS escluso di proposito — richiederebbe firma
-# Developer ID + notarizzazione Apple (a pagamento), altrimenti Gatekeeper
-# segnala l'app come "danneggiata" sui Mac altrui. Le piattaforme vengono
-# buildate in parallelo, poi il job `release` pubblica sul bridge repo pubblico.
+# solo Windows. macOS escluso di proposito — richiederebbe firma Developer ID +
+# notarizzazione Apple (a pagamento), altrimenti Gatekeeper segnala l'app come
+# "danneggiata" sui Mac altrui. Linux sospeso dalla 0.8.6 (27/09/2026): la build
+# si produceva ma non poteva trasmettere (elenco dispositivi solo DirectShow,
+# loopback della MIX MODE inesistente su Linux). Torna quando funzionerà davvero.
+# Poi il job `release` pubblica sul bridge repo pubblico.
 
 on:
   workflow_dispatch:
@@ -19,38 +21,6 @@ on:
         options: ['true', 'false']
 
 jobs:
-  build-linux:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-      - name: Cache Electron binary
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/electron
-          key: electron-linux-${{ hashFiles('package-lock.json') }}
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libfuse2
-      - name: Install dependencies
-        run: npm ci
-      - name: Build (Linux, no publish)
-        run: npm run build && npm run build:main && npx electron-builder --linux --publish never
-      - name: Upload Linux artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-artifacts
-          path: |
-            builds/*/*.AppImage
-            builds/*/*.deb
-            builds/*/latest-linux.yml
-          if-no-files-found: error
-          retention-days: 30
-
   build-windows:
     runs-on: windows-latest
     steps:
@@ -66,6 +36,8 @@ jobs:
           key: electron-win-${{ hashFiles('package-lock.json') }}
       - name: Install dependencies
         run: npm ci
+      - name: Test
+        run: npm test
       - name: Build (Windows, no publish)
         run: npm run build && npm run build:main && npx electron-builder --windows --publish never
       - name: Upload Windows artifacts
@@ -80,7 +52,7 @@ jobs:
           retention-days: 30
 
   release:
-    needs: [build-linux, build-windows]
+    needs: [build-windows]
     runs-on: ubuntu-latest
     if: ${{ github.event.inputs.publish_release == 'true' }}
     steps:
@@ -89,12 +61,6 @@ jobs:
       - name: Read version from package.json
         id: version
         run: echo "tag=v$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
-
-      - name: Download Linux artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: linux-artifacts
-          path: artifacts/linux
 
       - name: Download Windows artifacts
         uses: actions/download-artifact@v4
@@ -119,15 +85,10 @@ jobs:
             | Piattaforma | File |
             |-------------|------|
             | **Windows** | `*.exe` |
-            | **Linux (AppImage)** | `*.AppImage` |
-            | **Linux (deb)** | `*.deb` |
 
             > La build Windows non è firmata: al primo avvio SmartScreen può
             > mostrare un avviso ("Ulteriori informazioni" → "Esegui comunque").
           files: |
-            artifacts/linux/**/*.AppImage
-            artifacts/linux/**/*.deb
-            artifacts/linux/**/latest-linux.yml
             artifacts/windows/**/*.exe
             artifacts/windows/**/*.blockmap
             artifacts/windows/**/latest.yml

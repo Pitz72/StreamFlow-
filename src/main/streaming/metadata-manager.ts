@@ -172,7 +172,7 @@ interface ParsedHttp {
     body: string;
 }
 
-function parseRawHttpResponse(raw: string): ParsedHttp {
+export function parseRawHttpResponse(raw: string): ParsedHttp {
     const headerEnd = raw.indexOf('\r\n\r\n');
     if (headerEnd === -1) {
         return { status: null, statusText: '', headers: {}, body: raw };
@@ -196,7 +196,7 @@ function parseRawHttpResponse(raw: string): ParsedHttp {
     return { status, statusText, headers, body };
 }
 
-function evaluateResponse(requestLine: string, rawResponse: string, parsed: ParsedHttp): MetaSendResult {
+export function evaluateResponse(requestLine: string, rawResponse: string, parsed: ParsedHttp): MetaSendResult {
     const base = { requestLine, rawResponse, httpStatus: parsed.status ?? undefined };
 
     if (parsed.status === null) {

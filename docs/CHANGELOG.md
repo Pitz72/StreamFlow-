@@ -5,6 +5,22 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.8.6] — 2026-09-27
+
+Le criticità gravi dell'[analisi del 27 settembre](./ANALISI-2026-09-27.md), tranne G4 (audio di sistema in MIX MODE), che dipende da una scelta strategica ancora da discutere. Dettagli e prove in [log/0.8.6.md](./log/0.8.6.md).
+
+### Fixed
+- **G1 — Il PC poteva andare in standby durante la diretta.** Ora lo standby è bloccato dall'avvio del collegamento alla fine della sessione, riconnessioni comprese. Lo schermo può comunque spegnersi.
+- **G2 — Chiudere la finestra fermava la diretta senza chiedere.** Con una sessione attiva, la X o Alt+F4 aprono la conferma «Sei ancora in diretta» con «Resta in onda» come scelta predefinita. All'arresto di Windows non viene chiesto nulla.
+- **G5 — Un crash dell'interfaccia non veniva gestito.** Ora viene registrato nel log e l'interfaccia si ricarica da sola, torna a mostrare lo stato vero della diretta (ON AIR, riconnessione) e in MIX MODE il mixer riparte. Oltre 3 crash in un minuto smette di ricaricare e lo dice.
+
+### Changed
+- **G3 — Linux sospeso.** L'installer Linux si produceva ma non poteva trasmettere. Tolto da `package.json` e dal workflow finché non funzionerà davvero.
+- **G6 — Test automatici.** 30 test (Vitest) sulla macchina a stati della trasmissione, i messaggi d'errore, l'escaping del muxer tee, le risposte del server metadata, la redazione dei log. Girano prima di ogni build, locale (`electron:build`) e su GitHub.
+  - La classificazione delle uscite di FFmpeg è passata in `src/main/streaming/exit-classifier.ts`, logica pura.
+
+---
+
 ## [0.8.5] — 2026-09-27
 
 Le due criticità gravissime dell'[analisi del 27 settembre](./ANALISI-2026-09-27.md). Dettagli e prove in [log/0.8.5.md](./log/0.8.5.md).

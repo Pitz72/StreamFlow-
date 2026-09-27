@@ -22,6 +22,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on('STREAM_STATUS', handler);
         return () => { ipcRenderer.removeListener('STREAM_STATUS', handler); };
     },
+    /** Stato corrente della sessione, per riallinearsi dopo un ricaricamento dell'interfaccia. */
+    getStreamStatus: () => ipcRenderer.invoke('get-stream-status'),
     onLogEvent: (callback: (e: { level: 'info' | 'success' | 'error'; source: 'stream' | 'metadata' | 'system'; message: string }) => void) => {
         const handler = (_event: IpcRendererEvent, e: { level: 'info' | 'success' | 'error'; source: 'stream' | 'metadata' | 'system'; message: string }) => callback(e);
         ipcRenderer.on('LOG_EVENT', handler);

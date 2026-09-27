@@ -1,7 +1,7 @@
 {
   "name": "streamflow",
   "private": true,
-  "version": "0.8.5",
+  "version": "0.8.6",
   "description": "Desktop Audio Streaming Client",
   "author": {
     "name": "Runtime StreamFlow",
@@ -13,9 +13,10 @@
     "build": "tsc -b && vite build",
     "build:main": "tsc -p tsconfig.main.json",
     "lint": "eslint .",
+    "test": "vitest run",
     "preview": "vite preview",
     "electron:dev": "npm run build:main && concurrently -k \"cross-env BROWSER=none npm run dev\" \"wait-on http://localhost:5173 && cross-env NODE_ENV=development ELECTRON_DISABLE_SECURITY_WARNINGS=true electron .\"",
-    "electron:build": "npm run build && npm run build:main && electron-builder",
+    "electron:build": "npm test && npm run build && npm run build:main && electron-builder",
     "icons": "node scripts/generate-icons.cjs"
   },
   "dependencies": {
@@ -44,6 +45,7 @@
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
     "vite": "^7.2.4",
+    "vitest": "^3.2.7",
     "wait-on": "^9.0.3"
   },
   "build": {
@@ -74,14 +76,6 @@
       "uninstallerIcon": "public/icon.ico",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
-    },
-    "linux": {
-      "target": [
-        "AppImage",
-        "deb"
-      ],
-      "icon": "build/icons",
-      "category": "AudioVideo"
     }
   }
 }

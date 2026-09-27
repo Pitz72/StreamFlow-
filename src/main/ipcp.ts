@@ -23,6 +23,13 @@ const emitLog = (level: 'info' | 'success' | 'error', source: 'stream' | 'metada
     } catch { /* finestra in chiusura */ }
 };
 
+/** Per main.ts: c'è una diretta (o un collegamento/riconnessione) da proteggere? */
+export const isStreamSessionActive = () => streamManager?.isSessionActive() ?? false;
+
+/** Per main.ts: eventi di sistema (crash interfaccia) nel pannello e nel file di log. */
+export const logSystem = (level: 'info' | 'success' | 'error', message: string) =>
+    emitLog(level, 'system', message);
+
 export const cleanupIpc = () => {
     if (streamManager) {
         // sync=true: siamo in before-quit, un taskkill asincrono potrebbe non
@@ -67,6 +74,14 @@ export const initializeIpc = (mainWindow: BrowserWindow) => {
 
     if (handlersRegistered) return;
     handlersRegistered = true;
+
+    // Riallineamento dopo un crash: l'interfaccia ricaricata CHIEDE lo stato al
+    // montaggio. Una spinta dal main su did-finish-load arrivava prima che React
+    // avesse registrato il listener (verificato sulla 0.8.6: "Ready" con la
+    // radio in onda, e il pulsante avrebbe avviato una seconda sessione).
+    ipcMain.handle('get-stream-status', async () => {
+        return streamManager ? streamManager.getStatusSnapshot() : { status: 'disconnected' };
+    });
 
     ipcMain.handle('start-stream', async (_event, config) => {
         if (streamManager) {

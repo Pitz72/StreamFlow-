@@ -18,6 +18,10 @@ interface ElectronAPI {
     onStreamStatus: (
         callback: (status: 'disconnected' | 'connecting' | 'connected' | 'error' | 'reconnecting', message?: string) => void
     ) => () => void;
+    getStreamStatus: () => Promise<{
+        status: 'disconnected' | 'connecting' | 'connected' | 'error' | 'reconnecting';
+        message?: string;
+    }>;
     onLogEvent: (
         callback: (e: { level: 'info' | 'success' | 'error'; source: 'stream' | 'metadata' | 'system'; message: string }) => void
     ) => () => void;
