@@ -5,6 +5,8 @@ import fs from 'fs';
 import path from 'path';
 import { sendFilterCommand, isPortFree } from './zmq-command';
 import { writeRaw } from '../file-logger';
+import { deletePassword } from '../credentials';
+import { httpAuthCheck } from './connection-diagnostic';
 
 // In production (asar), ffmpeg-static resolves inside app.asar which cannot be spawned.
 // We replace 'app.asar' with 'app.asar.unpacked' to point to the extracted binary.
@@ -64,6 +66,22 @@ export class StreamManager {
     private static readonly RECONNECT_DELAYS_MS = [5000, 10000, 30000, 60000, 120000];
     /** Porta del broker azmq (bind default FFmpeg `tcp://*:5555`, client su loopback). */
     private static readonly ZMQ_PORT = 5555;
+    /**
+     * Tenuta minima prima di dichiarare ON AIR. La prima riga `size=` di FFmpeg
+     * NON prova che il server abbia accettato: con password errata FFmpeg scrive
+     * per ~0,65s prima del reset (-10054) e stampa comunque il progresso — il
+     * server risponde 401 in ~470ms, ma FFmpeg non lo legge. Tre secondi di
+     * trasmissione continua escludono il rifiuto delle credenziali.
+     */
+    private static readonly CONFIRM_LIVE_MS = 3000;
+    /**
+     * Il contatore delle riconnessioni si azzera solo dopo un minuto di diretta
+     * stabile. Azzerarlo al primo `size=` rendeva il backoff infinito: ogni
+     * tentativo "partiva" per un attimo e il contatore restava fermo su 1/5.
+     */
+    private static readonly STABLE_RESET_MS = 60000;
+    /** MIX MODE: attesa massima del primo blocco PCM dal mixer del renderer. */
+    private static readonly MIX_NO_AUDIO_MS = 5000;
 
     private ffmpegProcess: ChildProcess | null = null;
     private mainWindow: BrowserWindow | null = null;
@@ -80,6 +98,15 @@ export class StreamManager {
     private mixInputActive = false;
     /** Log "una volta sola" quando scartiamo PCM per pipe intasata. */
     private mixBackpressureLogged = false;
+    /** MIX MODE: byte di PCM consegnati al processo corrente (0 = mixer muto). */
+    private mixBytesWritten = 0;
+    /**
+     * true se in questa sessione la diretta è stata confermata almeno una volta.
+     * Decide se un fallimento va ritentato (caduta di una diretta vera) o
+     * riportato come errore (primo collegamento mai riuscito: configurazione o
+     * credenziali, che ritentare non risolve).
+     */
+    private sessionWasLive = false;
 
     constructor(mainWindow: BrowserWindow | null) {
         this.mainWindow = mainWindow;
@@ -183,6 +210,7 @@ export class StreamManager {
         // auto-disattivano tramite il guard di identità (this.ffmpegProcess !== proc).
         this.cancelReconnect();
         this.reconnectAttempt = 0;
+        this.sessionWasLive = false;
         this.killCurrentProcess();
         this.currentConfig = config;
         return this.launch();
@@ -322,6 +350,7 @@ export class StreamManager {
         this.ffmpegProcess = proc;
         this.mixInputActive = mixMode;
         this.mixBackpressureLogged = false;
+        this.mixBytesWritten = 0;
 
         // In MIX MODE stdin È la sorgente audio. Quando FFmpeg muore (server caduto,
         // riconnessione, stop) una write già in volo emette EPIPE: senza questo
@@ -329,18 +358,29 @@ export class StreamManager {
         // cioè l'intera applicazione, in piena diretta.
         proc.stdin?.on('error', () => { /* pipe chiusa: si perde il chunk, non la sessione */ });
 
+        /** true appena c'è un verdetto (errore, primo progresso, stato presunto): ferma il timeout. */
         let connectionConfirmed = false;
+        /** FFmpeg ha stampato progresso: dati in uscita, ma il server può ancora rifiutarli. */
         let streamingStarted = false;
+        /** Trasmissione continua per CONFIRM_LIVE_MS: è questo, e solo questo, l'ON AIR. */
+        let liveConfirmed = false;
         /** Istante del primo byte realmente trasmesso: serve a misurare quanto è durata la diretta. */
         let streamingStartedAt = 0;
         let lastErrorLog = '';
         let connectionTimeoutId: ReturnType<typeof setTimeout> | null = null;
+        let liveConfirmTimer: ReturnType<typeof setTimeout> | null = null;
+        let stableTimer: ReturnType<typeof setTimeout> | null = null;
 
         const cancelConnectionTimeout = () => {
             if (connectionTimeoutId !== null) {
                 clearTimeout(connectionTimeoutId);
                 connectionTimeoutId = null;
             }
+        };
+        const cancelProcessTimers = () => {
+            cancelConnectionTimeout();
+            if (liveConfirmTimer !== null) { clearTimeout(liveConfirmTimer); liveConfirmTimer = null; }
+            if (stableTimer !== null) { clearTimeout(stableTimer); stableTimer = null; }
         };
 
         proc.stderr?.on('data', (data) => {
@@ -391,23 +431,42 @@ export class StreamManager {
                     // solo nel toast a video, che sparisce da solo. Risultato: il
                     // pannello si fermava su "Connecting" e la causa era irrecuperabile.
                     this.log('error', `✗ ${this.explainConnectError(message)} — FFmpeg: ${raw}`);
-                    this.sendStatus('error', raw);
+                    // Durante una riconnessione il verdetto spetta al 'close', che
+                    // pianifica il tentativo successivo: uno stato 'error' qui
+                    // chiuderebbe la sessione mentre il retry è ancora in corso.
+                    if (!this.sessionWasLive) this.sendStatus('error', raw);
                 }
                 return;
             }
 
-            // Connection success: FFmpeg reports progress (size/time) only when actively streaming
-            if (message.includes('size=') || message.includes('time=')) {
-                if (!streamingStarted) streamingStartedAt = Date.now();
+            // Progresso (size/time): i dati escono, ma NON è ancora una conferma.
+            // Con credenziali errate questa riga arriva comunque, ~0,65s prima del
+            // reset: dichiarare ON AIR qui salvava la password sbagliata e azzerava
+            // il contatore dei tentativi (riconnessione infinita "1/5").
+            if (!streamingStarted && (message.includes('size=') || message.includes('time='))) {
                 streamingStarted = true;
-                // Stream sano: un eventuale drop futuro riparte dal primo tentativo di retry.
-                this.reconnectAttempt = 0;
-                if (!connectionConfirmed) {
-                    connectionConfirmed = true;
-                    cancelConnectionTimeout();
+                streamingStartedAt = Date.now();
+                connectionConfirmed = true;
+                cancelConnectionTimeout();
+                this.log('info', `audio in uscita verso ${host}:${port}${cleanMount} — verifica tenuta (${StreamManager.CONFIRM_LIVE_MS / 1000}s)...`);
+
+                liveConfirmTimer = setTimeout(() => {
+                    liveConfirmTimer = null;
+                    if (this.ffmpegProcess !== proc) return; // morto o sostituito nel frattempo
+                    liveConfirmed = true;
+                    this.sessionWasLive = true;
                     this.log('success', `✓ stream live (audio in transito verso ${host}:${port}${cleanMount})`);
                     this.sendStatus('connected');
-                }
+
+                    stableTimer = setTimeout(() => {
+                        stableTimer = null;
+                        if (this.ffmpegProcess !== proc) return;
+                        if (this.reconnectAttempt > 0) {
+                            this.log('info', 'diretta stabile da un minuto: contatore delle riconnessioni azzerato');
+                        }
+                        this.reconnectAttempt = 0;
+                    }, StreamManager.STABLE_RESET_MS - StreamManager.CONFIRM_LIVE_MS);
+                }, StreamManager.CONFIRM_LIVE_MS);
             }
         });
 
@@ -416,15 +475,17 @@ export class StreamManager {
                 // Stop volontario (stop() ha già azzerato il riferimento) o processo
                 // sostituito da un nuovo start: exit code atteso ≠ 0 da taskkill /f,
                 // non è un errore e non deve toccare lo stato.
-                cancelConnectionTimeout();
+                cancelProcessTimers();
                 return;
             }
-            cancelConnectionTimeout();
+            cancelProcessTimers();
             this.ffmpegProcess = null;
             this.mixInputActive = false;
 
             if (code === 0 || code === null) {
                 this.log('info', 'stream chiuso correttamente');
+                this.currentConfig = null;
+                this.sessionWasLive = false;
                 this.sendStatus('disconnected');
                 return;
             }
@@ -451,14 +512,20 @@ export class StreamManager {
             const liveSeconds = streamingStartedAt ? Math.round((Date.now() - streamingStartedAt) / 1000) : 0;
             const kicked = streamingStarted && liveSeconds <= 30 && rstPattern.test(lastErrorLog);
 
+            // Caduto prima della conferma, al primo collegamento della sessione, con
+            // un reset di rete: è la firma del rifiuto delle credenziali (25/07/2026).
+            const credentialsSuspect = !liveConfirmed && !this.sessionWasLive && kicked && liveSeconds <= 3;
+
             let errorReason: string;
-            if (kicked && liveSeconds <= 3) {
-                // Riprodotto in laboratorio (25/07/2026): con credenziali errate il
-                // server risponde 401 e chiude, ma FFmpeg quella risposta non la legge
-                // mai (chunked_post=0 scrive e basta) — continua a scrivere su un
-                // socket morente e riporta solo -10054. Il messaggio grezzo sembra un
-                // guasto di rete: è quasi sempre una password sbagliata.
-                errorReason = `caduta dopo ${liveSeconds}s. Quasi certamente CREDENZIALI RIFIUTATE: il server risponde "401 Unauthorized" e chiude, ma FFmpeg non legge la risposta e riporta solo un errore di rete. Verifica la password DJ, poi usa Configurazione → Diagnostica → "Test connessione" che la risposta la legge davvero.`;
+            if (credentialsSuspect) {
+                errorReason = `caduta dopo ${liveSeconds}s, prima della conferma. Quasi certamente CREDENZIALI RIFIUTATE: il server risponde "401 Unauthorized" e chiude, ma FFmpeg non legge la risposta e riporta solo un errore di rete. Verifico le credenziali leggendo la risposta vera del server...`;
+            } else if (kicked && liveSeconds <= 3) {
+                // Qui si arriva solo durante una riconnessione (al primo collegamento
+                // è il ramo credentialsSuspect): la password ha già funzionato in
+                // questa sessione, quindi il sospetto è il server che non accetta
+                // ancora il flusso — tipicamente la sorgente vecchia non ancora
+                // scaduta sull'harbor.
+                errorReason = `tentativo caduto dopo ${liveSeconds}s: il server non accetta ancora il flusso (spesso la connessione precedente non è ancora scaduta). Se succede fino all'ultimo tentativo, usa Configurazione → Diagnostica → "Test connessione".`;
             } else if (kicked) {
                 errorReason = `il server ha chiuso di netto la connessione (RST) dopo ${liveSeconds}s di diretta. Cause tipiche: un'altra sorgente collegata sullo stesso account, oppure un antivirus o un intermediario di rete che tronca l'upload HTTP. Usa Configurazione → Diagnostica → "Test connessione" per isolare il punto di rottura.`;
             } else if (earlyDrop) {
@@ -469,26 +536,61 @@ export class StreamManager {
                 errorReason = errorLines.slice(-3).join(' | ') || `Exited with code ${code}`;
             }
 
-            // Auto-reconnect (Fase C1): solo se lo streaming era realmente partito.
-            // Un fallimento al primo connect (credenziali/porta/mount sbagliati) è un
-            // problema di configurazione: ritentare 5 volte non lo risolve.
-            if (streamingStarted && this.currentConfig) {
+            // Auto-reconnect (Fase C1): solo se in questa sessione la diretta è stata
+            // CONFERMATA almeno una volta. Un fallimento al primo collegamento
+            // (credenziali/porta/mount sbagliati) è un problema di configurazione:
+            // ritentare non lo risolve. Durante una riconnessione, invece, anche un
+            // tentativo che fallisce subito (server ancora giù) va ritentato: il
+            // numero di tentativi è limitato perché il contatore si azzera solo
+            // dopo un minuto di diretta stabile.
+            const failedConfig = this.currentConfig;
+            if (this.sessionWasLive && failedConfig) {
                 this.log('error', `✗ connessione persa: ${errorReason}`);
                 this.scheduleReconnect();
             } else {
                 this.log('error', `✗ ${errorReason}`);
+                this.currentConfig = null;
+                this.sessionWasLive = false;
                 this.sendStatus('error', `FFmpeg: ${errorReason}`);
+                if (credentialsSuspect && failedConfig) {
+                    void this.verifyCredentialsAfterDrop(failedConfig);
+                }
             }
         });
 
         proc.on('error', (err) => {
             if (this.ffmpegProcess !== proc) return;
             this.ffmpegProcess = null;
-            cancelConnectionTimeout();
+            cancelProcessTimers();
+            this.currentConfig = null;
+            this.sessionWasLive = false;
             console.error('Failed to start FFmpeg process:', err);
             this.log('error', `✗ avvio FFmpeg fallito: ${err.message}`);
             this.sendStatus('error', `Failed to start: ${err.message}`);
         });
+
+        if (mixMode) {
+            // MIX MODE: niente stato "presunto". FFmpeg legge da stdin e, se il
+            // mixer del renderer non consegna PCM, resta muto in attesa del primo
+            // byte: presumere la connessione dopo 5s accendeva ON AIR con la radio
+            // in silenzio. Se il PCM arriva ma il server tarda, si aspetta il
+            // verdetto vero di FFmpeg (progresso o errore di connessione).
+            connectionTimeoutId = setTimeout(() => {
+                connectionTimeoutId = null;
+                if (this.ffmpegProcess !== proc || connectionConfirmed) return;
+                if (this.mixBytesWritten > 0) {
+                    this.log('info', 'MIX MODE: audio dal mixer ricevuto, in attesa che il server accetti il flusso...');
+                    return;
+                }
+                connectionConfirmed = true;
+                this.log('error', `✗ MIX MODE: dal mixer non è arrivato audio in ${StreamManager.MIX_NO_AUDIO_MS / 1000}s — sessione fermata, in onda non stava andando niente`);
+                this.killCurrentProcess();
+                this.currentConfig = null;
+                this.sessionWasLive = false;
+                this.sendStatus('error', 'MIX MODE: il mixer non produce audio, quindi non sei in onda. Controlla microfono e audio di sistema (pannello Log), poi riprova.');
+            }, StreamManager.MIX_NO_AUDIO_MS);
+            return true;
+        }
 
         // Safety timeout: se nessun output stderr conferma lo stato entro 5s e il processo è vivo,
         // assumiamo connessione avvenuta (handshake lento o server silenzioso).
@@ -515,6 +617,7 @@ export class StreamManager {
             this.sendStatus('error', `Connessione persa: riconnessione fallita dopo ${total} tentativi.`);
             this.reconnectAttempt = 0;
             this.currentConfig = null;
+            this.sessionWasLive = false;
             return;
         }
 
@@ -594,7 +697,44 @@ export class StreamManager {
 
         try {
             stdin.write(chunk);
+            this.mixBytesWritten += chunk.length;
         } catch { /* pipe chiusa tra il controllo e la write */ }
+    }
+
+    /**
+     * Dopo una caduta con la firma del rifiuto credenziali, chiede al server la
+     * risposta che FFmpeg non legge (stesso PUT, client HTTP di Node). Con un 401
+     * certo cancella la password memorizzata: altrimenti verrebbe ricaricata a
+     * ogni avvio e il DJ ripeterebbe lo stesso errore senza capirne il perché.
+     */
+    private async verifyCredentialsAfterDrop(config: StreamConfig) {
+        const user = config.icecastUser || 'source';
+        let auth;
+        try {
+            auth = await httpAuthCheck({
+                host: config.host,
+                port: config.port,
+                mount: config.mount,
+                icecastUser: user,
+                password: config.password,
+            });
+        } catch (e) {
+            this.log('error', `verifica credenziali non riuscita: ${(e as Error).message}`);
+            return;
+        }
+
+        if (auth.status === 401) {
+            deletePassword(user);
+            this.log('error', `✗ ${auth.text}. La password memorizzata per "${user}" è stata cancellata: reinseriscila in Configurazione.`);
+            // Solo se nel frattempo non è partita un'altra sessione: il suo stato
+            // non va sovrascritto da un verdetto che riguarda quella precedente.
+            if (!this.currentConfig) {
+                this.sendStatus('error', `Password rifiutata dal server per "${user}" (401). Reinseriscila in Configurazione.`);
+            }
+            return;
+        }
+        const accepted = auth.status !== null && auth.status >= 200 && auth.status < 300;
+        this.log(accepted ? 'info' : 'error', `verifica credenziali per "${user}": ${auth.text}`);
     }
 
     private cancelReconnect() {
@@ -647,6 +787,7 @@ export class StreamManager {
         this.cancelReconnect();
         this.reconnectAttempt = 0;
         this.currentConfig = null;
+        this.sessionWasLive = false;
         this.liveVolumeActive = false;
         this.killCurrentProcess(sync);
         if (wasActive) {

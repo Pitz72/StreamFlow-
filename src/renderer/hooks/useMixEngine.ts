@@ -142,9 +142,10 @@ export const useMixEngine = ({ enabled, micDeviceName, needles }: MixEngineOptio
         let unsubscribeGains: (() => void) | null = null;
         let workletUrl: string | null = null;
 
-        const { appendLog, setErrorMessage, setMusicDetected } = useStore.getState();
+        const { appendLog, setErrorMessage, setMusicDetected, setMixReady } = useStore.getState();
 
         const fail = (message: string) => {
+            setMixReady(false);
             appendLog({ level: 'error', source: 'system', message: `MIX MODE: ${message}` });
             setErrorMessage(`MIX MODE non attiva — ${message}`);
         };
@@ -290,9 +291,16 @@ export const useMixEngine = ({ enabled, micDeviceName, needles }: MixEngineOptio
                 channelInterpretation: 'speakers',
                 processorOptions: { chunkFrames: CHUNK_FRAMES },
             });
+            // Il primo blocco è la prova che il mixer funziona davvero: solo da
+            // qui ON AIR è consentito (prima FFmpeg aspetterebbe nel vuoto).
+            let firstChunk = true;
             sink.port.onmessage = (event: MessageEvent<Int16Array>) => {
                 const pcm = event.data;
                 window.electronAPI?.sendMixAudio(new Uint8Array(pcm.buffer, pcm.byteOffset, pcm.byteLength));
+                if (firstChunk && !cancelled) {
+                    firstChunk = false;
+                    setMixReady(true);
+                }
             };
             out.connect(sink);
 
@@ -377,6 +385,7 @@ export const useMixEngine = ({ enabled, micDeviceName, needles }: MixEngineOptio
             setNeedle(leftRef, 0);
             setNeedle(rightRef, 0);
             useStore.getState().setMusicDetected(false);
+            useStore.getState().setMixReady(false);
         };
     }, [enabled, micDeviceName, leftRef, rightRef]);
 };

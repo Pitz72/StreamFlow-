@@ -50,6 +50,12 @@ interface AppState {
     /** Runtime: true se dall'audio di sistema sta arrivando davvero qualcosa. */
     musicDetected: boolean;
     setMusicDetected: (detected: boolean) => void;
+    /**
+     * Runtime: true quando il mixer ha consegnato almeno un blocco PCM. Senza,
+     * ON AIR resta bloccato: FFmpeg aspetterebbe un audio che non arriva mai.
+     */
+    mixReady: boolean;
+    setMixReady: (ready: boolean) => void;
     // Now Playing metadata
     streamMetadata: StreamMetadata;
     setStreamMetadata: (meta: Partial<StreamMetadata>) => void;
@@ -99,6 +105,8 @@ export const useStore = create<AppState>()(
             setMusicGain: (pct) => set({ musicGain: pct }),
             musicDetected: false,
             setMusicDetected: (detected) => set({ musicDetected: detected }),
+            mixReady: false,
+            setMixReady: (ready) => set({ mixReady: ready }),
             // Now Playing metadata
             streamMetadata: { artist: '', title: '' },
             setStreamMetadata: (meta) => set((state) => ({

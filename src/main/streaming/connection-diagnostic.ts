@@ -73,7 +73,7 @@ function tcpProbe(address: string, port: number, family: number): Promise<{ ok: 
     });
 }
 
-interface AuthOutcome {
+export interface AuthOutcome {
     status: number | null;
     text: string;
 }
@@ -90,7 +90,7 @@ interface AuthOutcome {
  * - utente noto, password errata → `401 Unauthorized`, leggibile
  * - utente sconosciuto → connessione azzerata senza risposta
  */
-function httpAuthCheck(cfg: DiagnosticConfig): Promise<AuthOutcome> {
+export function httpAuthCheck(cfg: DiagnosticConfig): Promise<AuthOutcome> {
     return new Promise((resolve) => {
         const user = cfg.icecastUser || 'source';
         const mount = !cfg.mount || cfg.mount === '' ? '/' : cfg.mount;

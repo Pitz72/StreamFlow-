@@ -5,6 +5,22 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.8.5] — 2026-09-27
+
+Le due criticità gravissime dell'[analisi del 27 settembre](./ANALISI-2026-09-27.md). Dettagli e prove in [log/0.8.5.md](./log/0.8.5.md).
+
+### Fixed
+- **GG1 — Password sbagliata: riconnessione infinita e password errata memorizzata.** Con credenziali rifiutate FFmpeg scrive per ~0,65 s e stampa comunque una riga di progresso, che veniva presa per "in onda": l'app salvava la password sbagliata, azzerava il contatore dei tentativi e riconnetteva all'infinito, sempre al "tentativo 1/5" (il caso di Deborah del 25/07).
+  - ON AIR solo dopo **3 s di trasmissione continua**: un rifiuto delle credenziali arriva in meno di mezzo secondo. La password si salva solo a quel punto.
+  - Il contatore delle riconnessioni si azzera solo dopo **un minuto di diretta stabile**: i tentativi ora finiscono davvero.
+  - Un fallimento al primo collegamento non viene più ritentato. Se ha la firma del rifiuto credenziali, StreamFlow chiede al server la risposta vera; con un **401** certo cancella la password memorizzata e lo dice.
+  - Durante una riconnessione, un tentativo fallito (server ancora giù) passa al successivo invece di chiudere la sessione.
+- **GG2 — MIX MODE: falso ON AIR con il mixer muto.** Senza audio dal mixer FFmpeg restava in attesa e dopo 5 s lo stato "presunto" accendeva ON AIR con la radio in silenzio.
+  - ON AIR bloccato finché il mixer non ha consegnato il primo blocco di audio.
+  - In MIX MODE niente più stato presunto: se in 5 s non arriva audio la sessione si ferma con un errore esplicito.
+
+---
+
 ## [0.8.4] — 2026-08-08
 
 Lo sfarfallio su Fast Sync. Diagnosi, vincoli e misure in [SFARFALLIO_FAST_SYNC.md](./SFARFALLIO_FAST_SYNC.md) e [log/0.8.4.md](./log/0.8.4.md).

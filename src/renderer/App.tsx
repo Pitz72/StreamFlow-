@@ -50,6 +50,7 @@ function App() {
         rememberPassword,
         recordLocal,
         mixMode,
+        mixReady,
         musicDetected,
         appendLog,
     } = useStore()
@@ -225,6 +226,13 @@ function App() {
         if (!streamConfig.password.trim()) {
             setErrorMessage('Password obbligatoria.');
             setOpenModal('settings');
+            return;
+        }
+        // MIX MODE: senza PCM dal mixer FFmpeg resterebbe in attesa e in onda non
+        // andrebbe niente. Il main ha la sua rete di sicurezza, ma fermarsi qui
+        // evita perfino di aprire la connessione.
+        if (mixMode && !mixReady) {
+            setErrorMessage('MIX MODE non pronta: il mixer non sta producendo audio. Controlla microfono e audio di sistema nel pannello Log, poi riprova.');
             return;
         }
 
