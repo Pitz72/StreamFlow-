@@ -7,6 +7,7 @@ Hub centrale della documentazione tecnica di **Runtime StreamFlow** (v0.8.4).
 | Documento | Contenuto |
 |---|---|
 | [ROADMAP.md](./ROADMAP.md) | Visione del prodotto, fasi di sviluppo, feature pianificate |
+| [ANALISI-2026-09-27.md](./ANALISI-2026-09-27.md) | 🚩 Analisi della 0.8.4: scopo, criticità per gravità (2 gravissime), evoluzioni, integrazione con RRLMP |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | Struttura multi-processo, flusso audio, IPC bridge, state machine |
 | [SETUP.md](./SETUP.md) | Prerequisiti, comandi di sviluppo, build, troubleshooting |
 | [SFARFALLIO_FAST_SYNC.md](./SFARFALLIO_FAST_SYNC.md) | ⛔ Perché esiste `PresentazioneContinua.tsx` e perché non va tolto — diagnosi, i tre vincoli, come si collauda, il costo misurato |
