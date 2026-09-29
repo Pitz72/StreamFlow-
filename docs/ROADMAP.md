@@ -21,6 +21,10 @@ Machine Pro, ma chi trasmette **può scegliere qualunque altro software di regia
   lo suona.
 - La fusione non va più riproposta.
 
+**Precisazione di Simone (stesso giorno):** anche se non si uniranno mai, StreamFlow e Live
+Machine Pro **restano pensati per il team di Runtime Radio**. Quando saranno completi se ne
+faranno **versioni universali, per tutti**.
+
 ### 2. StreamFlow diventerà software libero
 
 Come già fatto con *Runtime TelegramBot Desktop Titan Edition* (12–13 agosto 2026),
