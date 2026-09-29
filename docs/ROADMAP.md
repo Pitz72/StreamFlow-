@@ -1,11 +1,71 @@
 # Roadmap — Runtime StreamFlow
 
 Documento ripristinato dalla conversazione strategica originale (Gemini AI Studio, 5 Mar 2026).
-Aggiornato al 24 Luglio 2026 (v0.7.0) dopo il cambio di direzione: client interno Runtime Radio.
+Aggiornato al 27 settembre 2026 (v0.8.6): StreamFlow è un programma a sé e diventerà software libero (vedi sotto).
+Precedente cambio di direzione: 24 luglio 2026 (v0.7.0), client interno Runtime Radio.
+
+---
+
+## ⛔ DECISIONI DEL 27 SETTEMBRE 2026 — prevalgono su tutto quello che segue
+
+### 1. StreamFlow è un programma a sé: non sarà fuso con Live Machine Pro
+
+Decisione definitiva di Simone. StreamFlow **può lavorare in tandem** con Runtime Live
+Machine Pro, ma chi trasmette **può scegliere qualunque altro software di regia**.
+
+- Nessuna dipendenza da Live Machine Pro: ogni integrazione con lei è **facoltativa** e
+  StreamFlow deve funzionare pienamente anche senza.
+- Resta il caso d'uso che definisce il programma: lo **speaker autonomo**, con un microfono
+  USB e la regia sul proprio PC, che va in onda **senza virtual cable né configurazioni
+  audio**. La MIX MODE ne è il cuore: prende l'audio del PC qualunque sia il programma che
+  lo suona.
+- La fusione non va più riproposta.
+
+### 2. StreamFlow diventerà software libero
+
+Come già fatto con *Runtime TelegramBot Desktop Titan Edition* (12–13 agosto 2026),
+*Runtime FeedDownloader Pro* (18 agosto 2026) e *Runtime Live Machine Pro* (13 settembre
+2026). Obiettivi:
+
+- **repository pubblico**, con licenza libera (gli altri tre sono MIT);
+- **release pubblicate nello stesso repository**, con il token integrato di GitHub;
+- **aggiornamento automatico** che legge le release dal repository pubblico — oggi
+  StreamFlow **non ce l'ha**: va costruito (Live Machine usa `electron-updater`);
+- **eliminazione del repository ponte** `Ecosystem-Runtime/StreamFlow-Releases`.
+
+**Quando:** in una sessione dedicata, una fase per sessione come per gli altri progetti.
+Il modello da seguire è `docs/PIANO-APERTURA.md` del repository di Live Machine Pro
+(`Pitz72/RRLMP`). Primo atto di quella sessione: scrivere il `PIANO-APERTURA.md` di
+StreamFlow.
+
+**Punti già noti, da decidere o verificare in quella sede (elenco non completo):**
+
+- ⛔ **Il preset di stazione.** Host e porta di Runtime Radio e i nomi utente dei DJ (uno è
+  un indirizzo email) sono nel codice, nella storia git e nei log di `docs/log/`. Va deciso
+  cosa diventa pubblico e come: preset configurabile, storia conservata o no. La direzione
+  «client interno» del 24 luglio (sezione qui sotto) va ridefinita.
+- **Aggiornamento automatico da costruire.** Nessuna versione installata oggi si aggiorna
+  da sola: gli studi dovranno installare a mano, un'ultima volta, la prima versione aperta.
+- **Repo ponte senza traghetto?** Pubblica solo la v0.6.0 e nessuna versione installata la
+  interroga (non esiste un updater): con ogni probabilità si può cancellare subito, come per
+  FeedDownloader. Da verificare.
+- **Destinazione e nome.** Oggi `Ecosystem-Runtime/StreamFlow-`, privato (il vecchio
+  `Pitz72/StreamFlow-` reindirizza lì). Gli altri progetti aperti stanno in `Pitz72/<nome>`;
+  il trattino finale del nome è da decidere.
+- **File di licenza assente**; `package.json` è `"private": true` e senza campo `license`.
+- **Solo Windows** all'apertura: Linux è sospeso dalla 0.8.6.
+- **Credito ai modelli.** Trailer `Co-Authored-By` contati il 27/09: Claude Opus 5 (17),
+  Sonnet 4.6 (12), Opus 4.7 (11), Fable 5 (10), Opus 5.5 (4), Opus 4.8 (4). La fase di marzo
+  con Gemini non ha trailer. Elenco da confermare con Simone.
+- **Audit dei segreti** su tutta la storia, da fare.
 
 ---
 
 ## 🧭 CAMBIO DI DIREZIONE (24 Lug 2026, v0.7.0)
+
+> ⚠️ **In parte superato dalle decisioni del 27 settembre** (sopra): StreamFlow diventerà
+> pubblico. Il preset Runtime Radio resta il caso d'uso da cui nasce il programma; come
+> conviverà con un repository pubblico si decide nella sessione di apertura.
 
 StreamFlow è ora il **software ufficiale INTERNO di Runtime Radio**, non un client generico da distribuire. Conseguenze:
 
