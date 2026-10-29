@@ -136,8 +136,12 @@ L'output stderr viene bufferizzato atomicamente e processato solo all'evento `cl
 
 ## Cleanup Processi
 
-Alla chiusura dell'app o allo stop dello stream:
+Allo stop dello stream e alla chiusura dell'app (dalla 0.8.7):
 
-- **Windows**: `taskkill /pid <PID> /f /t` — termina FFmpeg e tutti i processi figlio
-- **Unix**: `process.kill(pid, 'SIGKILL')`
-- **before-quit**: listener Electron che garantisce il cleanup anche su chiusura finestra con stream attivo
+- **Arresto pulito prima di tutto**: `q` su stdin (o fine di stdin in MIX MODE), così
+  FFmpeg chiude da sé connessione e registrazione locale. Un kill forzato butta il
+  buffer del file (256 KB, misurato): ultimi ~11 s persi, o tutta una sessione breve.
+- **Kill di riserva dopo 3 s**: `taskkill /pid <PID> /f /t` su Windows (FFmpeg e figli),
+  `SIGKILL` altrove. Subito, invece, se un nuovo avvio trova un processo ancora in chiusura.
+- **before-quit**: rimanda l'uscita finché l'arresto pulito non è concluso (al massimo
+  3 s), poi chiude con un kill sincrono quello che resta.

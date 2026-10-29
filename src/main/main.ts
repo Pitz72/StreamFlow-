@@ -1,6 +1,6 @@
 import { app, BrowserWindow, desktopCapturer, dialog, session } from 'electron';
 import path from 'path';
-import { initializeIpc, cleanupIpc, isStreamSessionActive, logSystem } from './ipcp';
+import { initializeIpc, shutdownIpc, isStreamSessionActive, logSystem } from './ipcp';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -184,7 +184,13 @@ app.on('window-all-closed', () => {
     }
 });
 
-// Cleanup FFmpeg process before quitting to prevent orphan processes
-app.on('before-quit', () => {
-    cleanupIpc();
+// Prima di uscire si chiude FFmpeg (niente processi orfani che trasmettono).
+// L'uscita aspetta l'arresto pulito, al massimo pochi secondi; il secondo
+// before-quit, quello di app.quit() qui sotto, passa dritto.
+let shutdownDone = false;
+app.on('before-quit', (event) => {
+    if (shutdownDone) return;
+    event.preventDefault();
+    shutdownDone = true;
+    void shutdownIpc().finally(() => app.quit());
 });

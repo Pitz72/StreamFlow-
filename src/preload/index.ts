@@ -41,6 +41,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     deleteDjPassword: (args: { username: string }) =>
         ipcRenderer.invoke('dj-password-delete', args),
     openLogFolder: () => ipcRenderer.invoke('open-log-folder'),
+    /** Evento nato nel renderer (MIX MODE) da scrivere nel file di log. */
+    writeLog: (level: 'info' | 'success' | 'error', message: string) =>
+        ipcRenderer.send('renderer-log', level, message),
     runConnectionTest: (config: {
         host: string;
         port: string;

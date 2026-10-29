@@ -46,6 +46,12 @@ const DROP_PATTERN = /(10053|WSAECONNABORTED|Error muxing|Connection reset)/i;
 // stesso account) oppure un antivirus che tronca l'upload HTTP continuo.
 const RST_PATTERN = /(10054|10053|WSAECONNRESET|WSAECONNABORTED|Connection reset)/i;
 
+// Il server non ha mai risposto al collegamento. FFmpeg rinuncia dopo il suo
+// timeout TCP di 5s e su Windows lo riporta come "Error number -138" (ETIMEDOUT
+// della libreria C di Microsoft), anche con la porta semplicemente chiusa:
+// misurato con ffmpeg-static, 5,5s contro una porta senza servizio.
+const UNREACHABLE_PATTERN = /(Error number -138\b|10060|10061|Connection timed out|Connection refused)/i;
+
 export function classifyExit(f: ExitFacts): ExitVerdict {
     const errorLines = f.lastErrorLog.split('\n').map(l => l.trim()).filter(l => l);
     const firstMeaningful = errorLines.find(l => HTTP_ERROR.test(l));
@@ -68,6 +74,8 @@ export function classifyExit(f: ExitFacts): ExitVerdict {
         reason = `tentativo caduto dopo ${f.liveSeconds}s: il server non accetta ancora il flusso (spesso la connessione precedente non è ancora scaduta). Se succede fino all'ultimo tentativo, usa Configurazione → Diagnostica → "Test connessione".`;
     } else if (kicked) {
         reason = `il server ha chiuso di netto la connessione (RST) dopo ${f.liveSeconds}s di diretta. Cause tipiche: un'altra sorgente collegata sullo stesso account, oppure un antivirus o un intermediario di rete che tronca l'upload HTTP. Usa Configurazione → Diagnostica → "Test connessione" per isolare il punto di rottura.`;
+    } else if (!f.streamingStarted && UNREACHABLE_PATTERN.test(f.lastErrorLog)) {
+        reason = `nessuna risposta dal server sulla porta ${f.port}: server spento o irraggiungibile, rete assente, oppure porta bloccata da firewall/antivirus. Usa Configurazione → Diagnostica → "Test connessione" per vedere dove si ferma.`;
     } else if (earlyDrop) {
         reason = `Server ha chiuso la connessione subito dopo l'auth. Probabile causa: mount/porta sbagliati (stai puntando a Icecast invece che al harbor Liquidsoap?). Verifica che porta=${f.port} e mount=${f.mount} corrispondano a "Icecast Clients" nel pannello AzuraCast → Broadcasting → How do I connect?`;
     } else if (firstMeaningful) {

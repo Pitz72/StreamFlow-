@@ -7,6 +7,14 @@ import { runConnectionDiagnostic, DiagnosticConfig } from './streaming/connectio
 
 let streamManager: StreamManager | null = null;
 const metadataManager = new MetadataManager();
+/**
+ * Il test di connessione trasmette 20s sul mount vero. Mentre gira, una diretta
+ * verrebbe rifiutata dal server (sorgente già collegata) e il rifiuto potrebbe
+ * passare per una password sbagliata; viceversa un test durante una diretta o una
+ * riconnessione le ruberebbe il mount. Il controllo sta qui e non solo nel
+ * pannello: chiuso il modale, il pulsante del test tornava cliccabile.
+ */
+let diagnosticRunning = false;
 
 // Finestra correntemente collegata: aggiornata a ogni initializeIpc così i log
 // raggiungono sempre la finestra viva (su macOS activate ne può nascere una nuova).
@@ -30,11 +38,14 @@ export const isStreamSessionActive = () => streamManager?.isSessionActive() ?? f
 export const logSystem = (level: 'info' | 'success' | 'error', message: string) =>
     emitLog(level, 'system', message);
 
-export const cleanupIpc = () => {
+/**
+ * Per before-quit: arresto pulito con attesa (registrazione locale integra),
+ * chiuso da un kill sincrono — un taskkill asincrono potrebbe non partire mai
+ * prima della morte del processo main (FFmpeg orfano che trasmette ancora).
+ */
+export const shutdownIpc = async () => {
     if (streamManager) {
-        // sync=true: siamo in before-quit, un taskkill asincrono potrebbe non
-        // partire mai prima della morte del processo main (FFmpeg orfano).
-        streamManager.stop(true);
+        await streamManager.stopForQuit();
         streamManager = null;
     }
     metadataManager.clearConfig();
@@ -84,6 +95,10 @@ export const initializeIpc = (mainWindow: BrowserWindow) => {
     });
 
     ipcMain.handle('start-stream', async (_event, config) => {
+        if (streamManager && diagnosticRunning) {
+            streamManager.refuseStart('Test connessione in corso sullo stesso canale: attendi che finisca (circa 20 secondi), poi vai in onda.');
+            return;
+        }
         if (streamManager) {
             const started = await streamManager.start(config);
             // Config metadata solo se lo stream è effettivamente partito:
@@ -157,8 +172,30 @@ export const initializeIpc = (mainWindow: BrowserWindow) => {
     // D2: diagnostica attiva. Occupa il mount per una ventina di secondi, quindi
     // il renderer disabilita il pulsante mentre una sessione è in corso.
     ipcMain.handle('run-connection-test', async (_event, config: DiagnosticConfig) => {
-        return await runConnectionDiagnostic(config, (level, message) =>
-            emitLog(level, 'system', message),
-        );
+        if (diagnosticRunning) {
+            return { ok: false, summary: 'test connessione già in corso' };
+        }
+        if (streamManager?.isSessionActive()) {
+            const summary = 'test connessione non avviato: c\'è una sessione di trasmissione attiva (diretta, collegamento o riconnessione) e il test le toglierebbe il canale';
+            emitLog('error', 'system', summary);
+            return { ok: false, summary };
+        }
+        diagnosticRunning = true;
+        try {
+            return await runConnectionDiagnostic(config, (level, message) =>
+                emitLog(level, 'system', message),
+            );
+        } finally {
+            diagnosticRunning = false;
+        }
+    });
+
+    // Eventi nati nel renderer (MIX MODE): nel pannello arrivano già, qui vanno
+    // nel file di log, l'unica traccia che un DJ può allegare. Fino alla 0.8.6
+    // la modalità dei DJ senza mixer era proprio quella che non ne lasciava.
+    ipcMain.on('renderer-log', (_event, level: unknown, message: unknown) => {
+        if (typeof message !== 'string') return;
+        const lvl = level === 'error' || level === 'success' ? level : 'info';
+        writeLog('system', lvl, message.substring(0, 2000));
     });
 };

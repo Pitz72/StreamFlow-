@@ -5,6 +5,35 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.8.7] — 2026-10-29
+
+Le criticità dell'[analisi del 29 ottobre](./ANALISI-2026-10-29.md), senza funzioni nuove. Prove e misure in [log/0.8.7.md](./log/0.8.7.md).
+
+### Fixed
+- **GG3 — Con la registrazione locale attiva, una caduta della connessione lasciava ON AIR con la radio muta.** Il muxer tee non esce quando il server chiude: continua a registrare solo su file (verificato con FFmpeg). Niente riconnessione, pulsante rosso, timer che correva. Anche un tentativo di riconnessione con il server ancora giù chiudeva la sessione invece di ritentare. Ora la caduta è una caduta, con riconnessione.
+- **GG4 — Registrazione locale + password errata: tornava l'ON AIR finto con la password sbagliata memorizzata** (il caso del 25/07, rientrato dalla registrazione).
+- **G7 — Nessuno stato «connesso presunto».** Dopo 5 s di silenzio di FFmpeg l'app dichiarava ON AIR sulla fiducia, proprio quando FFmpeg rinuncia a un server che non risponde: ogni server spento accendeva ON AIR e salvava la password prima dell'errore, e un dispositivo che non produce audio restava ON AIR per sempre. Ora ON AIR solo dopo 3 s di trasmissione vera; se in 15 s non parte niente, il tentativo si chiude con una causa chiara.
+- **G8 — Una diretta finita da sola (es. dispositivo audio scollegato) mostrava «Ready» senza avvisare.** Ora è una caduta come le altre, con la causa nel log e la riconnessione.
+- **G9 — La registrazione locale perdeva gli ultimi ~11 secondi, o tutto per le sessioni brevi**, a ogni stop e alla chiusura dell'app: il kill forzato buttava il buffer del file (256 KB). Ora FFmpeg si chiude da sé, con il kill solo come riserva dopo 3 s; l'uscita dall'app aspetta.
+- **G10 — Test di connessione e diretta non si escludevano davvero.** Ora il test non parte durante una diretta, un collegamento o una riconnessione, e ON AIR non parte durante il test.
+- **M1 — Il canale del volume in diretta ascoltava su tutta la rete locale**: chiunque nella LAN poteva azzerare il volume. Ora solo sul computer.
+- **M2 — MIX MODE: microfono non riconosciuto sostituito in silenzio** con quello predefinito. Ora lo dice e scrive quale microfono usa.
+- **M6 — Gli eventi della MIX MODE ora finiscono anche nel file di log.**
+- **M7 — MIX MODE non si può più commutare durante collegamento o riconnessione.**
+- **M8 — Si memorizza la password con cui la diretta è partita**, non quella eventualmente cambiata nel frattempo in Configurazione.
+- **M9 — MIX MODE: microfono o audio di sistema che si interrompono in diretta ora vengono segnalati.** Se il motore audio si ferma, lo scrive e prova a riavviarlo.
+- **M10 — Le righe d'errore di FFmpeg non si perdono più** nel log quando arrivano insieme a una riga di progresso.
+- **L2** — In MIX MODE il volume in diretta non annuncia più «si applicherà al prossimo avvio».
+- **L11** — Server irraggiungibile spiegato in chiaro invece di «Error number -138».
+- **L12** — Il file delle password memorizzate non si può più corrompere con una scrittura interrotta.
+
+### Note
+- 44 test (erano 30). Prove sulla catena vera (FFmpeg reale, server finto) in [log/0.8.7.md](./log/0.8.7.md).
+- **Non provato** con un microfono USB staccato davvero, né sul server della radio.
+- **G4** (la MIX MODE manda in onda tutto l'audio del PC) resta aperta per scelta strategica.
+
+---
+
 ## [0.8.6] — 2026-09-27
 
 Le criticità gravi dell'[analisi del 27 settembre](./ANALISI-2026-09-27.md), tranne G4 (audio di sistema in MIX MODE), che dipende da una scelta strategica ancora da discutere. Dettagli e prove in [log/0.8.6.md](./log/0.8.6.md).

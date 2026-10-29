@@ -144,10 +144,31 @@ export const useMixEngine = ({ enabled, micDeviceName, needles }: MixEngineOptio
 
         const { appendLog, setErrorMessage, setMusicDetected, setMixReady } = useStore.getState();
 
+        // Pannello E file di log: il mixer vive nel renderer, e fino alla 0.8.6 i
+        // suoi eventi non arrivavano al file — proprio nella modalità dei DJ senza
+        // mixer, quelli a cui si chiede di allegare il log.
+        const log = (level: 'info' | 'success' | 'error', message: string) => {
+            appendLog({ level, source: 'system', message });
+            window.electronAPI?.writeLog?.(level, message);
+        };
+
         const fail = (message: string) => {
             setMixReady(false);
-            appendLog({ level: 'error', source: 'system', message: `MIX MODE: ${message}` });
+            log('error', `MIX MODE: ${message}`);
             setErrorMessage(`MIX MODE non attiva — ${message}`);
+        };
+
+        /**
+         * Una sorgente che si spegne a diretta in corso (microfono USB staccato,
+         * audio di sistema revocato) non ferma il grafo: in onda va avanti l'altra
+         * metà del mix, senza un errore da nessuna parte. Va detto subito.
+         */
+        const watchTrack = (track: MediaStreamTrack, what: string) => {
+            track.addEventListener('ended', () => {
+                if (cancelled) return;
+                log('error', `MIX MODE: ${what} si è interrotto e non va più in onda. Ricollegalo, poi spegni e riaccendi MIX MODE a diretta ferma.`);
+                setErrorMessage(`MIX MODE: ${what} si è interrotto e non va più in onda.`);
+            });
         };
 
         const start = async () => {
@@ -183,24 +204,17 @@ export const useMixEngine = ({ enabled, micDeviceName, needles }: MixEngineOptio
             // se ne lamenti: dipende da Chromium e dal driver. Questa riga è
             // l'unico modo di sapere, leggendo il log di una diretta vera, se
             // sulla macchina della DJ l'AGC è davvero spento.
+            watchTrack(systemTrack, 'l\'audio di sistema (la musica)');
             const sys = systemTrack.getSettings();
             const flag = (v: boolean | undefined) =>
                 v === undefined ? 'non riportato' : v ? 'ACCESO' : 'spento';
-            appendLog({
-                level: 'info',
-                source: 'system',
-                message: `MIX MODE: audio di sistema — AGC ${flag(sys.autoGainControl)}, `
-                    + `eco ${flag(sys.echoCancellation)}, rumore ${flag(sys.noiseSuppression)}, `
-                    + `${sys.sampleRate ?? '?'} Hz, ${sys.channelCount ?? '?'} canali`,
-            });
+            log('info', `MIX MODE: audio di sistema — AGC ${flag(sys.autoGainControl)}, `
+                + `eco ${flag(sys.echoCancellation)}, rumore ${flag(sys.noiseSuppression)}, `
+                + `${sys.sampleRate ?? '?'} Hz, ${sys.channelCount ?? '?'} canali`);
             if (sys.autoGainControl) {
-                appendLog({
-                    level: 'error',
-                    source: 'system',
-                    message: 'MIX MODE: Windows non ha accettato di spegnere il controllo '
-                        + 'automatico del guadagno sull\'audio di sistema. Il sottofondo può '
-                        + 'alzarsi e abbassarsi da solo in onda.',
-                });
+                log('error', 'MIX MODE: Windows non ha accettato di spegnere il controllo '
+                    + 'automatico del guadagno sull\'audio di sistema. Il sottofondo può '
+                    + 'alzarsi e abbassarsi da solo in onda.');
             }
 
             // 2) MICROFONO. I tre processori di Chrome vanno spenti: sono pensati
@@ -208,6 +222,13 @@ export const useMixEngine = ({ enabled, micDeviceName, needles }: MixEngineOptio
             // silenzi e schiaccerebbe la voce sui picchi — in radio è inaccettabile.
             const micId = await resolveInputDeviceId(micDeviceName);
             if (cancelled) return;
+            // Senza corrispondenza si apriva in silenzio il microfono predefinito
+            // di Windows, spesso quello della webcam: la voce sbagliata in onda.
+            if (!micId && micDeviceName && micDeviceName !== 'default') {
+                log('error', `MIX MODE: il microfono "${micDeviceName}" non è stato riconosciuto: `
+                    + 'uso il microfono predefinito di Windows. Se in onda la voce suona strana, '
+                    + 'controlla il dispositivo in Configurazione.');
+            }
             micStream = await navigator.mediaDevices.getUserMedia({
                 audio: {
                     ...(micId ? { deviceId: { exact: micId } } : {}),
@@ -217,10 +238,23 @@ export const useMixEngine = ({ enabled, micDeviceName, needles }: MixEngineOptio
                 },
             });
             if (cancelled) return;
+            const micTrack = micStream.getAudioTracks()[0];
+            if (micTrack) {
+                watchTrack(micTrack, 'il microfono');
+                log('info', `MIX MODE: microfono in uso — ${micTrack.label || 'senza nome'}`);
+            }
 
             ctx = new AudioContext({ sampleRate: SAMPLE_RATE });
             if (ctx.state === 'suspended') await ctx.resume();
             if (cancelled) return;
+            // Il grafo gira sul clock dell'uscita audio di Windows: se si ferma
+            // (cuffie staccate, uscita predefinita cambiata) si ferma anche il PCM.
+            const audioCtx = ctx;
+            audioCtx.onstatechange = () => {
+                if (cancelled || audioCtx.state === 'running' || audioCtx.state === 'closed') return;
+                log('error', `MIX MODE: il motore audio si è fermato (${audioCtx.state}): provo a riavviarlo`);
+                audioCtx.resume().catch(() => { /* resta fermo: il main se ne accorge (mixer muto) */ });
+            };
 
             // 3) IL BANCO DI MISSAGGIO. `explicit`/2 canali fa sì che un microfono
             // mono finisca su entrambi i canali invece che solo a sinistra.
@@ -358,12 +392,8 @@ export const useMixEngine = ({ enabled, micDeviceName, needles }: MixEngineOptio
                 }
             }, 250);
 
-            appendLog({
-                level: 'success',
-                source: 'system',
-                message: 'MIX MODE attiva — microfono + audio di sistema mixati in uscita '
-                    + `(livello +${OUTPUT_GAIN_DB} dB, limitatore a ${LIMITER_THRESHOLD_DB} dBFS)`,
-            });
+            log('success', 'MIX MODE attiva — microfono + audio di sistema mixati in uscita '
+                + `(livello +${OUTPUT_GAIN_DB} dB, limitatore a ${LIMITER_THRESHOLD_DB} dBFS)`);
         };
 
         start().catch((err: unknown) => {

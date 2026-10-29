@@ -94,6 +94,13 @@ function App() {
         };
     }, [streamConfig.icecastUser, streamConfig.password, rememberPassword]);
 
+    // Le credenziali con cui la sessione è PARTITA. Sono queste, e non quelle
+    // del modulo, ad aver superato la prova del server: se durante una diretta o
+    // una riconnessione il DJ cambia utente o password in Configurazione, il
+    // 'connected' successivo salvava come verificata una password mai provata,
+    // magari sotto il nome di un altro DJ.
+    const sessionCredsRef = useRef<{ username: string; password: string } | null>(null);
+
     // All'avvio: se "ricorda password" è attivo, precompila la password salvata
     // per l'utente selezionato (l'utente apre l'app e preme solo GO).
     useEffect(() => {
@@ -155,8 +162,8 @@ function App() {
                         });
                     }
                     // Connessione riuscita → la password è giusta: memorizzala (cifrata).
-                    const creds = credsRef.current;
-                    if (creds.remember && creds.username && creds.password && window.electronAPI?.saveDjPassword) {
+                    const creds = sessionCredsRef.current;
+                    if (credsRef.current.remember && creds?.username && creds.password && window.electronAPI?.saveDjPassword) {
                         void window.electronAPI.saveDjPassword({
                             username: creds.username,
                             password: creds.password,
@@ -264,6 +271,10 @@ function App() {
                 return;
             }
 
+            sessionCredsRef.current = {
+                username: streamConfig.icecastUser,
+                password: streamConfig.password,
+            };
             window.electronAPI.startStream({
                 ...streamConfig,
                 inputDeviceName: selectedDeviceLabel,

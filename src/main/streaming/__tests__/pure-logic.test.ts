@@ -60,6 +60,12 @@ describe('classifyExit', () => {
         expect(v.reason).toBe('Server returned 403 Forbidden (access denied)');
     });
 
+    it('server irraggiungibile su Windows ("Error number -138") → lo dice in chiaro', () => {
+        const v = classifyExit(facts({ lastErrorLog: 'Connection to tcp://player.example:8005 failed: Error number -138 occurred' }));
+        expect(v.reason).toMatch(/nessuna risposta dal server sulla porta 8005/);
+        expect(v.credentialsSuspect).toBe(false);
+    });
+
     it('senza niente di riconoscibile riporta il codice d\'uscita', () => {
         expect(classifyExit(facts({ code: 3 })).reason).toBe('Exited with code 3');
     });

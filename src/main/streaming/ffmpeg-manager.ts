@@ -83,8 +83,18 @@ export class StreamManager {
     private static readonly STABLE_RESET_MS = 60000;
     /** MIX MODE: attesa massima del primo blocco PCM dal mixer del renderer. */
     private static readonly MIX_NO_AUDIO_MS = 5000;
+    /**
+     * Attesa massima della prima riga di progresso. FFmpeg rinuncia da sé a un
+     * server che non risponde dopo ~5s (il suo timeout TCP): oltre questo limite
+     * il silenzio viene dal dispositivo audio, che si apre ma non produce dati.
+     */
+    private static readonly CONNECT_TIMEOUT_MS = 15000;
+    /** Arresto pulito ('q' o fine di stdin): oltre questo tempo si uccide. */
+    private static readonly GRACEFUL_STOP_MS = 3000;
 
     private ffmpegProcess: ChildProcess | null = null;
+    /** Processi fermati dall'utente che stanno ancora chiudendo file e connessione. */
+    private drainingProcs = new Set<ChildProcess>();
     private mainWindow: BrowserWindow | null = null;
     private logSink: ((level: 'info' | 'success' | 'error', msg: string) => void) | null = null;
 
@@ -260,9 +270,17 @@ export class StreamManager {
         this.cancelReconnect();
         this.reconnectAttempt = 0;
         this.sessionWasLive = false;
+        // Un processo ancora in arresto pulito occupa il mount: il nuovo verrebbe rifiutato.
+        this.killDraining();
         this.killCurrentProcess();
         this.currentConfig = config;
         return this.launch();
+    }
+
+    /** Rifiuta un avvio con un errore visibile (es. test di connessione in corso sullo stesso mount). */
+    public refuseStart(message: string) {
+        this.log('error', `✗ ${message}`);
+        this.sendStatus('error', message);
     }
 
     /**
@@ -323,7 +341,13 @@ export class StreamManager {
             this.liveVolumeActive = portFree;
 
             if (portFree) {
-                audioFilter = `azmq,volume=eval=frame:volume=${gainMul}`;
+                // bind_address fra apici: il filtergraph lascia intatti i ':'
+                // dell'indirizzo e il filtro toglie l'ultimo livello di '\'
+                // (verificato con ffmpeg-static: ascolto su 127.0.0.1 e comando
+                // "volume" accettato). Senza indirizzo azmq ascoltava su
+                // tcp://*:5555, cioè su tutta la rete locale: chiunque nella LAN
+                // poteva mandare "volume 0" e zittire la diretta.
+                audioFilter = String.raw`azmq=bind_address='tcp\://127.0.0.1\:${StreamManager.ZMQ_PORT}',volume=eval=frame:volume=${gainMul}`;
             } else {
                 audioFilter = gainPct === 100 ? null : `volume=${gainMul}`;
             }
@@ -417,52 +441,88 @@ export class StreamManager {
         let streamingStartedAt = 0;
         let lastErrorLog = '';
         let connectionTimeoutId: ReturnType<typeof setTimeout> | null = null;
+        let slowNoticeTimer: ReturnType<typeof setTimeout> | null = null;
         let liveConfirmTimer: ReturnType<typeof setTimeout> | null = null;
         let stableTimer: ReturnType<typeof setTimeout> | null = null;
+        /** Chiusura forzata da noi in corso: il resto dello stderr non conta più. */
+        let aborting = false;
+        /** Causa già nota di una chiusura forzata: prevale sulla lettura dello stderr. */
+        let forcedReason: string | null = null;
+        /** Istante della chiusura forzata: la diretta è finita lì, non quando arriva il 'close'. */
+        let abortedAt = 0;
 
         const cancelConnectionTimeout = () => {
             if (connectionTimeoutId !== null) {
                 clearTimeout(connectionTimeoutId);
                 connectionTimeoutId = null;
             }
+            if (slowNoticeTimer !== null) {
+                clearTimeout(slowNoticeTimer);
+                slowNoticeTimer = null;
+            }
         };
+        let abortKillTimer: ReturnType<typeof setTimeout> | null = null;
         const cancelProcessTimers = () => {
             cancelConnectionTimeout();
             if (liveConfirmTimer !== null) { clearTimeout(liveConfirmTimer); liveConfirmTimer = null; }
             if (stableTimer !== null) { clearTimeout(stableTimer); stableTimer = null; }
+            if (abortKillTimer !== null) { clearTimeout(abortKillTimer); abortKillTimer = null; }
+        };
+        /**
+         * Chiude QUESTO processo lasciando il verdetto al suo 'close' (riconnessione
+         * o errore, con la stessa logica di ogni altra caduta). killCurrentProcess
+         * invece stacca il processo e ne silenzia il 'close'.
+         * Arresto pulito, con il kill come riserva: la registrazione locale fatta
+         * fin lì va chiusa integra, non persa nel buffer del file.
+         */
+        const abortProcess = (reason: string | null) => {
+            if (aborting) return;
+            aborting = true;
+            abortedAt = Date.now();
+            forcedReason = reason;
+            cancelProcessTimers();
+            StreamManager.requestExit(proc, mixMode);
+            abortKillTimer = setTimeout(() => {
+                abortKillTimer = null;
+                StreamManager.forceKill(proc);
+            }, StreamManager.GRACEFUL_STOP_MS);
         };
 
         proc.stderr?.on('data', (data) => {
-            if (this.ffmpegProcess !== proc) return; // processo sostituito o stop volontario
+            if (this.ffmpegProcess !== proc || aborting) return; // processo sostituito, fermato o in chiusura
 
             const message = data.toString();
-            // Salviamo le ultime righe per un traceback se dovesse crashare
-            if (!message.includes('frame=') && !message.includes('size=') && !message.includes('time=')) {
-                lastErrorLog += message;
+            // Riga per riga: un blocco di stderr mescola spesso un errore e le righe
+            // di progresso, e scartarlo intero (com'era) perdeva proprio la riga con
+            // la causa, sia nel file di log sia nella spiegazione dell'uscita.
+            // Le righe di progresso (frame=/size=/time=) restano fuori dal file:
+            // arrivano ogni mezzo secondo e sommergerebbero le sessioni lunghe.
+            const diagnostic = message
+                .split(/\r\n|\r|\n/)
+                .filter((l: string) => l.trim() && !/frame=|size=|time=/.test(l))
+                .join('\n');
+            if (diagnostic) {
+                lastErrorLog += diagnostic + '\n';
                 if (lastErrorLog.length > 2000) lastErrorLog = lastErrorLog.substring(lastErrorLog.length - 2000);
-                // D1: stderr grezzo su file. Le righe di progresso (frame=/size=/time=)
-                // sono escluse: arrivano ogni mezzo secondo e sommergerebbero il file
-                // proprio nelle sessioni lunghe in cui serve rileggerlo.
-                writeRaw('ffmpeg', message);
+                writeRaw('ffmpeg', diagnostic);
             }
 
-            // Tee (registrazione locale): se lo slave http (#0) fallisce in apertura,
-            // il tee CONTINUA con il solo file (osservato in test headless, anche
-            // senza onfail=ignore) — l'app sembrerebbe ON AIR mentre registra muta.
-            // Va trattato come errore di connessione fatale: stop e report.
-            if (/Slave muxer #0 failed/i.test(message)) {
-                if (!connectionConfirmed) {
-                    connectionConfirmed = true;
-                    cancelConnectionTimeout();
-                    this.log('error', '✗ connessione al server fallita (la registrazione da sola non ha senso): sessione fermata');
-                    this.killCurrentProcess();
-                    this.currentConfig = null;
-                    this.sendStatus('error', 'Connessione al server fallita.');
-                }
+            // Tee (registrazione locale): quando lo slave http (#0) fallisce — in
+            // apertura O A DIRETTA AVVIATA — il tee non esce: continua con il solo
+            // file. Verificato con ffmpeg-static contro un server che chiude con un
+            // reset dopo 2s: "continuing with 1/2 slaves", poi uscita 0 solo a
+            // fine input, che in diretta non arriva mai. Fino alla 0.8.6 il messaggio
+            // contava solo prima del primo progresso: a diretta avviata l'app restava
+            // ON AIR con la radio muta e nessuna riconnessione, e con una password
+            // errata tornava l'ON AIR finto della 0.8.4 (il reset arriva a 0,65s,
+            // dopo il primo progresso). Si chiude il processo e decide il 'close'.
+            if (/Slave muxer #0 failed/i.test(diagnostic)) {
+                this.log('error', '✗ la connessione al server si è interrotta (la registrazione locale da sola non è una diretta)');
+                abortProcess(null);
                 return;
             }
             // Slave file (#1) fallito: registrazione persa ma la diretta continua.
-            if (/Slave muxer #1 failed/i.test(message)) {
+            if (/Slave muxer #1 failed/i.test(diagnostic)) {
                 this.log('error', 'registrazione locale interrotta (errore file/disco) — la diretta continua');
                 return;
             }
@@ -471,15 +531,15 @@ export class StreamManager {
             // \b40[134]\b evita falsi positivi tipo "size= 401kB" (nessun word
             // boundary tra la cifra e "kB") che il vecchio includes('401') matchava.
             const CONNECT_ERROR = /Connection refused|Unauthorized|access denied|I\/O error|\b40[134]\b/;
-            if (CONNECT_ERROR.test(message)) {
+            if (CONNECT_ERROR.test(diagnostic)) {
                 if (!connectionConfirmed) {
                     connectionConfirmed = true;
                     cancelConnectionTimeout();
-                    const raw = message.trim().substring(0, 150);
+                    const raw = diagnostic.trim().substring(0, 150);
                     // Questo ramo era l'unico a NON scrivere nel log: l'errore finiva
                     // solo nel toast a video, che sparisce da solo. Risultato: il
                     // pannello si fermava su "Connecting" e la causa era irrecuperabile.
-                    this.log('error', `✗ ${this.explainConnectError(message)} — FFmpeg: ${raw}`);
+                    this.log('error', `✗ ${this.explainConnectError(diagnostic)} — FFmpeg: ${raw}`);
                     // Durante una riconnessione il verdetto spetta al 'close', che
                     // pianifica il tentativo successivo: uno stato 'error' qui
                     // chiuderebbe la sessione mentre il retry è ancora in corso.
@@ -531,25 +591,33 @@ export class StreamManager {
             this.ffmpegProcess = null;
             this.mixInputActive = false;
 
-            if (code === 0 || code === null) {
-                this.log('info', 'stream chiuso correttamente');
-                this.currentConfig = null;
-                this.sessionWasLive = false;
-                this.sendStatus('disconnected');
-                return;
-            }
-
-            const liveSeconds = streamingStartedAt ? Math.round((Date.now() - streamingStartedAt) / 1000) : 0;
-            const { reason: errorReason, credentialsSuspect } = classifyExit({
-                lastErrorLog,
-                streamingStarted,
-                liveSeconds,
-                liveConfirmed,
-                sessionWasLive: this.sessionWasLive,
-                port,
-                mount: cleanMount,
-                code,
-            });
+            // Ogni uscita che arriva fin qui è imprevista: stop volontario e riavvio
+            // staccano il processo prima di ucciderlo. Anche un'uscita "pulita"
+            // (codice 0: dshow chiude l'input quando il dispositivo sparisce) è una
+            // diretta finita da sola. Fino alla 0.8.6 valeva come chiusura regolare:
+            // "Ready" a video, nessun avviso, nessuna riconnessione.
+            // Dopo una chiusura chiesta da noi l'uscita pulita è attesa: la causa
+            // sta nello stderr già letto (o in forcedReason).
+            const cleanExit = (code === 0 || code === null) && !aborting;
+            const endedAt = abortedAt || Date.now();
+            const liveSeconds = streamingStartedAt ? Math.round((endedAt - streamingStartedAt) / 1000) : 0;
+            const { reason: errorReason, credentialsSuspect } = forcedReason !== null
+                ? { reason: forcedReason, credentialsSuspect: false }
+                : cleanExit
+                    ? {
+                        reason: 'FFmpeg si è fermato da solo senza errori di rete: la sorgente audio si è interrotta (dispositivo scollegato o disattivato da Windows?)',
+                        credentialsSuspect: false,
+                    }
+                    : classifyExit({
+                        lastErrorLog,
+                        streamingStarted,
+                        liveSeconds,
+                        liveConfirmed,
+                        sessionWasLive: this.sessionWasLive,
+                        port,
+                        mount: cleanMount,
+                        code: code ?? -1,
+                    });
 
             // Auto-reconnect (Fase C1): solo se in questa sessione la diretta è stata
             // CONFERMATA almeno una volta. Un fallimento al primo collegamento
@@ -584,42 +652,46 @@ export class StreamManager {
             this.sendStatus('error', `Failed to start: ${err.message}`);
         });
 
-        if (mixMode) {
-            // MIX MODE: niente stato "presunto". FFmpeg legge da stdin e, se il
-            // mixer del renderer non consegna PCM, resta muto in attesa del primo
-            // byte: presumere la connessione dopo 5s accendeva ON AIR con la radio
-            // in silenzio. Se il PCM arriva ma il server tarda, si aspetta il
-            // verdetto vero di FFmpeg (progresso o errore di connessione).
-            connectionTimeoutId = setTimeout(() => {
-                connectionTimeoutId = null;
-                if (this.ffmpegProcess !== proc || connectionConfirmed) return;
-                if (this.mixBytesWritten > 0) {
-                    this.log('info', 'MIX MODE: audio dal mixer ricevuto, in attesa che il server accetti il flusso...');
-                    return;
-                }
-                connectionConfirmed = true;
-                this.log('error', `✗ MIX MODE: dal mixer non è arrivato audio in ${StreamManager.MIX_NO_AUDIO_MS / 1000}s — sessione fermata, in onda non stava andando niente`);
-                this.killCurrentProcess();
-                this.currentConfig = null;
-                this.sessionWasLive = false;
-                this.sendStatus('error', 'MIX MODE: il mixer non produce audio, quindi non sei in onda. Controlla microfono e audio di sistema (pannello Log), poi riprova.');
-            }, StreamManager.MIX_NO_AUDIO_MS);
-            return true;
-        }
-
-        // Safety timeout: se nessun output stderr conferma lo stato entro 5s e il processo è vivo,
-        // assumiamo connessione avvenuta (handshake lento o server silenzioso).
-        // Viene cancellato immediatamente se arriva conferma o errore da stderr.
-        connectionTimeoutId = setTimeout(() => {
-            if (this.ffmpegProcess === proc && !proc.killed && !connectionConfirmed) {
-                connectionConfirmed = true;
-                // Questo stato è una SCOMMESSA, non una conferma: nessun dato è ancora
-                // passato. Va detto, altrimenti un input dshow che non si apre o un
-                // firewall che scarta in silenzio si presentano come ON AIR regolare.
-                this.log('info', '⚠ nessuna conferma da FFmpeg dopo 5s: stato "connesso" presunto, non verificato');
-                this.sendStatus('connected');
+        // Nessuno stato "presunto", in nessuna modalità. Fino alla 0.8.6, senza
+        // MIX MODE, dopo 5s di silenzio di FFmpeg si dichiarava ON AIR sulla
+        // fiducia: ma FFmpeg rinuncia a un server che non risponde proprio dopo
+        // 5s (il suo timeout TCP; misurato 5,5s con la porta chiusa), quindi ogni
+        // server irraggiungibile accendeva ON AIR e salvava la password prima
+        // dell'errore. ON AIR nasce solo dalla tenuta di CONFIRM_LIVE_MS.
+        slowNoticeTimer = setTimeout(() => {
+            slowNoticeTimer = null;
+            if (this.ffmpegProcess !== proc || connectionConfirmed) return;
+            if (!mixMode) {
+                this.log('info', `nessuna risposta dopo ${StreamManager.MIX_NO_AUDIO_MS / 1000}s, attendo ancora...`);
+                return;
             }
-        }, 5000);
+            // MIX MODE: FFmpeg legge da stdin e, se il mixer del renderer non
+            // consegna PCM, resta muto in attesa del primo byte. Se il PCM arriva
+            // ma il server tarda, si aspetta il verdetto vero di FFmpeg.
+            if (this.mixBytesWritten > 0) {
+                this.log('info', 'MIX MODE: audio dal mixer ricevuto, in attesa che il server accetti il flusso...');
+                return;
+            }
+            connectionConfirmed = true;
+            cancelConnectionTimeout();
+            this.log('error', `✗ MIX MODE: dal mixer non è arrivato audio in ${StreamManager.MIX_NO_AUDIO_MS / 1000}s — sessione fermata, in onda non stava andando niente`);
+            this.killCurrentProcess();
+            this.currentConfig = null;
+            this.sessionWasLive = false;
+            this.sendStatus('error', 'MIX MODE: il mixer non produce audio, quindi non sei in onda. Controlla microfono e audio di sistema (pannello Log), poi riprova.');
+        }, StreamManager.MIX_NO_AUDIO_MS);
+
+        // Se in CONNECT_TIMEOUT_MS non parte niente, il processo si chiude e il
+        // verdetto spetta al 'close' (errore al primo collegamento, tentativo
+        // successivo durante una riconnessione).
+        connectionTimeoutId = setTimeout(() => {
+            connectionTimeoutId = null;
+            if (this.ffmpegProcess !== proc || connectionConfirmed) return;
+            connectionConfirmed = true;
+            const s = StreamManager.CONNECT_TIMEOUT_MS / 1000;
+            this.log('error', `✗ nessuna trasmissione partita in ${s}s: chiudo il tentativo`);
+            abortProcess(`nessuna trasmissione partita in ${s}s: il dispositivo audio non produce segnale, oppure il server non risponde (rete, firewall/antivirus, server spento)`);
+        }, StreamManager.CONNECT_TIMEOUT_MS);
 
         return true;
     }
@@ -764,22 +836,12 @@ export class StreamManager {
     }
 
     /**
-     * Termina il processo corrente senza toccare status/log (usato da start e stop).
+     * Uccide un processo FFmpeg con i suoi figli.
      * @param sync usare il kill sincrono: necessario in before-quit, dove un exec
      *             asincrono potrebbe non partire mai prima della morte del main
      *             (→ FFmpeg orfano che continua a trasmettere).
      */
-    private killCurrentProcess(sync = false) {
-        const proc = this.ffmpegProcess;
-        if (!proc) return;
-        // Azzerare il riferimento PRIMA del kill: i listener del processo morente
-        // vedono this.ffmpegProcess !== proc e non alterano lo stato (niente falso
-        // 'error' da exit code 1 di taskkill, niente clobber del processo nuovo).
-        this.ffmpegProcess = null;
-        this.mixInputActive = false;
-        // MIX MODE: chiudiamo la sorgente PCM prima di uccidere il processo, così
-        // FFmpeg vede un EOF regolare e chiude il muxer invece di essere troncato.
-        try { proc.stdin?.end(); } catch { /* già chiusa */ }
+    private static forceKill(proc: ChildProcess, sync = false) {
         if (process.platform === 'win32' && proc.pid) {
             // Su Windows, kill() normale spesso lascia orfani. Usiamo taskkill.
             try {
@@ -797,6 +859,82 @@ export class StreamManager {
         }
     }
 
+    /**
+     * Chiede a FFmpeg di chiudersi da sé, file e connessione compresi. In MIX MODE
+     * basta la fine di stdin, cioè l'EOF della sorgente PCM; altrimenti 'q', il
+     * comando da tastiera di FFmpeg, che arriva anche da una pipe (verificato con
+     * ffmpeg-static: uscita 0 in ~0,1s).
+     *
+     * Serve alla registrazione locale: il file ha un buffer di 256 KB (misurato),
+     * e un taskkill /f lo butta. Si perdono gli ultimi ~11s a 192 kbps, oppure
+     * tutta la registrazione di una sessione breve (0 byte dopo 6s di diretta).
+     */
+    private static requestExit(proc: ChildProcess, mixInput: boolean) {
+        try {
+            if (mixInput) proc.stdin?.end();
+            else proc.stdin?.write('q');
+        } catch { /* pipe già chiusa: ci pensa il kill di riserva */ }
+    }
+
+    /**
+     * Termina il processo corrente senza toccare status/log (usato da start e stop).
+     * @param graceful arresto pulito (requestExit), per lo stop chiesto
+     *                 dall'utente, con il kill dopo GRACEFUL_STOP_MS come riserva.
+     */
+    private killCurrentProcess(sync = false, graceful = false) {
+        const proc = this.ffmpegProcess;
+        if (!proc) return;
+        // Azzerare il riferimento PRIMA del kill: i listener del processo morente
+        // vedono this.ffmpegProcess !== proc e non alterano lo stato (niente falso
+        // 'error' da exit code 1 di taskkill, niente clobber del processo nuovo).
+        this.ffmpegProcess = null;
+        const wasMix = this.mixInputActive;
+        this.mixInputActive = false;
+
+        if (graceful && !sync) {
+            StreamManager.requestExit(proc, wasMix);
+            this.drainingProcs.add(proc);
+            const timer = setTimeout(() => {
+                if (this.drainingProcs.delete(proc)) StreamManager.forceKill(proc);
+            }, StreamManager.GRACEFUL_STOP_MS);
+            proc.once('close', () => {
+                clearTimeout(timer);
+                this.drainingProcs.delete(proc);
+            });
+            return;
+        }
+
+        // MIX MODE: chiudiamo la sorgente PCM prima di uccidere il processo.
+        try { proc.stdin?.end(); } catch { /* già chiusa */ }
+        StreamManager.forceKill(proc, sync);
+    }
+
+    /** Chiude subito i processi ancora in arresto pulito. */
+    private killDraining(sync = false) {
+        for (const proc of this.drainingProcs) StreamManager.forceKill(proc, sync);
+        this.drainingProcs.clear();
+    }
+
+    /**
+     * Stop all'uscita dall'app (X confermata durante la diretta): arresto pulito
+     * con attesa, poi kill sincrono di quello che resta. Prima l'uscita uccideva
+     * FFmpeg all'istante e la registrazione perdeva il suo buffer.
+     */
+    public async stopForQuit(): Promise<void> {
+        this.stop();
+        const pending = [...this.drainingProcs];
+        if (pending.length > 0) {
+            await Promise.race([
+                Promise.all(pending.map((p) => new Promise<void>((resolve) => {
+                    if (p.exitCode !== null && p.exitCode !== undefined) resolve();
+                    else p.once('close', () => resolve());
+                }))),
+                new Promise<void>((resolve) => setTimeout(resolve, StreamManager.GRACEFUL_STOP_MS)),
+            ]);
+        }
+        this.killDraining(true);
+    }
+
     public stop(sync = false) {
         const wasActive = this.ffmpegProcess !== null || this.reconnectTimer !== null;
         this.cancelReconnect();
@@ -804,7 +942,8 @@ export class StreamManager {
         this.currentConfig = null;
         this.sessionWasLive = false;
         this.liveVolumeActive = false;
-        this.killCurrentProcess(sync);
+        this.killCurrentProcess(sync, !sync);
+        if (sync) this.killDraining(true);
         if (wasActive) {
             this.log('info', 'stream fermato');
             this.sendStatus('disconnected');

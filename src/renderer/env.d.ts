@@ -39,6 +39,7 @@ interface ElectronAPI {
     loadDjPassword: (args: { username: string }) => Promise<{ password: string | null }>;
     deleteDjPassword: (args: { username: string }) => Promise<void>;
     openLogFolder: () => Promise<{ ok: boolean; dir: string | null }>;
+    writeLog: (level: 'info' | 'success' | 'error', message: string) => void;
     runConnectionTest: (config: {
         host: string;
         port: string;

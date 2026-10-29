@@ -17,6 +17,7 @@ interface FakeProc extends EventEmitter {
     stderr: EventEmitter;
     stdin: EventEmitter & { writable: boolean; destroyed: boolean; writableLength: number; write: ReturnType<typeof vi.fn>; end: ReturnType<typeof vi.fn> };
     pid: number;
+    args: string[];
     killed: boolean;
     kill: ReturnType<typeof vi.fn>;
 }
@@ -27,6 +28,8 @@ const h = vi.hoisted(() => ({
     powerStop: vi.fn(),
     deletePassword: vi.fn(),
     httpAuthCheck: vi.fn(),
+    exec: vi.fn(),
+    portFree: vi.fn(() => Promise.resolve(false)),
 }));
 
 vi.mock('electron', () => ({
@@ -35,11 +38,17 @@ vi.mock('electron', () => ({
     powerSaveBlocker: { start: h.powerStart, stop: h.powerStop, isStarted: () => true },
 }));
 vi.mock('ffmpeg-static', () => ({ default: '/fake/ffmpeg' }));
+// La registrazione locale crea la cartella in Documenti: nei test non si tocca il disco.
+vi.mock('fs', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('fs')>();
+    return { ...actual, default: { ...actual, mkdirSync: vi.fn() } };
+});
 vi.mock('child_process', async () => {
     const { EventEmitter: EE } = await import('events');
     return {
-        spawn: () => {
+        spawn: (_cmd: string, args: string[]) => {
             const p = new EE() as FakeProc;
+            p.args = args;
             p.stderr = new EE();
             const stdin = new EE() as FakeProc['stdin'];
             stdin.writable = true;
@@ -54,12 +63,12 @@ vi.mock('child_process', async () => {
             h.procs.push(p);
             return p;
         },
-        exec: vi.fn(),
+        exec: h.exec,
         execSync: vi.fn(),
     };
 });
 vi.mock('../zmq-command', () => ({
-    isPortFree: () => Promise.resolve(false),
+    isPortFree: h.portFree,
     sendFilterCommand: vi.fn(),
 }));
 vi.mock('../../file-logger', () => ({ writeRaw: vi.fn(), writeLog: vi.fn() }));
@@ -92,7 +101,7 @@ const statusNames = () => statuses.map(([s]) => s);
 const flush = () => vi.advanceTimersByTimeAsync(0);
 
 /** Avvia e attende lo spawn (launch è asincrono per il controllo della porta ZMQ). */
-const startSession = async (extra: Partial<typeof baseConfig & { mixMode: boolean }> = {}) => {
+const startSession = async (extra: Partial<typeof baseConfig & { mixMode: boolean; recordLocal: boolean }> = {}) => {
     await sm.start({ ...baseConfig, ...extra });
     await flush();
     return lastProc();
@@ -120,6 +129,8 @@ beforeEach(() => {
     h.powerStop.mockClear();
     h.deletePassword.mockClear();
     h.httpAuthCheck.mockReset();
+    h.exec.mockClear();
+    h.portFree.mockClear();
     h.httpAuthCheck.mockResolvedValue({ status: 401, text: 'CREDENZIALI RIFIUTATE (401)' });
     statuses = [];
     logs = [];
@@ -305,3 +316,182 @@ describe('riallineamento dell\'interfaccia', () => {
 
 /** Gli stessi ritardi di StreamManager (5s → 10s → 30s → 60s → 120s). */
 const StreamManagerDelays = [5000, 10000, 30000, 60000, 120000];
+
+// Righe vere di ffmpeg-static (29/10/2026): server che chiude con un reset a
+// diretta avviata, e porta senza servizio.
+const TEE_RESET = '[tee @ 0000025e5bb0d880] Slave muxer #0 failed: Error number -10054 occurred, continuing with 1/2 slaves.';
+const TEE_UNREACHABLE = [
+    '[tcp @ 0000020e1b390400] Connection to tcp://player.example:8005 failed: Error number -138 occurred',
+    "[tee @ 0000020e1b2fd880] Slave '[f=mp3]http://player.example:8005/': error opening: Error number -138 occurred",
+    '[tee @ 0000020e1b2fd880] Slave muxer #0 failed: Error number -138 occurred, continuing with 1/2 slaves.',
+    'size=       0kB time=N/A bitrate=N/A speed=N/A',
+].join('\n');
+const taskkills = () => h.exec.mock.calls.filter(([cmd]) => String(cmd).startsWith('taskkill'));
+
+describe('registrazione locale (muxer tee)', () => {
+    it('password errata: il tee che prosegue col solo file non diventa un ON AIR', async () => {
+        const p = await startSession({ recordLocal: true });
+        say(p, PROGRESS);
+        await vi.advanceTimersByTimeAsync(650);
+        say(p, TEE_RESET);
+        // Il processo viene chiuso, non lasciato a registrare: prima con le buone
+        // (la registrazione fin lì resta integra), poi con il kill di riserva.
+        expect(p.stdin.write).toHaveBeenCalledWith('q');
+        await vi.advanceTimersByTimeAsync(3000);
+        expect(taskkills()).toHaveLength(1);
+
+        await vi.advanceTimersByTimeAsync(2000);
+        p.emit('close', 0); // uscita pulita dopo il 'q': la causa è il reset già letto
+        await flush();
+
+        expect(statusNames()).not.toContain('connected');
+        expect(statusNames()).toContain('error');
+        expect(h.httpAuthCheck).toHaveBeenCalledTimes(1);
+    });
+
+    it('caduta a diretta avviata: riconnessione, non ON AIR muto', async () => {
+        const p = await startSession({ recordLocal: true });
+        await goLive(p);
+        await vi.advanceTimersByTimeAsync(20_000);
+        say(p, TEE_RESET);
+        p.emit('close', 1);
+        await flush();
+
+        expect(statuses.at(-1)?.[0]).toBe('reconnecting');
+    });
+
+    it('un tentativo di riconnessione con il server ancora giù passa al successivo', async () => {
+        const p = await startSession({ recordLocal: true });
+        await goLive(p);
+        await resetAfter(p, 20_000);
+        await vi.advanceTimersByTimeAsync(5000);
+
+        const retry = lastProc();
+        expect(retry).not.toBe(p);
+        say(retry, TEE_UNREACHABLE);
+        retry.emit('close', 1);
+        await flush();
+
+        expect(statuses.at(-1)?.[0]).toBe('reconnecting');
+        expect(statuses.at(-1)?.[1]).toMatch(/tentativo 2\/5/);
+        expect(sm.isSessionActive()).toBe(true);
+    });
+
+    it('server irraggiungibile al primo collegamento: errore che lo dice', async () => {
+        const p = await startSession({ recordLocal: true });
+        say(p, TEE_UNREACHABLE);
+        p.emit('close', 1);
+        await flush();
+
+        expect(statuses.at(-1)?.[0]).toBe('error');
+        expect(statuses.at(-1)?.[1]).toMatch(/nessuna risposta dal server sulla porta 8005/);
+    });
+});
+
+describe('nessuno stato presunto', () => {
+    it('server che non risponde: mai ON AIR, tentativo chiuso dopo 15s', async () => {
+        const p = await startSession();
+        await vi.advanceTimersByTimeAsync(5500); // il punto in cui la 0.8.6 accendeva ON AIR
+        expect(statusNames()).toEqual(['connecting']);
+
+        await vi.advanceTimersByTimeAsync(10_000);
+        expect(p.stdin.write).toHaveBeenCalledWith('q');
+        p.emit('close', 0);
+        await flush();
+
+        expect(statusNames()).not.toContain('connected');
+        expect(statuses.at(-1)?.[0]).toBe('error');
+        expect(statuses.at(-1)?.[1]).toMatch(/nessuna trasmissione partita/);
+    });
+});
+
+describe('uscita senza errori non richiesta', () => {
+    it('a diretta avviata (dispositivo sparito) è una caduta: riconnessione', async () => {
+        const p = await startSession();
+        await goLive(p);
+        p.emit('close', 0);
+        await flush();
+
+        expect(statuses.at(-1)?.[0]).toBe('reconnecting');
+        expect(logs.join('\n')).toMatch(/sorgente audio si è interrotta/);
+    });
+
+    it('al primo collegamento è un errore visibile, non "Ready"', async () => {
+        const p = await startSession();
+        p.emit('close', 0);
+        await flush();
+
+        expect(statuses.at(-1)?.[0]).toBe('error');
+    });
+});
+
+describe('arresto chiesto dall\'utente', () => {
+    it('pulito: "q" a FFmpeg, taskkill solo se non esce entro 3s', async () => {
+        const p = await startSession();
+        await goLive(p);
+        sm.stop();
+
+        expect(p.stdin.write).toHaveBeenCalledWith('q');
+        expect(statuses.at(-1)?.[0]).toBe('disconnected');
+        expect(taskkills()).toHaveLength(0);
+
+        await vi.advanceTimersByTimeAsync(3000);
+        expect(taskkills()).toHaveLength(1);
+    });
+
+    it('in MIX MODE basta la fine di stdin', async () => {
+        const p = await startSession({ mixMode: true });
+        sm.writeAudioChunk(Buffer.alloc(8192));
+        sm.stop();
+
+        expect(p.stdin.end).toHaveBeenCalled();
+        expect(p.stdin.write).not.toHaveBeenCalledWith('q');
+    });
+
+    it('un nuovo avvio chiude subito il processo ancora in chiusura', async () => {
+        const p = await startSession();
+        await goLive(p);
+        sm.stop();
+        await startSession();
+
+        expect(taskkills().some(([cmd]) => String(cmd).includes(`/pid ${p.pid} `))).toBe(true);
+    });
+});
+
+describe('volume in diretta', () => {
+    it('il canale azmq ascolta solo sul computer, non sulla rete locale', async () => {
+        h.portFree.mockResolvedValueOnce(true);
+        const p = await startSession();
+        const af = p.args[p.args.indexOf('-af') + 1];
+
+        expect(af).toContain(String.raw`bind_address='tcp\://127.0.0.1\:5555'`);
+    });
+});
+
+describe("uscita dall'app", () => {
+    it("aspetta l'arresto pulito prima di uscire", async () => {
+        const p = await startSession();
+        await goLive(p);
+        let done = false;
+        const quitting = sm.stopForQuit().then(() => { done = true; });
+
+        expect(p.stdin.write).toHaveBeenCalledWith('q');
+        await flush();
+        expect(done).toBe(false);
+
+        p.emit('close', 0);
+        await quitting;
+        expect(done).toBe(true);
+        expect(taskkills()).toHaveLength(0);
+    });
+
+    it('se FFmpeg non esce, lo chiude comunque dopo 3s', async () => {
+        const p = await startSession();
+        await goLive(p);
+        const quitting = sm.stopForQuit();
+        await vi.advanceTimersByTimeAsync(3000);
+        await quitting;
+
+        expect(p.stdin.write).toHaveBeenCalledWith('q');
+    });
+});

@@ -21,7 +21,13 @@ function readAll(): Record<string, string> {
 }
 
 function writeAll(all: Record<string, string>) {
-    fs.writeFileSync(storePath(), JSON.stringify(all), 'utf8');
+    // File temporaneo e rinomina: una scrittura interrotta a metà (crash, PC
+    // spento) lasciava un JSON troncato, letto poi come vuoto da readAll —
+    // cioè tutte le password memorizzate perse in un colpo.
+    const target = storePath();
+    const tmp = `${target}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(all), 'utf8');
+    fs.renameSync(tmp, target);
 }
 
 export function savePassword(username: string, password: string): boolean {

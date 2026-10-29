@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useStore } from '../store/useStore';
 
 const InputVolumeControl = () => {
-    const { streamConfig, setStreamConfig, isStreaming, streamStatus } = useStore();
+    const { streamConfig, setStreamConfig, isStreaming, streamStatus, mixMode } = useStore();
 
     const gain = parseInt(streamConfig.inputGain || '100', 10);
     const overGain = gain > 100;
@@ -31,7 +31,10 @@ const InputVolumeControl = () => {
 
     const handleChange = (raw: string) => {
         setStreamConfig({ inputGain: raw });
-        if (!live) return;
+        // MIX MODE: il guadagno lo applica il mixer del renderer, che legge lo
+        // store. FFmpeg non ha il filtro azmq e rispondeva "non applicato": il
+        // pannello mostrava "si applicherà al prossimo avvio", che era falso.
+        if (!live || mixMode) return;
         const pct = parseInt(raw, 10);
         if (!Number.isFinite(pct)) return;
 
@@ -79,7 +82,7 @@ const InputVolumeControl = () => {
                 <span>200</span>
             </div>
             {live ? (
-                liveApplied === false ? (
+                liveApplied === false && !mixMode ? (
                     <p className="text-deco-warn/90 text-[10px] leading-tight">
                         Canale live non disponibile: il valore si applicherà al prossimo avvio dello stream.
                     </p>

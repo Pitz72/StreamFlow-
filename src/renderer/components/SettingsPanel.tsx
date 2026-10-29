@@ -42,8 +42,15 @@ const SettingsPanel = () => {
         musicGain,
         setMusicGain,
         isStreaming,
+        streamStatus,
         setErrorMessage,
     } = useStore();
+
+    // Sessione attiva anche durante collegamento e riconnessione, quando
+    // isStreaming è false: cambiare MIX MODE lì fermava il mixer sotto una
+    // riconnessione che lo aspettava (sessione chiusa per "mixer muto"), e il
+    // test di connessione toglieva il canale al tentativo in corso.
+    const sessionActive = isStreaming || streamStatus === 'connecting' || streamStatus === 'reconnecting';
 
     const [testing, setTesting] = useState(false);
 
@@ -179,11 +186,11 @@ const SettingsPanel = () => {
             {/* MIX MODE: microfono + audio del PC senza mixer hardware */}
             <div className="flex flex-col gap-2 border border-deco-brass/30 rounded-[8px] px-4 py-3">
                 <label className={labelCls}>Mix Mode</label>
-                <label className={`flex items-center gap-2 text-deco-ink text-xs select-none ${isStreaming ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+                <label className={`flex items-center gap-2 text-deco-ink text-xs select-none ${sessionActive ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
                     <input
                         type="checkbox"
                         checked={mixMode}
-                        disabled={isStreaming}
+                        disabled={sessionActive}
                         onChange={(e) => setMixMode(e.target.checked)}
                         className="accent-[#C8A44E]"
                     />
@@ -233,7 +240,7 @@ const SettingsPanel = () => {
                         </div>
                     </>
                 )}
-                {isStreaming && (
+                {sessionActive && (
                     <p className="text-deco-inkDim text-[11px] italic">
                         Si cambia solo a microfono spento: ferma la diretta per attivarla o disattivarla.
                     </p>
@@ -290,7 +297,7 @@ const SettingsPanel = () => {
                     <button
                         type="button"
                         onClick={runConnectionTest}
-                        disabled={testing || isStreaming}
+                        disabled={testing || sessionActive}
                         className="px-4 py-2 rounded-[2px] text-xs font-ui font-semibold uppercase tracking-[2px] border border-deco-brass/50 bg-transparent hover:bg-deco-brass/10 disabled:opacity-40 disabled:cursor-not-allowed text-deco-brass transition-colors"
                     >
                         {testing ? 'Test in corso…' : 'Test connessione'}
