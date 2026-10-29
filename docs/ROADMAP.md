@@ -70,18 +70,25 @@ StreamFlow.
 
 Dall'[analisi](./ANALISI-2026-10-29.md), messe in roadmap da Simone il 29/10:
 
-- **L4 — Password negli argomenti di FFmpeg.** Altri programmi dello stesso utente
-  Windows possono leggerla dall'elenco dei processi. Da verificare se il FFmpeg incluso
-  (`ffmpeg-static`) supporta la lettura di un'opzione da file (`-/opzione file`, FFmpeg 7):
-  in MIX MODE lo stdin è già occupato dall'audio.
-- **L6 — README fermo alla 0.5.6.** Con la repo pubblica è la prima cosa che si vede.
-- **L8 — Costo di `PresentazioneContinua`.** Scelta documentata in
-  [SFARFALLIO_FAST_SYNC.md](./SFARFALLIO_FAST_SYNC.md): misurare ed eventualmente
-  alleggerire, senza toglierla.
-- **L9 — Installer non firmato.** Certificato a pagamento, oppure firma gratuita per
-  progetti open source (SignPath Foundation), che richiede una licenza libera.
-- **L10 — Password con lettere accentate.** UTF-8 o latin-1 verso l'harbor: serve una prova
-  sul server vero con un account di test.
+Lavorate nella 0.10.1 ([log](./log/0.10.1.md)):
+
+- ✅ **L4 — Password negli argomenti di FFmpeg.** Chiusa come rischio motivato: su
+  Windows li leggono solo i processi dello stesso utente, che possono già decifrare la
+  password memorizzata (DPAPI è per utente). Il FFmpeg incluso è la 6.1.1, senza
+  `-/opzione file`. L'unica strada vera sarebbe un relay locale che aggiunga l'header:
+  tocca il cuore della trasmissione, ma leggerebbe anche la risposta del server (il
+  401 oggi arriva travestito da -10054). Idea per il futuro, non una lieve.
+- ✅ **L6 — README** riscritto.
+- ✅ **L8 — Costo di `PresentazioneContinua`.** Misurato: a finestra ridotta a icona
+  Chromium lo porta già a ~1 fotogramma al secondo; a finestra visibile il costo è il
+  rimedio stesso. Niente da alleggerire senza rischio. Trovato invece che il VU teneva
+  il microfono acceso a finestra ridotta: corretto.
+- ✅ **L9 — Installer non firmato.** Chiusa per decisione di Simone (29/10/2026): come
+  gli altri programmi open source di Runtime, StreamFlow non si firma. Non riproporre.
+- ✅ **L10 — Password con lettere accentate.** UTF-8 in tutti e tre i punti, la
+  codifica con cui AzuraCast le confronta (`azuracast.dj_auth` le passa in JSON alla
+  sua API). Fissato da due test. La prova sul server vero con un account di test resta
+  utile, ma non è più un dubbio sul codice.
 - **Solo Windows** all'apertura: Linux è sospeso dalla 0.8.6.
 - **Credito ai modelli.** Trailer `Co-Authored-By` contati il 27/09: Claude Opus 5 (17),
   Sonnet 4.6 (12), Opus 4.7 (11), Fable 5 (10), Opus 5.5 (4), Opus 4.8 (4). La fase di marzo

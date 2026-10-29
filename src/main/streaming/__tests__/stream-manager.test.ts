@@ -468,6 +468,32 @@ describe('volume in diretta', () => {
     });
 });
 
+describe('password con lettere accentate (L10)', () => {
+    // AzuraCast passa utente e password, come escono dall'header, alla sua API in
+    // JSON e li confronta con l'hash salvato dal pannello web: in UTF-8. In
+    // latin-1 "è" diventerebbe un byte non valido e la password non tornerebbe mai.
+    const basicOf = (headers: string) => {
+        // Nel tee i ':' dell'header arrivano protetti ("Authorization\\: Basic");
+        // la base64 non contiene caratteri da proteggere.
+        const m = /Authorization\\*: Basic ([A-Za-z0-9+/=]+)/.exec(headers);
+        return m ? Buffer.from(m[1], 'base64') : null;
+    };
+
+    it('arriva al server in UTF-8, senza registrazione', async () => {
+        const p = await startSession({ icecastUser: 'dj', password: 'pàsswörd€' });
+        const headers = p.args[p.args.indexOf('-headers') + 1];
+
+        expect(basicOf(headers)).toEqual(Buffer.from('dj:pàsswörd€', 'utf8'));
+    });
+
+    it('arriva al server in UTF-8 anche dentro il muxer tee', async () => {
+        const p = await startSession({ icecastUser: 'dj', password: 'pàsswörd€', recordLocal: true });
+        const tee = p.args[p.args.indexOf('tee') + 1];
+
+        expect(basicOf(tee)).toEqual(Buffer.from('dj:pàsswörd€', 'utf8'));
+    });
+});
+
 describe("uscita dall'app", () => {
     it("aspetta l'arresto pulito prima di uscire", async () => {
         const p = await startSession();

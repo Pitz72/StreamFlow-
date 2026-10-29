@@ -132,7 +132,11 @@ function App() {
 
     // Il microfono per i VU meter è attivo solo quando la finestra è visibile:
     // niente capture (e indicatore privacy OS) con app minimizzata.
+    // document.hidden da solo non basta: con backgroundThrottling: false resta
+    // false anche a finestra ridotta a icona, e il microfono restava acceso.
+    // Il main manda l'evento apposta (0.10.1).
     const [pageVisible, setPageVisible] = useState(!document.hidden);
+    useEffect(() => window.electronAPI?.onWindowMinimized?.((minimized) => setPageVisible(!minimized && !document.hidden)), []);
     useEffect(() => {
         const handler = () => setPageVisible(!document.hidden);
         document.addEventListener('visibilitychange', handler);

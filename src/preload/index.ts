@@ -44,6 +44,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     /** Evento nato nel renderer (MIX MODE) da scrivere nel file di log. */
     writeLog: (level: 'info' | 'success' | 'error', message: string) =>
         ipcRenderer.send('renderer-log', level, message),
+    /** La finestra è stata ridotta a icona (true) o ripristinata (false). */
+    onWindowMinimized: (callback: (minimized: boolean) => void) => {
+        const handler = (_event: IpcRendererEvent, minimized: boolean) => callback(minimized);
+        ipcRenderer.on('WINDOW_MINIMIZED', handler);
+        return () => { ipcRenderer.removeListener('WINDOW_MINIMIZED', handler); };
+    },
     /** Aggiornamento automatico: stato corrente, avvisi dal main, installazione su richiesta. */
     getUpdateStatus: () => ipcRenderer.invoke('get-update-status'),
     onUpdateStatus: (callback: (s: { state: string; version?: string }) => void) => {

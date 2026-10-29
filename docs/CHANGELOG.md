@@ -5,6 +5,24 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.10.1] — 2026-10-29 · Solid Snake
+
+Le lievi rimaste dall'[analisi del 29 ottobre](./ANALISI-2026-10-29.md), e la prima versione che arriva con l'aggiornamento automatico. Dettagli e misure in [log/0.10.1.md](./log/0.10.1.md).
+
+### Fixed
+- **Il microfono si spegneva solo in teoria a finestra ridotta a icona.** Il VU di controllo doveva rilasciarlo, ma la pagina non sapeva di essere nascosta e lo teneva acceso. Ora il programma le dice quando la finestra è ridotta e quando torna. In MIX MODE il microfono resta acceso, perché è la sorgente della diretta.
+- **L10 — Password con lettere accentate**: verificato che vanno al server in UTF-8, la codifica che AzuraCast usa per confrontarle, in tutti e tre i punti (diretta, test di connessione, metadati). Due test lo fissano, con e senza registrazione locale.
+
+### Changed
+- **L6 — README riscritto**: cos'è StreamFlow, come si scarica, si installa e si usa, MIX MODE, registrazione, aggiornamenti, come si rilascia.
+
+### Note
+- **L4** (password negli argomenti di FFmpeg) chiusa come rischio motivato: li leggono solo i programmi dello stesso utente Windows, che possono già decifrare la password memorizzata.
+- **L8** (costo dello strato anti-sfarfallio) misurata: a finestra ridotta Chromium lo rallenta già a un fotogramma al secondo, e quando la finestra è visibile il costo è il prezzo del rimedio. Niente da alleggerire.
+- **L9** (installer non firmato) chiusa per decisione di Simone: come gli altri programmi open source di Runtime, StreamFlow non si firma. L'avviso di SmartScreen al primo avvio è spiegato nel README e nelle note di rilascio.
+
+---
+
 ## [0.10.0] — 2026-10-29 · Solid Snake
 
 Redesign completo, solo estetico: nessuna funzione tolta o aggiunta. Scelta di Simone fra tre proposte (la «C · Essenziale»). Dettagli in [log/0.10.0.md](./log/0.10.0.md).

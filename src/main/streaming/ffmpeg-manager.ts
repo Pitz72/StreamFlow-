@@ -414,11 +414,14 @@ export class StreamManager {
             ...outputArgs,
         ];
 
-        // NOTA SICUREZZA (audit S2, rischio accettato): l'header Authorization con le
-        // credenziali Basic viaggia negli argomenti di riga di comando, leggibili da
-        // qualunque processo locale (Task Manager / wmic). È un limite strutturale di
-        // FFmpeg CLI (non legge headers da stdin/env) comune a tutti i client di questo
-        // tipo. Mitigazioni: windowsHide, mai loggare `args`, doc in AUDIT-2026-07-13.
+        // NOTA SICUREZZA (audit S2 / L4, rischio accettato e motivato): l'header
+        // Authorization viaggia negli argomenti di riga di comando. Su Windows li
+        // leggono solo i processi dello STESSO utente (o un amministratore), cioè chi
+        // può già decifrare la password memorizzata: DPAPI protegge per utente, non
+        // per programma. Nessuna esposizione in più. Le alternative non reggono: il
+        // FFmpeg incluso (6.1.1) non ha `-/opzione file` (arriva con la 7.0, e non
+        // varrebbe dentro il tee), e un relay locale che aggiunga l'header toccherebbe
+        // il cuore della trasmissione. Mitigazioni: windowsHide, mai loggare `args`.
         const proc = spawn(ffmpegPath, args, { windowsHide: true });
         this.ffmpegProcess = proc;
         this.mixInputActive = mixMode;

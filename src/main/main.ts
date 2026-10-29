@@ -142,6 +142,17 @@ function createWindow() {
 
     loadRenderer(mainWindow);
 
+    // Con backgroundThrottling: false la pagina non sa quando la finestra è ridotta
+    // a icona: document.hidden resta false (misurato sulla 0.10.0 con la riduzione
+    // vera di Windows). Senza questo segnale il VU di controllo teneva il microfono
+    // acceso anche a finestra ridotta. Il rAF invece lo rallenta già Chromium
+    // (~1 fotogramma al secondo), quindi PresentazioneContinua non ne ha bisogno.
+    const sendMinimized = (minimized: boolean) => {
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('WINDOW_MINIMIZED', minimized);
+    };
+    mainWindow.on('minimize', () => sendMinimized(true));
+    mainWindow.on('restore', () => sendMinimized(false));
+
     guardCloseDuringLive(mainWindow);
     recoverFromRendererCrash(mainWindow);
 

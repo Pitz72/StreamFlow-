@@ -47,6 +47,7 @@ interface ElectronAPI {
     deleteDjPassword: (args: { username: string }) => Promise<void>;
     openLogFolder: () => Promise<{ ok: boolean; dir: string | null }>;
     writeLog: (level: 'info' | 'success' | 'error', message: string) => void;
+    onWindowMinimized: (callback: (minimized: boolean) => void) => () => void;
     getUpdateStatus: () => Promise<UpdateStatus>;
     onUpdateStatus: (callback: (s: UpdateStatus) => void) => () => void;
     installUpdate: () => Promise<{ ok: boolean; message?: string }>;
