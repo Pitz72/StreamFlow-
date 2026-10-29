@@ -79,19 +79,22 @@ jobs:
             exit 1
           fi
 
-      # Note di rilascio = la sezione della versione in docs/CHANGELOG.md.
+      # Note di rilascio = la sezione della versione in docs/CHANGELOG.md, fino al
+      # suo separatore "---". I link relativi ai documenti (./log/…) diventano
+      # indirizzi assoluti: nella pagina della release non porterebbero da nessuna parte.
       - name: Extract release notes
         run: |
           v="${{ steps.version.outputs.tag }}"; v="${v#v}"
           awk -v v="$v" '
             $0 ~ "^## \\[" v "\\]" { on = 1; next }
-            on && /^## \[/ { exit }
+            on && (/^## \[/ || /^---$/) { exit }
             on { print }
           ' docs/CHANGELOG.md > notes.md
+          sed -i "s#](\./#](https://github.com/${{ github.repository }}/blob/main/docs/#g" notes.md
           cat >> notes.md <<'EOF'
 
           ---
-          Chi ha già StreamFlow dalla 0.9.0 in poi riceve questa versione da solo: si scarica in sottofondo e si installa alla chiusura dell'app.
+          Chi ha StreamFlow dalla 0.10.0 in poi riceve gli aggiornamenti da solo: si scaricano in sottofondo e, a diretta finita, una finestra chiede se installarli subito o alla chiusura dell'app.
 
           > L'installer non è firmato: al primo avvio SmartScreen può mostrare un avviso ("Ulteriori informazioni" → "Esegui comunque").
           EOF
