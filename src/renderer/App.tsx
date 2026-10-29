@@ -10,6 +10,7 @@ import NowPlayingPanel from './components/NowPlayingPanel'
 import Modal from './components/Modal'
 import StreamLog from './components/StreamLog'
 import PresentazioneContinua from './components/PresentazioneContinua'
+import UpdateDialog from './components/UpdateDialog'
 import { useStore } from './store/useStore'
 import { STATION_PRESET } from './config/stationPreset'
 
@@ -70,8 +71,12 @@ function App() {
     }, []);
 
     // Aggiornamento automatico: il main scarica in sottofondo e avvisa quando è
-    // pronto. Si installa alla chiusura; "Aggiorna ora" solo fuori dalla diretta.
+    // pronto. A quel punto si apre una finestra che chiede se installare subito
+    // (mai durante la diretta); se si sceglie "Più tardi" si installa alla chiusura.
     const [update, setUpdate] = useState<UpdateStatus>({ state: 'idle' });
+    // Versione per cui si è già scelto "Più tardi": la finestra non torna da sola,
+    // resta il pulsante nell'intestazione per riaprirla.
+    const [updateDeferred, setUpdateDeferred] = useState<string | null>(null);
     useEffect(() => {
         const api = window.electronAPI;
         if (!api?.onUpdateStatus) return;
@@ -224,6 +229,15 @@ function App() {
     // funziona da annulla-riconnessione (chiama stopStream).
     const sessionActive = isStreaming || streamStatus === 'reconnecting';
 
+    // L'avviso di aggiornamento non si apre mai sopra una diretta, un collegamento
+    // in corso o un'altra finestra: aspetta che il DJ abbia finito.
+    const updateReady = update.state === 'ready' ? update.version : null;
+    const showUpdateDialog = updateReady !== null
+        && updateDeferred !== updateReady
+        && !sessionActive
+        && streamStatus !== 'connecting'
+        && openModal === null;
+
     const toggleStream = async () => {
         if (!window.electronAPI) return;
 
@@ -326,20 +340,18 @@ function App() {
                     </span>
                 </div>
                 <div className="flex-1" />
-                {update.state === 'ready' && (
+                {updateReady && (
                     <button
                         type="button"
-                        onClick={() => {
-                            void window.electronAPI.installUpdate().then((r) => {
-                                if (!r.ok && r.message) appendLog({ level: 'info', source: 'system', message: r.message });
-                            });
-                        }}
+                        onClick={() => setUpdateDeferred(null)}
                         disabled={sessionActive || streamStatus === 'connecting'}
-                        title={`La versione ${update.version} è scaricata: si installa da sola quando chiudi StreamFlow. Il pulsante la installa subito e riapre l'app (non durante la diretta).`}
+                        title={sessionActive
+                            ? `La versione ${updateReady} si installa quando chiudi StreamFlow, a diretta finita.`
+                            : `La versione ${updateReady} è pronta: apri l'avviso per installarla.`}
                         className="sf-btn border-sf-green text-sf-green"
                     >
                         <Icon d={ICON_DOWNLOAD} />
-                        Aggiorna a v{update.version}
+                        Aggiorna a v{updateReady}
                     </button>
                 )}
                 <button type="button" onClick={() => setOpenModal('nowplaying')} className="sf-btn">
@@ -425,6 +437,14 @@ function App() {
             <Modal isOpen={openModal === 'settings'} onClose={() => setOpenModal(null)} title="Configurazione" maxWidth="max-w-4xl" closeOnBackdrop={false}>
                 <SettingsPanel />
             </Modal>
+
+            {updateReady && (
+                <UpdateDialog
+                    isOpen={showUpdateDialog}
+                    version={updateReady}
+                    onLater={() => setUpdateDeferred(updateReady)}
+                />
+            )}
 
             <Modal isOpen={openModal === 'nowplaying'} onClose={() => setOpenModal(null)} title="Now Playing" maxWidth="max-w-2xl">
                 <NowPlayingPanel />

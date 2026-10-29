@@ -16,12 +16,14 @@ Redesign completo, solo estetico: nessuna funzione tolta o aggiunta. Scelta di S
 - **Configurazione a schede**: DJ e accesso, Audio e Mix, Registrazione, Diagnostica. Nuovo pulsante per mostrare la password mentre la si scrive.
 - **Registro eventi** con le fonti in italiano (Diretta, Metadati, Sistema). **Now Playing** con campi grandi ed etichette.
 - **Nuova icona del programma**: anello verde e punto rosso, lo stesso segno dell'intestazione.
+- **Avviso di aggiornamento in una finestra**: quando una versione nuova è scaricata si apre «Aggiornamento pronto», con testo grande e due pulsanti, «Installa ora» (riavvia StreamFlow già aggiornato) e «Più tardi» (si installa alla chiusura). Non si apre mai durante la diretta o un collegamento, né sopra un'altra finestra: aspetta che il DJ abbia finito. Dopo «Più tardi» resta il pulsante «Aggiorna a v…» in alto per riaprirla.
 - Testi con contrasto almeno 4.5:1, pulsanti alti almeno 44 px, fuoco da tastiera sempre visibile.
 
 ### Removed
 - **Tema chiaro** (decisione di Simone): StreamFlow è solo scuro, come Live Machine Pro. La scelta salvata dalle versioni precedenti viene cancellata.
 
 ### Note
+- **Prima versione pubblicata su GitHub** con l'aggiornamento automatico (costruito nella 0.9.0, mai rilasciata): va installata a mano una volta su ogni studio, poi gli aggiornamenti arrivano da soli.
 - Impostazioni, DJ scelto, dispositivo, volumi e password memorizzate restano dove sono: il redesign non tocca lo store né il file delle password. Verificato sull'app con i dati veri di uno studio.
 
 ---

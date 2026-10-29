@@ -30,7 +30,8 @@ Un rilascio arriva a tutti gli studi con l'aggiornamento automatico, quindi part
 
 Il workflow fa test e build su Windows e pubblica la release in `Pitz72/StreamFlow-` con
 `.exe`, `.blockmap` e `latest.yml`. Le app installate la trovano entro 6 ore (o al
-prossimo avvio), la scaricano e la installano alla chiusura. Con `publish_release = false`
+prossimo avvio), la scaricano in sottofondo e, fuori dalla diretta, aprono la finestra
+«Aggiornamento pronto»: «Installa ora» o «Più tardi» (si installa alla chiusura). Con `publish_release = false`
 fa solo la build, scaricabile dagli artifact del workflow.
 
 ## Struttura Cartelle
