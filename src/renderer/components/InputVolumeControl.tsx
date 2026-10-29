@@ -55,16 +55,17 @@ const InputVolumeControl = () => {
     // Percentuale di riempimento della track (range 0-200 → 0-100%).
     const fillPct = `${(Math.min(200, Math.max(0, gain)) / 200) * 100}%`;
 
+    const hint = live
+        ? (liveApplied === false && !mixMode
+            ? { text: 'Vale dal prossimo avvio', title: 'Il canale per regolare il volume in diretta non risponde: il valore si applicherà al prossimo avvio della diretta.', cls: 'text-sf-amberInk' }
+            : { text: 'Effetto immediato', title: 'In diretta: la regolazione arriva subito allo stream.', cls: 'text-sf-green' })
+        : { text: "Vale dall'avvio", title: 'Si applica quando vai in onda; poi si regola anche in diretta.', cls: 'text-sf-inkDim' };
+
     return (
-        <div className="flex flex-col gap-2 w-[390px] max-w-full bg-deco-panel2/60 border border-deco-brass/35 rounded-[3px] px-[17px] py-[13px]">
-            <div className="flex items-center justify-between">
-                <label htmlFor="input-volume" className="text-deco-brassLabel uppercase text-[10px] font-ui font-semibold tracking-[2px]">
-                    Input Volume
-                </label>
-                <span className={`text-xs font-mono font-bold tabular-nums ${overGain ? 'text-deco-error' : 'text-deco-inkStrong'}`}>
-                    {gain}%
-                </span>
-            </div>
+        <div className="flex items-center gap-4 flex-1 min-w-[320px] h-14 px-5 rounded-2xl bg-sf-surface border border-sf-lineStrong">
+            <label htmlFor="input-volume" className="text-[15px] font-bold text-sf-ink shrink-0">
+                Volume microfono
+            </label>
             <input
                 id="input-volume"
                 type="range"
@@ -73,29 +74,14 @@ const InputVolumeControl = () => {
                 step="5"
                 value={streamConfig.inputGain}
                 onChange={(e) => handleChange(e.target.value)}
-                className="deco-slider"
-                style={{ '--deco-fill': fillPct, '--deco-thumb': 'rgb(var(--deco-ink-strong))' } as CSSProperties}
+                aria-valuetext={`${gain} per cento`}
+                className="sf-slider flex-1 min-w-[120px]"
+                style={{ '--sf-fill': fillPct } as CSSProperties}
             />
-            <div className="flex justify-between text-deco-inkDim text-[10px] font-mono">
-                <span>0</span>
-                <span>100</span>
-                <span>200</span>
-            </div>
-            {live ? (
-                liveApplied === false && !mixMode ? (
-                    <p className="text-deco-warn/90 text-[10px] leading-tight">
-                        Canale live non disponibile: il valore si applicherà al prossimo avvio dello stream.
-                    </p>
-                ) : (
-                    <p className="text-deco-success text-[10px] leading-tight">
-                        ● In diretta — la regolazione ha effetto immediato sullo stream.
-                    </p>
-                )
-            ) : (
-                <p className="text-deco-inkDim text-[10px] leading-tight">
-                    Verrà applicato all'avvio dello stream, poi regolabile in diretta.
-                </p>
-            )}
+            <span className={`w-16 text-right font-mono font-bold text-[17px] tabular-nums ${overGain ? 'text-sf-amberInk' : 'text-sf-ink'}`}>
+                {gain} %
+            </span>
+            <span title={hint.title} className={`text-[13px] font-semibold shrink-0 ${hint.cls}`}>{hint.text}</span>
         </div>
     );
 };

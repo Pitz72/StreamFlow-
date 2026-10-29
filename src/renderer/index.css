@@ -1,119 +1,94 @@
-@import './fonts.css';
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ============================================================
-   Sistema estetico "Deco Dial" — variabili di tema.
-   I valori sono triplette "R G B" così i token Tailwind possono
-   applicare l'opacità (rgb(var(--x) / <alpha-value>)).
-   Cambiare tema = togglare la classe .theme-light su <html>
-   (fatto da App.tsx). Nessuna logica applicativa coinvolta.
-   ============================================================ */
+/* ==========================================================================
+   Sistema "Essenziale" (0.10) — verde Runtime quasi nero, linguaggio di
+   Runtime Live Machine Pro (Inter, numeri in monospazio, rosso pieno per ON AIR).
+   Solo tema scuro (dalla 0.10, decisione di Simone).
+   Valori "R G B" per i modificatori di opacità Tailwind (tailwind.config.cjs).
+   Contrasti: ogni testo ≥ 4.5:1 sul fondo su cui sta, anche i grigi piccoli.
+   ========================================================================== */
+
 :root {
-  /* Tema scuro (default) — petrolio & ottone */
-  --deco-bg: 8 32 31;            /* #08201F */
-  --deco-surface: 12 42 39;      /* #0C2A27 */
-  --deco-panel: 18 64 60;        /* #12403C petrol */
-  --deco-panel2: 10 42 40;       /* #0A2A28 */
-  --deco-ink: 230 221 196;       /* #E6DDC4 crema */
-  --deco-ink-strong: 242 234 210;/* #F2EAD2 */
-  --deco-ink-dim: 138 147 132;   /* #8A9384 muted */
-  --deco-brass: 200 164 78;      /* #C8A44E */
-  --deco-brass-label: 200 164 78;/* label in ottone */
-
-  /* Gradiente del pannello principale */
-  --deco-grad-a: #12403C;
-  --deco-grad-b: #0A2A28;
-
-  /* Quadrante VU ad ago (faccia analogica, resta chiara in entrambi i temi) */
-  --deco-vu-face: #ECE0C8;
-  --deco-vu-bezel: #2A2622;
-  --deco-vu-ink: #3A342C;
-  --deco-vu-needle: #1A1A1A;
-  --deco-vu-red: #C0392B;
-  --deco-vu-glow: #FFD9A0;
-}
-
-html.theme-light {
-  /* Tema chiaro — pergamena & ottone scuro */
-  --deco-bg: 242 236 216;        /* #F2ECD8 parchment */
-  --deco-surface: 228 217 188;   /* #E4D9BC */
-  --deco-panel: 235 226 198;     /* #EBE2C6 */
-  --deco-panel2: 228 217 188;    /* #E4D9BC */
-  --deco-ink: 23 58 54;          /* #173A36 petrolio */
-  --deco-ink-strong: 18 48 44;   /* #12302C */
-  --deco-ink-dim: 106 116 104;   /* #6A7468 */
-  --deco-brass: 168 128 46;      /* #A8802E brass-dark (contrasto AA) */
-  --deco-brass-label: 138 106 30;/* #8A6A1E */
-
-  --deco-grad-a: #F2ECD8;
-  --deco-grad-b: #E4D9BC;
-
-  /* VU: faccia ancora più chiara, cornice in ottone brunito */
-  --deco-vu-face: #FBF5E6;
-  --deco-vu-bezel: #9A7C3E;
-  --deco-vu-ink: #3A342C;
-  --deco-vu-needle: #1A1A1A;
-  --deco-vu-red: #C0392B;
-  --deco-vu-glow: #E8C88A;
+  color-scheme: dark;
+  --sf-bg: 4 11 10;              /* #040B0A verde Runtime, quasi nero */
+  --sf-surface: 10 21 19;        /* #0A1513 */
+  --sf-raised: 14 28 25;         /* #0E1C19 */
+  --sf-sunken: 7 17 16;          /* #071110 */
+  --sf-line: 28 51 46;           /* #1C332E */
+  --sf-line-strong: 36 64 58;    /* #24403A */
+  --sf-ink: 244 248 246;         /* #F4F8F6 */
+  --sf-ink-soft: 201 214 210;    /* #C9D6D2 */
+  --sf-ink-dim: 167 184 179;     /* #A7B8B3 */
+  --sf-ink-faint: 126 147 141;   /* #7E938D */
+  --sf-green: 63 214 155;        /* #3FD69B segnale */
+  --sf-green-deep: 15 58 51;     /* #0F3A33 petrolio */
+  --sf-green-strong: 23 120 90;  /* #17785A pulsante pieno, testo bianco AA */
+  --sf-red-ink: 255 140 130;     /* #FF8C82 */
+  --sf-amber-ink: 248 213 140;   /* #F8D58C */
+  --sf-cyan-ink: 139 227 242;    /* #8BE3F2 */
+  --sf-violet-ink: 195 184 250;  /* #C3B8FA */
+  --sf-track: 19 36 31;          /* #13241F */
 }
 
 @layer base {
   html, body {
-    @apply bg-deco-bg text-deco-ink;
+    @apply bg-sf-bg text-sf-ink font-sans;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* Fuoco da tastiera sempre visibile: chi non usa il mouse deve vedere dove si trova. */
+  :focus-visible {
+    outline: 2px solid rgb(var(--sf-green));
+    outline-offset: 2px;
   }
 }
 
 @layer components {
-  /* Fondo del pannello centrale: gradiente radiale petrol (o pergamena in light). */
-  .deco-panel-bg {
-    background: radial-gradient(circle at 50% 32%, var(--deco-grad-a), var(--deco-grad-b));
-  }
-
-  /* Slider volume in stile déco: track sottile, fill ottone, thumb crema
-     con anello ottone. Stilizzato cross-browser. La logica (throttle ZMQ,
-     value/onChange) resta interamente in InputVolumeControl. */
-  .deco-slider {
+  /* Slider: track spesso, fill nel colore passato (--sf-fill-color), thumb
+     grande. La logica (throttle ZMQ, value/onChange) resta nei componenti. */
+  .sf-slider {
     -webkit-appearance: none;
     appearance: none;
     width: 100%;
-    height: 6px;
-    border-radius: 3px;
+    height: 8px;
+    border-radius: 4px;
     background: linear-gradient(
       to right,
-      rgb(var(--deco-brass)) 0%,
-      rgb(var(--deco-brass)) var(--deco-fill, 50%),
-      rgb(var(--deco-panel2)) var(--deco-fill, 50%),
-      rgb(var(--deco-panel2)) 100%
+      var(--sf-fill-color, rgb(var(--sf-green))) 0%,
+      var(--sf-fill-color, rgb(var(--sf-green))) var(--sf-fill, 50%),
+      rgb(var(--sf-track)) var(--sf-fill, 50%),
+      rgb(var(--sf-track)) 100%
     );
     outline: none;
     cursor: pointer;
   }
-  .deco-slider::-webkit-slider-thumb {
+  .sf-slider::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
-    width: 18px;
-    height: 18px;
+    width: 22px;
+    height: 22px;
     border-radius: 50%;
-    background: var(--deco-thumb, #E6DDC4);
-    border: 2px solid rgb(var(--deco-brass));
-    box-shadow: 0 1px 4px rgba(0, 0, 0, .4);
+    background: rgb(var(--sf-ink));
+    border: 3px solid var(--sf-fill-color, rgb(var(--sf-green)));
     cursor: pointer;
   }
-  .deco-slider::-moz-range-thumb {
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: var(--deco-thumb, #E6DDC4);
-    border: 2px solid rgb(var(--deco-brass));
-    box-shadow: 0 1px 4px rgba(0, 0, 0, .4);
-    cursor: pointer;
+  .sf-slider:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  /* Pulsanti secondari dell'intestazione e dei pannelli. */
+  .sf-btn {
+    @apply h-11 px-5 rounded-xl border border-sf-lineStrong bg-sf-surface text-sf-ink text-[15px] font-bold
+           inline-flex items-center gap-2 transition-colors hover:bg-sf-raised
+           disabled:opacity-45 disabled:cursor-not-allowed;
   }
-  .deco-slider::-moz-range-track {
-    height: 6px;
-    border-radius: 3px;
-    background: transparent;
+  .sf-field {
+    @apply h-12 rounded-xl bg-sf-sunken border border-sf-lineStrong px-3 text-[15px] font-semibold text-sf-ink
+           focus:border-sf-green focus:outline-none;
+  }
+  .sf-label {
+    @apply text-[13px] font-bold text-sf-inkDim;
+  }
+  .sf-card {
+    @apply bg-sf-raised border border-sf-line rounded-2xl p-5;
   }
 }

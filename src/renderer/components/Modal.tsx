@@ -23,28 +23,31 @@ const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-md', closeO
 
     return (
         <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/75"
             onClick={closeOnBackdrop ? onClose : undefined}
         >
             <div
+                role="dialog"
+                aria-modal="true"
+                aria-label={title}
                 onClick={(e) => e.stopPropagation()}
-                className={`${maxWidth} w-full mx-4 max-h-[90vh] flex flex-col bg-deco-surface border border-deco-brass/45 rounded-[8px]`}
-                style={{ boxShadow: '0 30px 70px rgba(0,0,0,.6)' }}
+                className={`${maxWidth} w-full mx-6 max-h-[90vh] flex flex-col bg-sf-surface border border-sf-lineStrong rounded-[20px] shadow-2xl overflow-hidden`}
             >
-                <div
-                    className="flex items-center justify-between px-[22px] py-4 border-b border-deco-brass/35 shrink-0"
-                    style={{ background: 'linear-gradient(rgba(200,164,78,.08), transparent)' }}
-                >
-                    <h2 className="font-display text-[20px] tracking-[3px] text-deco-inkStrong">{title}</h2>
+                <div className="h-[72px] shrink-0 flex items-center justify-between px-7 border-b border-sf-line">
+                    <h2 className="text-[20px] font-extrabold text-sf-ink">{title}</h2>
                     <button
+                        type="button"
                         onClick={onClose}
+                        aria-label="Chiudi"
                         title="Chiudi (Esc)"
-                        className="text-deco-brass hover:text-deco-inkStrong text-xl font-bold w-8 h-8 flex items-center justify-center rounded-[2px] hover:bg-deco-brass/10 transition-colors"
+                        className="w-10 h-10 rounded-xl border border-sf-lineStrong bg-sf-raised text-sf-inkSoft hover:text-sf-ink flex items-center justify-center"
                     >
-                        ✕
+                        <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                            <path d="M6 6l12 12 M18 6 6 18" />
+                        </svg>
                     </button>
                 </div>
-                <div className="flex-1 overflow-y-auto p-[22px]">
+                <div className="flex-1 min-h-0 overflow-y-auto">
                     {children}
                 </div>
             </div>

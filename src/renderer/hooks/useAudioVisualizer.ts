@@ -1,11 +1,11 @@
 import { useEffect, useRef } from 'react';
 import { useStore } from '../store/useStore';
-import { readLevel, setNeedle, type NeedleRefs } from './vuNeedle';
+import { readLevel, setLevel, type LevelRefs } from './levelMeter';
 import { resolveInputDeviceId } from './resolveInputDevice';
 
-// I ref puntano alle lancette SVG dei VU meter ad ago: il loop scrive
-// direttamente la rotazione (transform) senza passare per lo stato React.
-export type VisualizerRefs = NeedleRefs;
+// I ref puntano al riempimento delle barre di livello: il loop scrive
+// direttamente la larghezza (transform: scaleX) senza passare per lo stato React.
+export type VisualizerRefs = LevelRefs;
 
 /**
  * VU meter L/R da un'UNICA pipeline Web Audio condivisa:
@@ -22,12 +22,12 @@ export type VisualizerRefs = NeedleRefs;
  *   privacy OS spento) — usato quando la finestra è minimizzata.
  */
 export const useAudioVisualizer = (deviceId: string, enabled: boolean): VisualizerRefs => {
-    const leftRef = useRef<SVGRectElement | null>(null);
-    const rightRef = useRef<SVGRectElement | null>(null);
+    const leftRef = useRef<HTMLDivElement | null>(null);
+    const rightRef = useRef<HTMLDivElement | null>(null);
     const audioContextRef = useRef<AudioContext | null>(null);
     const requestRef = useRef<number | null>(null);
 
-    // VU POST-GAIN: le lancette riflettono il volume input impostato (anche live).
+    // VU POST-GAIN: le barre riflettono il volume input impostato (anche live).
     // Web Audio legge il device grezzo (pre-gain); il guadagno reale è applicato
     // dentro FFmpeg. Per la sola VISUALIZZAZIONE moltiplichiamo il livello per lo
     // stesso fattore, letto dallo store via ref (nessun re-render, il filtro
@@ -104,8 +104,8 @@ export const useAudioVisualizer = (deviceId: string, enabled: boolean): Visualiz
                     const mul = gainMulRef.current;
                     const rawLeft = readLevel(analyserL, bufL);
                     const rawRight = analyserR ? readLevel(analyserR, bufR) : rawLeft;
-                    setNeedle(leftRef, rawLeft * mul);
-                    setNeedle(rightRef, rawRight * mul);
+                    setLevel(leftRef, rawLeft * mul);
+                    setLevel(rightRef, rawRight * mul);
                     requestRef.current = requestAnimationFrame(animate);
                 };
 
@@ -128,8 +128,8 @@ export const useAudioVisualizer = (deviceId: string, enabled: boolean): Visualiz
                 audioContextRef.current.close().catch(() => { /* già chiuso */ });
                 audioContextRef.current = null;
             }
-            setNeedle(leftRef, 0);
-            setNeedle(rightRef, 0);
+            setLevel(leftRef, 0);
+            setLevel(rightRef, 0);
         };
     }, [deviceId, enabled]);
 

@@ -59,78 +59,86 @@ const NowPlayingPanel = () => {
     };
 
     return (
-        <div>
-            <div className="flex flex-col gap-2">
-                {/* Artist + Title + Send — protocollo Icecast updinfo invia un solo
-                    campo "song" formato come "Artist - Title", quindi non c'è motivo
-                    di tenere una terza voce. */}
-                <div className="flex items-center gap-2">
-                    <label className="text-deco-brassLabel uppercase font-ui font-semibold tracking-[2px] text-[10px] w-14 shrink-0 text-right">Artist</label>
+        <div className="flex flex-col gap-4 p-7">
+            {/* Artista + Titolo — il protocollo Icecast updinfo invia un solo campo
+                "song" nella forma "Artista - Titolo", quindi non serve una terza voce. */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-2">
+                    <label htmlFor="np-artist" className="sf-label">Artista o DJ</label>
                     <input
+                        id="np-artist"
                         type="text"
-                        placeholder="Artista / DJ"
+                        placeholder="Es. Simone Pizzi"
                         value={streamMetadata.artist}
                         onChange={(e) => setStreamMetadata({ artist: e.target.value })}
                         onKeyDown={handleKeyDown}
-                        className="flex-1 bg-deco-bg border border-deco-brass/30 rounded-[3px] px-2 py-1.5 text-deco-ink text-sm focus:border-deco-brass focus:outline-none"
+                        className="sf-field"
                     />
-                    <label className="text-deco-brass text-sm shrink-0">—</label>
+                </div>
+                <div className="flex flex-col gap-2">
+                    <label htmlFor="np-title" className="sf-label">Titolo</label>
                     <input
+                        id="np-title"
                         type="text"
-                        placeholder="Titolo brano"
+                        placeholder="Es. il nome del programma"
                         value={streamMetadata.title}
                         onChange={(e) => setStreamMetadata({ title: e.target.value })}
                         onKeyDown={handleKeyDown}
-                        className="flex-1 bg-deco-bg border border-deco-brass/30 rounded-[3px] px-2 py-1.5 text-deco-ink text-sm focus:border-deco-brass focus:outline-none"
+                        className="sf-field"
                     />
-                    <button
-                        onClick={handleSend}
-                        disabled={!isStreaming || sendStatus === 'sending'}
-                        title={isStreaming ? 'Invia metadati al server (Invio)' : 'Avvia lo stream per inviare'}
-                        className={`px-3 py-1.5 rounded-[2px] text-xs font-bold uppercase tracking-[1px] transition-all shrink-0 ${
-                            isStreaming
-                                ? 'bg-deco-success hover:brightness-110 text-deco-bg cursor-pointer'
-                                : 'bg-deco-panel2 text-deco-inkDim border border-deco-brass/20 cursor-not-allowed'
-                        } ${sendStatus === 'sending' ? 'opacity-60' : ''}`}
-                    >
-                        {sendStatus === 'sending' ? '...' : 'Invia'}
-                    </button>
                 </div>
-
-                {/* Send status feedback */}
-                {sendStatus === 'sent' && (
-                    <p className="text-deco-success text-xs text-right pr-1">✓ Inviato alle {sentAt}</p>
-                )}
-                {sendStatus === 'error' && (
-                    <p className="text-deco-onair text-xs bg-deco-onair/10 border border-deco-onair/40 rounded-[3px] px-2 py-1.5">
-                        ✗ {errorMsg}
-                    </p>
-                )}
-                {!isStreaming && (
-                    <p className="text-deco-inkDim text-xs text-right pr-1">
-                        I metadati verranno inviati automaticamente all'avvio dello stream.
-                    </p>
-                )}
-
-                {lastDebug && (
-                    <div className="mt-2">
-                        <button
-                            onClick={() => setShowDebug((v) => !v)}
-                            className="text-deco-brass hover:text-deco-inkStrong text-xs underline"
-                        >
-                            {showDebug ? '▼' : '▶'} Dettagli risposta server (HTTP {lastDebug.httpStatus ?? '?'})
-                        </button>
-                        {showDebug && (
-                            <div className="mt-1 bg-deco-bg border border-deco-brass/25 rounded-[3px] p-2 font-mono text-[10px] text-deco-inkDim max-h-48 overflow-auto">
-                                <div className="text-deco-brassLabel uppercase mb-1">Request</div>
-                                <pre className="whitespace-pre-wrap break-all">{lastDebug.requestLine || '—'}</pre>
-                                <div className="text-deco-brassLabel uppercase mt-2 mb-1">Raw response</div>
-                                <pre className="whitespace-pre-wrap break-all">{lastDebug.rawResponse || '(vuoto)'}</pre>
-                            </div>
-                        )}
-                    </div>
-                )}
             </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-[14px] text-sf-inkDim">
+                    {isStreaming
+                        ? 'Invio per mandarli subito al player.'
+                        : "Partono da soli quando vai in onda."}
+                </p>
+                <button
+                    type="button"
+                    onClick={handleSend}
+                    disabled={!isStreaming || sendStatus === 'sending'}
+                    title={isStreaming ? 'Invia i metadati al server (Invio)' : 'Vai in onda per inviarli'}
+                    className={`h-12 px-7 rounded-xl text-[15px] font-extrabold uppercase tracking-[0.08em] border transition-[filter] ${
+                        isStreaming
+                            ? 'bg-sf-greenStrong border-sf-green text-white hover:brightness-110'
+                            : 'bg-sf-raised border-sf-line text-sf-inkFaint cursor-not-allowed'
+                    } ${sendStatus === 'sending' ? 'opacity-60' : ''}`}
+                >
+                    {sendStatus === 'sending' ? 'Invio…' : 'Invia'}
+                </button>
+            </div>
+
+            {sendStatus === 'sent' && (
+                <p className="text-[14px] font-semibold text-sf-green" role="status">Inviati alle {sentAt}</p>
+            )}
+            {sendStatus === 'error' && (
+                <p className="text-[14px] text-sf-redInk bg-sf-onair/10 border border-sf-onair/50 rounded-xl px-4 py-3" role="alert">
+                    Non inviati: {errorMsg}
+                </p>
+            )}
+
+            {lastDebug && (
+                <div>
+                    <button
+                        type="button"
+                        onClick={() => setShowDebug((v) => !v)}
+                        aria-expanded={showDebug}
+                        className="text-[13px] font-semibold text-sf-inkDim hover:text-sf-ink underline"
+                    >
+                        {showDebug ? 'Nascondi' : 'Mostra'} i dettagli della risposta del server (HTTP {lastDebug.httpStatus ?? '?'})
+                    </button>
+                    {showDebug && (
+                        <div className="mt-2 bg-sf-sunken border border-sf-line rounded-xl p-3 font-mono text-[12px] text-sf-inkSoft max-h-48 overflow-auto">
+                            <div className="sf-label mb-1">Richiesta</div>
+                            <pre className="whitespace-pre-wrap break-all">{lastDebug.requestLine || '—'}</pre>
+                            <div className="sf-label mt-2 mb-1">Risposta</div>
+                            <pre className="whitespace-pre-wrap break-all">{lastDebug.rawResponse || '(vuota)'}</pre>
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 };

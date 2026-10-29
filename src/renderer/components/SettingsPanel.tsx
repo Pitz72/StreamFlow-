@@ -25,6 +25,14 @@ const sanitizePassword = (raw: string) =>
  * preimpostati dal preset di stazione. L'utente sceglie solo il proprio nome
  * utente DJ, inserisce la password e seleziona il dispositivo audio.
  */
+type Tab = 'accesso' | 'audio' | 'registrazione' | 'diagnostica';
+const TABS: { id: Tab; label: string }[] = [
+    { id: 'accesso', label: 'DJ e accesso' },
+    { id: 'audio', label: 'Audio e Mix' },
+    { id: 'registrazione', label: 'Registrazione' },
+    { id: 'diagnostica', label: 'Diagnostica' },
+];
+
 const SettingsPanel = () => {
     const { devices } = useAudioDevices();
     const {
@@ -53,6 +61,8 @@ const SettingsPanel = () => {
     const sessionActive = isStreaming || streamStatus === 'connecting' || streamStatus === 'reconnecting';
 
     const [testing, setTesting] = useState(false);
+    const [tab, setTab] = useState<Tab>('accesso');
+    const [showPassword, setShowPassword] = useState(false);
 
     // D2: il test occupa il mount per una ventina di secondi con un segnale di
     // prova, quindi non deve mai partire durante una diretta.
@@ -72,7 +82,7 @@ const SettingsPanel = () => {
                 bitrate: streamConfig.bitrate,
             });
             if (!res.ok) {
-                setErrorMessage('Test connessione fallito — apri il pannello Log in basso per il dettaglio.');
+                setErrorMessage('Test connessione fallito — apri il registro eventi in basso per il dettaglio.');
             }
         } catch {
             setErrorMessage('Impossibile eseguire il test di connessione.');
@@ -119,215 +129,249 @@ const SettingsPanel = () => {
         }
     };
 
-    const inputCls = "bg-deco-bg border border-deco-brass/30 rounded-[3px] px-[11px] py-[9px] text-deco-ink focus:border-deco-brass focus:outline-none";
-    const labelCls = "text-deco-brassLabel uppercase text-[10px] font-ui font-semibold tracking-[2px]";
+    const musicPct = parseInt(musicGain || '100', 10);
 
     return (
-        <div className="flex flex-col gap-6 text-sm relative">
-            {/* Banner stazione preconfigurata */}
-            <div className="bg-deco-bg border border-deco-brass/30 rounded-[8px] px-4 py-3">
-                <p className="text-deco-brass font-ui font-semibold uppercase tracking-[2px] text-[11px]">
-                    {STATION_PRESET.stationName} — client interno
-                </p>
-                <p className="text-deco-inkDim text-xs mt-1">
-                    Server, porta e qualità sono già impostati. Scegli il tuo nome utente,
-                    inserisci la password e sei pronto.
-                </p>
+        <div className="flex flex-col">
+            {/* Schede: una cosa alla volta, come le impostazioni di Live Machine Pro. */}
+            <div role="tablist" aria-label="Sezioni della configurazione" className="flex flex-wrap gap-1.5 px-6 py-3 border-b border-sf-line">
+                {TABS.map((t) => (
+                    <button
+                        key={t.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={tab === t.id}
+                        onClick={() => setTab(t.id)}
+                        className={`h-11 px-5 rounded-xl text-[15px] font-bold border transition-colors ${tab === t.id
+                            ? 'bg-sf-greenDeep border-sf-green text-sf-ink'
+                            : 'bg-transparent border-transparent text-sf-inkDim hover:text-sf-ink hover:bg-sf-raised'}`}
+                    >
+                        {t.label}
+                    </button>
+                ))}
             </div>
 
-            {/* Nome utente DJ */}
-            <div className="flex flex-col gap-2">
-                <label className={labelCls}>Nome utente (DJ)</label>
-                <select
-                    value={selectValue}
-                    onChange={handleDjChange}
-                    className={`${inputCls} w-full`}
-                >
-                    {STATION_PRESET.djs.map((dj) => (
-                        <option key={dj.username} value={dj.username}>
-                            {dj.displayName} ({dj.username})
-                        </option>
-                    ))}
-                    <option value={OTHER_DJ}>Altro utente…</option>
-                </select>
-                {selectValue === OTHER_DJ && (
-                    <input
-                        type="text"
-                        placeholder="Nome utente DJ (streamer AzuraCast)"
-                        value={streamConfig.icecastUser}
-                        onChange={(e) => setStreamConfig({ icecastUser: e.target.value })}
-                        onBlur={() => { if (rememberPassword) void loadSavedPassword(streamConfig.icecastUser); }}
-                        className={inputCls}
-                    />
-                )}
-            </div>
-
-            {/* Password */}
-            <div className="flex flex-col gap-2">
-                <label className={labelCls}>Password</label>
-                <input
-                    name="password"
-                    type="password"
-                    value={streamConfig.password}
-                    onChange={(e) => setStreamConfig({ password: sanitizePassword(e.target.value) })}
-                    className={inputCls}
-                />
-                <label className="flex items-center gap-2 text-deco-inkDim text-xs cursor-pointer select-none">
-                    <input
-                        type="checkbox"
-                        checked={rememberPassword}
-                        onChange={handleRememberChange}
-                        className="accent-[#C8A44E]"
-                    />
-                    Ricorda la password su questo computer (salvata cifrata)
-                </label>
-            </div>
-
-            {/* MIX MODE: microfono + audio del PC senza mixer hardware */}
-            <div className="flex flex-col gap-2 border border-deco-brass/30 rounded-[8px] px-4 py-3">
-                <label className={labelCls}>Mix Mode</label>
-                <label className={`flex items-center gap-2 text-deco-ink text-xs select-none ${sessionActive ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
-                    <input
-                        type="checkbox"
-                        checked={mixMode}
-                        disabled={sessionActive}
-                        onChange={(e) => setMixMode(e.target.checked)}
-                        className="accent-[#C8A44E]"
-                    />
-                    Manda in onda microfono <strong className="text-deco-brass">+</strong> musica del computer
-                </label>
-                <p className="text-deco-inkDim text-[11px] leading-snug">
-                    Per chi non ha un mixer: StreamFlow somma la tua voce a tutto quello che
-                    il PC sta suonando. Quindi la regia di Runtime Live Machine Pro, ma anche
-                    ogni altro suono del computer: notifiche, browser, altri programmi.
-                    Non serve installare niente.
-                </p>
-                {mixMode && (
+            <div className="flex flex-col gap-5 p-7 text-[15px]">
+                {tab === 'accesso' && (
                     <>
-                        <div className="flex items-center justify-between mt-1">
-                            <label htmlFor="music-volume" className={labelCls}>Volume musica</label>
-                            <span className="text-xs font-mono font-bold tabular-nums text-deco-inkStrong">
-                                {parseInt(musicGain || '100', 10)}%
-                            </span>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            <div className="sf-card flex flex-col gap-3">
+                                <label htmlFor="dj-select" className="sf-label">Chi va in onda</label>
+                                <select id="dj-select" value={selectValue} onChange={handleDjChange} className="sf-field w-full">
+                                    {STATION_PRESET.djs.map((dj) => (
+                                        <option key={dj.username} value={dj.username}>
+                                            {dj.displayName} ({dj.username})
+                                        </option>
+                                    ))}
+                                    <option value={OTHER_DJ}>Altro utente…</option>
+                                </select>
+                                {selectValue === OTHER_DJ && (
+                                    <input
+                                        type="text"
+                                        aria-label="Nome utente DJ"
+                                        placeholder="Nome utente DJ (streamer AzuraCast)"
+                                        value={streamConfig.icecastUser}
+                                        onChange={(e) => setStreamConfig({ icecastUser: e.target.value })}
+                                        onBlur={() => { if (rememberPassword) void loadSavedPassword(streamConfig.icecastUser); }}
+                                        className="sf-field"
+                                    />
+                                )}
+                                <p className="text-[13px] text-sf-inkDim leading-snug">
+                                    {STATION_PRESET.stationName}: server, porta e qualità sono già impostati.
+                                </p>
+                            </div>
+
+                            <div className="sf-card flex flex-col gap-3">
+                                <label htmlFor="dj-password" className="sf-label">Password</label>
+                                <div className="flex gap-2">
+                                    <input
+                                        id="dj-password"
+                                        name="password"
+                                        type={showPassword ? 'text' : 'password'}
+                                        value={streamConfig.password}
+                                        onChange={(e) => setStreamConfig({ password: sanitizePassword(e.target.value) })}
+                                        className="sf-field flex-1 min-w-0"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword((v) => !v)}
+                                        aria-label={showPassword ? 'Nascondi la password' : 'Mostra la password'}
+                                        aria-pressed={showPassword}
+                                        title={showPassword ? 'Nascondi la password' : 'Mostra la password'}
+                                        className="w-12 h-12 shrink-0 rounded-xl bg-sf-sunken border border-sf-lineStrong text-sf-inkSoft hover:text-sf-ink flex items-center justify-center"
+                                    >
+                                        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                                            <path d={showPassword
+                                                ? 'M3 3l18 18 M10.6 5.1A10 10 0 0 1 12 5c6 0 10 7 10 7a17 17 0 0 1-3.2 3.9 M6.6 6.6C3.9 8.3 2 12 2 12s4 7 10 7a9.8 9.8 0 0 0 5.4-1.6 M9.9 9.9a3 3 0 0 0 4.2 4.2'
+                                                : 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z'} />
+                                        </svg>
+                                    </button>
+                                </div>
+                                <label className="flex items-center justify-between gap-3 font-semibold cursor-pointer select-none">
+                                    Ricorda la password su questo computer
+                                    <input
+                                        type="checkbox"
+                                        checked={rememberPassword}
+                                        onChange={handleRememberChange}
+                                        className="w-5 h-5 accent-[rgb(var(--sf-green))] shrink-0"
+                                    />
+                                </label>
+                                <p className="text-[13px] text-sf-inkDim leading-snug">
+                                    Salvata cifrata da Windows, e solo dopo una diretta riuscita.
+                                </p>
+                            </div>
                         </div>
-                        <input
-                            id="music-volume"
-                            type="range"
-                            min="0"
-                            max="200"
-                            step="5"
-                            value={musicGain}
-                            onChange={(e) => setMusicGain(e.target.value)}
-                            className="deco-slider"
-                            style={{
-                                '--deco-fill': `${(Math.min(200, Math.max(0, parseInt(musicGain || '100', 10))) / 200) * 100}%`,
-                                '--deco-thumb': 'rgb(var(--deco-ink-strong))',
-                            } as React.CSSProperties}
-                        />
-                        <p className="text-deco-inkDim text-[11px] leading-snug">
-                            Il volume della voce resta quello di <strong className="text-deco-ink">Input Volume</strong>,
-                            nella schermata principale. Entrambi si regolano anche durante la diretta.
-                        </p>
-                        <div className="bg-deco-bg border border-deco-brass/25 rounded-[3px] px-3 py-2 mt-1">
-                            <p className="text-deco-warn text-[11px] leading-snug">
-                                <strong>Ascolta in cuffia.</strong> Con le casse il microfono ripiglia
-                                la musica e in onda si sente doppia.
-                            </p>
-                            <p className="text-deco-inkDim text-[11px] leading-snug mt-1">
-                                Va in onda <strong className="text-deco-ink">tutto</strong> l&apos;audio del computer,
-                                comprese le notifiche di Windows. Il player deve suonare sul dispositivo
-                                predefinito di Windows: se ne usa un altro, tu senti la musica ma in onda
-                                non arriva — l&apos;etichetta MIX in alto diventa rossa per avvisarti.
-                            </p>
+
+                        <div className="sf-card flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex flex-col gap-1 min-w-0">
+                                <span className="sf-label">Connessione (preimpostata)</span>
+                                <span className="font-mono text-[14px] text-sf-ink break-all">
+                                    {STATION_PRESET.host}:{STATION_PRESET.port}{STATION_PRESET.mount} · MP3 {STATION_PRESET.bitrate} kbps
+                                </span>
+                            </div>
+                            <span className="text-[12px] font-bold px-2.5 py-1 rounded-md bg-sf-greenDeep text-sf-green">SOLA LETTURA</span>
                         </div>
                     </>
                 )}
-                {sessionActive && (
-                    <p className="text-deco-inkDim text-[11px] italic">
-                        Si cambia solo a microfono spento: ferma la diretta per attivarla o disattivarla.
-                    </p>
+
+                {tab === 'audio' && (
+                    <>
+                        <div className="sf-card flex flex-col gap-3">
+                            <label htmlFor="input-device" className="sf-label">Dispositivo di ingresso</label>
+                            <select
+                                id="input-device"
+                                value={selectedDeviceId}
+                                onChange={handleDeviceChange}
+                                className="sf-field w-full"
+                            >
+                                <option value="default">Dispositivo predefinito di sistema</option>
+                                {devices.map((device) => (
+                                    <option key={device.deviceId} value={device.deviceId}>
+                                        {device.label}
+                                    </option>
+                                ))}
+                            </select>
+                            <p className="text-[13px] text-sf-inkDim leading-snug">
+                                Il volume del microfono è nella schermata principale, sotto il pulsante della diretta.
+                            </p>
+                        </div>
+
+                        {/* MIX MODE: microfono + audio del PC senza mixer hardware */}
+                        <div className="sf-card border-t-[3px] border-t-sf-cyan flex flex-col gap-3">
+                            <label className={`flex items-center justify-between gap-3 text-[16px] font-bold select-none ${sessionActive ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+                                MIX MODE · voce + audio del computer
+                                <input
+                                    type="checkbox"
+                                    checked={mixMode}
+                                    disabled={sessionActive}
+                                    onChange={(e) => setMixMode(e.target.checked)}
+                                    className="w-5 h-5 accent-[#3EC6E0] shrink-0"
+                                />
+                            </label>
+                            <p className="text-[14px] text-sf-inkDim leading-relaxed">
+                                Per chi non ha un mixer: StreamFlow somma la tua voce a tutto quello che
+                                il PC sta suonando. Quindi la regia di Runtime Live Machine Pro, ma anche
+                                ogni altro suono del computer: notifiche, browser, altri programmi.
+                                Non serve installare niente.
+                            </p>
+                            {mixMode && (
+                                <>
+                                    <div className="flex items-center justify-between mt-1">
+                                        <label htmlFor="music-volume" className="sf-label">Volume musica</label>
+                                        <span className="font-mono font-bold text-[16px] tabular-nums text-sf-ink">{musicPct} %</span>
+                                    </div>
+                                    <input
+                                        id="music-volume"
+                                        type="range"
+                                        min="0"
+                                        max="200"
+                                        step="5"
+                                        value={musicGain}
+                                        onChange={(e) => setMusicGain(e.target.value)}
+                                        aria-valuetext={`${musicPct} per cento`}
+                                        className="sf-slider"
+                                        style={{
+                                            '--sf-fill': `${(Math.min(200, Math.max(0, musicPct)) / 200) * 100}%`,
+                                            '--sf-fill-color': '#3EC6E0',
+                                        } as React.CSSProperties}
+                                    />
+                                    <p className="text-[13px] text-sf-inkDim leading-snug">
+                                        La voce segue il Volume microfono della schermata principale. Tutti e due si
+                                        regolano anche durante la diretta.
+                                    </p>
+                                    <div className="rounded-xl bg-sf-sunken border border-sf-line px-4 py-3 flex flex-col gap-1.5">
+                                        <p className="text-[14px] text-sf-amberInk leading-snug">
+                                            <strong>Ascolta in cuffia.</strong> Con le casse il microfono ripiglia
+                                            la musica e in onda si sente doppia.
+                                        </p>
+                                        <p className="text-[13px] text-sf-inkDim leading-snug">
+                                            Il player deve suonare sul dispositivo predefinito di Windows: se ne usa
+                                            un altro, tu senti la musica ma in onda non arriva, e la spia Mix in basso
+                                            diventa rossa per avvisarti.
+                                        </p>
+                                    </div>
+                                </>
+                            )}
+                            {sessionActive && (
+                                <p className="text-[13px] text-sf-inkDim italic">
+                                    Si cambia solo a diretta ferma.
+                                </p>
+                            )}
+                        </div>
+                    </>
+                )}
+
+                {tab === 'registrazione' && (
+                    <div className="sf-card border-t-[3px] border-t-sf-onair flex flex-col gap-3">
+                        <label className="flex items-center justify-between gap-3 text-[16px] font-bold cursor-pointer select-none">
+                            Salva una copia MP3 della diretta
+                            <input
+                                type="checkbox"
+                                checked={recordLocal}
+                                onChange={(e) => setRecordLocal(e.target.checked)}
+                                className="w-5 h-5 accent-[#D93A2C] shrink-0"
+                            />
+                        </label>
+                        <p className="text-[14px] text-sf-inkDim leading-relaxed">
+                            Un file per sessione in Documenti\StreamFlow, stessa qualità dello stream.
+                            Un problema al file (es. disco pieno) non interrompe la diretta.
+                        </p>
+                    </div>
+                )}
+
+                {tab === 'diagnostica' && (
+                    <div className="sf-card flex flex-col gap-4">
+                        <div className="flex flex-wrap gap-3">
+                            <button
+                                type="button"
+                                onClick={runConnectionTest}
+                                disabled={testing || sessionActive}
+                                className="sf-btn bg-sf-greenDeep border-sf-green"
+                            >
+                                {testing ? 'Test in corso…' : 'Test connessione'}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => window.electronAPI.openLogFolder()}
+                                className="sf-btn"
+                            >
+                                Apri la cartella dei log
+                            </button>
+                        </div>
+                        <p className="text-[14px] text-sf-inkDim leading-relaxed">
+                            <strong className="text-sf-ink">Test connessione</strong> prova DNS, porta
+                            e trasmissione (20 secondi di silenzio) e scrive dove si rompe. Non serve il
+                            microfono, ma occupa il canale: non lanciarlo mentre qualcuno è in onda.
+                            Segui l&apos;esito nel registro eventi in basso.
+                        </p>
+                        <p className="text-[14px] text-sf-inkDim leading-relaxed">
+                            <strong className="text-sf-ink">Apri la cartella dei log</strong> apre i file da
+                            allegare in caso di problemi. Contengono i dettagli tecnici; le password non
+                            vengono mai scritte nel log.
+                        </p>
+                    </div>
                 )}
             </div>
-
-            {/* Dispositivo audio */}
-            <div className="flex flex-col gap-2">
-                <label className={labelCls}>{mixMode ? 'Microfono (la tua voce)' : 'Audio Input Device'}</label>
-                <select
-                    value={selectedDeviceId}
-                    onChange={handleDeviceChange}
-                    className={`${inputCls} w-full`}
-                >
-                    <option value="default">Default System Device</option>
-                    {devices.map((device) => (
-                        <option key={device.deviceId} value={device.deviceId}>
-                            {device.label}
-                        </option>
-                    ))}
-                </select>
-            </div>
-
-            {/* C2: registrazione locale della diretta */}
-            <div className="flex flex-col gap-2">
-                <label className={labelCls}>Registrazione locale</label>
-                <label className="flex items-center gap-2 text-deco-ink text-xs cursor-pointer select-none">
-                    <input
-                        type="checkbox"
-                        checked={recordLocal}
-                        onChange={(e) => setRecordLocal(e.target.checked)}
-                        className="accent-[#C8A44E]"
-                    />
-                    Salva una copia MP3 della diretta in Documenti\StreamFlow
-                </label>
-                <p className="text-deco-inkDim text-[11px] leading-snug">
-                    Un file per sessione, stessa qualità dello stream. Un problema al file
-                    (es. disco pieno) non interrompe la diretta.
-                </p>
-            </div>
-
-            {/* Dettagli connessione (sola lettura, per diagnostica) */}
-            <div className="flex flex-col gap-1">
-                <label className={labelCls}>Connessione (preimpostata)</label>
-                <div className="bg-deco-bg border border-deco-brass/20 rounded-[3px] px-3 py-2 font-mono text-xs text-deco-inkDim">
-                    {STATION_PRESET.host}:{STATION_PRESET.port}{STATION_PRESET.mount} · MP3 {STATION_PRESET.bitrate} kbps
-                </div>
-            </div>
-
-            {/* D1: accesso al log diagnostico, per farsi mandare il file dall'utente */}
-            <div className="flex flex-col gap-2">
-                <label className={labelCls}>Diagnostica</label>
-                <div className="flex flex-wrap gap-2">
-                    <button
-                        type="button"
-                        onClick={runConnectionTest}
-                        disabled={testing || sessionActive}
-                        className="px-4 py-2 rounded-[2px] text-xs font-ui font-semibold uppercase tracking-[2px] border border-deco-brass/50 bg-transparent hover:bg-deco-brass/10 disabled:opacity-40 disabled:cursor-not-allowed text-deco-brass transition-colors"
-                    >
-                        {testing ? 'Test in corso…' : 'Test connessione'}
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => window.electronAPI.openLogFolder()}
-                        className="px-4 py-2 rounded-[2px] text-xs font-ui font-semibold uppercase tracking-[2px] border border-deco-brass/50 bg-transparent hover:bg-deco-brass/10 text-deco-brass transition-colors"
-                    >
-                        Apri cartella log
-                    </button>
-                </div>
-                <p className="text-deco-inkDim text-[11px] leading-snug">
-                    <strong className="text-deco-ink">Test connessione</strong> prova DNS, porta
-                    e trasmissione (20 secondi di silenzio) e scrive dove si rompe. Non serve il
-                    microfono, ma occupa il canale: non lanciarlo mentre qualcuno è in onda.
-                    Segui l&apos;esito nel pannello Log in basso.
-                </p>
-                <p className="text-deco-inkDim text-[11px] leading-snug">
-                    <strong className="text-deco-ink">Apri cartella log</strong> apre i file da
-                    allegare in caso di problemi. Contengono i dettagli tecnici; le password non
-                    vengono mai scritte nel log.
-                </p>
-            </div>
-
-            <p className="text-deco-inkDim text-xs italic">
-                Input Volume è nella schermata principale, sotto il pulsante ON AIR.
-            </p>
         </div>
     );
 };

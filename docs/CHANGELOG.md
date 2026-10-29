@@ -5,6 +5,27 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.10.0] — 2026-10-29 · Solid Snake
+
+Redesign completo, solo estetico: nessuna funzione tolta o aggiunta. Scelta di Simone fra tre proposte (la «C · Essenziale»). Dettagli in [log/0.10.0.md](./log/0.10.0.md).
+
+### Changed
+- **Addio allo stile analogico «Deco Dial».** Il verde Runtime portato quasi al nero, nel linguaggio di Runtime Live Machine Pro: caratteri Inter e JetBrains Mono (inclusi nell'app), rosso pieno per la diretta, ambra per la riconnessione.
+- **Schermata principale pensata per leggerla da lontano**: stato in parole («Pronto», «In onda», «Riconnessione»), timer alto fino a 150 px, titolo del programma, due barre di livello spesse al posto dei VU ad ago, e un pulsante largo quanto la colonna che dice l'azione: «Vai in onda», «Chiudi la diretta», «Annulla la riconnessione».
+- **Volume microfono e spie (Mix, registrazione) in una riga fissa in basso**, sempre a portata durante la diretta.
+- **Configurazione a schede**: DJ e accesso, Audio e Mix, Registrazione, Diagnostica. Nuovo pulsante per mostrare la password mentre la si scrive.
+- **Registro eventi** con le fonti in italiano (Diretta, Metadati, Sistema). **Now Playing** con campi grandi ed etichette.
+- **Nuova icona del programma**: anello verde e punto rosso, lo stesso segno dell'intestazione.
+- Testi con contrasto almeno 4.5:1, pulsanti alti almeno 44 px, fuoco da tastiera sempre visibile.
+
+### Removed
+- **Tema chiaro** (decisione di Simone): StreamFlow è solo scuro, come Live Machine Pro. La scelta salvata dalle versioni precedenti viene cancellata.
+
+### Note
+- Impostazioni, DJ scelto, dispositivo, volumi e password memorizzate restano dove sono: il redesign non tocca lo store né il file delle password. Verificato sull'app con i dati veri di uno studio.
+
+---
+
 ## [0.9.0] — 2026-10-29 · Solid Snake
 
 Prima versione con il sorgente pubblico e l'aggiornamento automatico. Dettagli in [log/0.9.0.md](./log/0.9.0.md).

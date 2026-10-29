@@ -35,8 +35,8 @@ import { createPortal } from 'react-dom';
    quindi arriva sempre fresco. Le animazioni non sporcano lo schermo: sono
    l'unica parte che resta pulita.
 
-   Qui quell'elemento ce l'abbiamo già, ed è il VU: la lancetta è un `transform:
-   rotate()` scritto a ogni fotogramma dal loop rAF (`VuMeter.tsx` +
+   Qui quell'elemento ce l'abbiamo già, ed è il VU: la barra di livello è un `transform:
+   scaleX()` scritto a ogni fotogramma dal loop rAF (`LevelMeter.tsx` +
    `useAudioVisualizer`). Vive sul suo strato, arriva sempre fresca — e proprio
    per questo non porta con sé niente del resto della finestra.
 

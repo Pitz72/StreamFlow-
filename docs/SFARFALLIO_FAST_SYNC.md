@@ -52,6 +52,11 @@ correlazione e **rovesciata nel verso**.
 È il VU. La lancetta è un `<rect>` SVG la cui `transform: rotate()` viene
 riscritta a ogni fotogramma dal loop `requestAnimationFrame` di
 `useAudioVisualizer` (`src/renderer/components/VuMeter.tsx`, `style.transform`).
+
+> **Dalla 0.10** il VU ad ago non c'è più: al suo posto due barre orizzontali
+> (`LevelMeter.tsx`), riempite con un `transform: scaleX()` scritto dallo stesso
+> loop (`hooks/levelMeter.ts`). Proprietà del compositore come prima: il
+> ragionamento qui sotto vale identico, «lancetta» si legga «barra».
 `transform` è una proprietà del compositore: la lancetta vive sul suo strato,
 arriva sempre fresca — e **proprio per questo non porta con sé niente del resto
 della finestra**. Su una macchina con Fast Sync attiva ci si aspetta esattamente

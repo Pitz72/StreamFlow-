@@ -1,6 +1,6 @@
 # Documentazione StreamFlow
 
-Hub centrale della documentazione tecnica di **Runtime StreamFlow** (v0.9.0 · Solid Snake).
+Hub centrale della documentazione tecnica di **Runtime StreamFlow** (v0.10.0 · Solid Snake).
 
 ## Guide
 
@@ -17,7 +17,7 @@ Hub centrale della documentazione tecnica di **Runtime StreamFlow** (v0.9.0 · S
 
 | Documento | Contenuto |
 |---|---|
-| [CHANGELOG.md](./CHANGELOG.md) | Tutte le versioni dalla 0.0.1 alla 0.9.0 |
+| [CHANGELOG.md](./CHANGELOG.md) | Tutte le versioni dalla 0.0.1 alla 0.10.0 |
 | [log/](./log/) | Log tecnici dettagliati per ogni singola sessione di sviluppo |
 
 ## Archivio

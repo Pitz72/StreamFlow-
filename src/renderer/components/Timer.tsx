@@ -45,17 +45,17 @@ const Timer = ({ isRunning }: TimerProps) => {
         return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
     };
 
+    // Grande, con cifre a larghezza fissa: si legge da lontano e non balla.
+    // Inter e non il monospazio: a questa misura lo zero puntato di JetBrains
+    // Mono disturba la lettura.
     return (
-        <div className="flex flex-col items-center gap-2">
-            <span className="font-ui font-semibold text-[11px] tracking-[6px] text-deco-brass uppercase">
-                ◆ Session ◆
-            </span>
-            <div
-                className={`font-display text-[76px] leading-none text-deco-inkStrong transition-opacity duration-300 ${isRunning ? 'opacity-100' : 'opacity-55'}`}
-                style={{ letterSpacing: '6px' }}
-            >
-                {formatTime(seconds)}
-            </div>
+        <div
+            role="timer"
+            aria-label="Durata della diretta"
+            className={`font-sans font-extrabold leading-[0.9] tabular-nums transition-colors duration-300 ${isRunning ? 'text-sf-ink' : 'text-sf-inkFaint'}`}
+            style={{ fontSize: 'clamp(72px, 17vh, 150px)', letterSpacing: '-0.03em' }}
+        >
+            {formatTime(seconds)}
         </div>
     );
 };

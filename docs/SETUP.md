@@ -44,7 +44,7 @@ src/
   preload/        — Bridge IPC sicuro
     index.ts
   renderer/       — Frontend React
-    components/   — OnAirButton, VuMeter, SettingsPanel, Timer, Toast
+    components/   — OnAirButton, LevelMeter, SettingsPanel, Timer, StreamLog
     hooks/        — useAudioDevices, useAudioVisualizer
     store/        — Zustand store
     App.tsx

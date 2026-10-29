@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useStore } from '../store/useStore';
-import { readLevel, setNeedle, type NeedleRefs } from './vuNeedle';
+import { readLevel, setLevel, type LevelRefs } from './levelMeter';
 import { resolveInputDeviceId } from './resolveInputDevice';
 
 /**
@@ -123,12 +123,12 @@ interface MixEngineOptions {
     enabled: boolean;
     /** Nome dshow del microfono scelto in Configurazione. */
     micDeviceName: string;
-    /** Le stesse lancette guidate dal visualizer: in MIX MODE mostrano il post-mix. */
-    needles: NeedleRefs;
+    /** Le stesse barre guidate dal visualizer: in MIX MODE mostrano il post-mix. */
+    levels: LevelRefs;
 }
 
-export const useMixEngine = ({ enabled, micDeviceName, needles }: MixEngineOptions) => {
-    const { leftRef, rightRef } = needles;
+export const useMixEngine = ({ enabled, micDeviceName, levels }: MixEngineOptions) => {
+    const { leftRef, rightRef } = levels;
 
     useEffect(() => {
         if (!enabled) return;
@@ -345,7 +345,7 @@ export const useMixEngine = ({ enabled, micDeviceName, needles }: MixEngineOptio
             silentOut.gain.value = 0;
             sink.connect(silentOut).connect(ctx.destination);
 
-            // 6) VU post-mix: le lancette mostrano quello che va davvero in onda,
+            // 6) VU post-mix: le barre mostrano quello che va davvero in onda,
             // limitatore compreso — è lo stesso punto da cui parte il PCM.
             const splitter = ctx.createChannelSplitter(2);
             out.connect(splitter);
@@ -360,8 +360,8 @@ export const useMixEngine = ({ enabled, micDeviceName, needles }: MixEngineOptio
 
             const animate = () => {
                 if (cancelled) return;
-                setNeedle(leftRef, readLevel(analyserL, bufL));
-                setNeedle(rightRef, readLevel(analyserR, bufR));
+                setLevel(leftRef, readLevel(analyserL, bufL));
+                setLevel(rightRef, readLevel(analyserR, bufR));
                 rafId = requestAnimationFrame(animate);
             };
             animate();
@@ -412,8 +412,8 @@ export const useMixEngine = ({ enabled, micDeviceName, needles }: MixEngineOptio
             if (workletUrl) URL.revokeObjectURL(workletUrl);
             ctx?.close().catch(() => { /* già chiuso */ });
             ctx = null;
-            setNeedle(leftRef, 0);
-            setNeedle(rightRef, 0);
+            setLevel(leftRef, 0);
+            setLevel(rightRef, 0);
             useStore.getState().setMusicDetected(false);
             useStore.getState().setMixReady(false);
         };

@@ -9,8 +9,8 @@ StreamFlow è strutturato su tre processi Electron separati che comunicano via I
 │  RENDERER PROCESS  (React 19)           │
 │  src/renderer/                          │
 │  • App.tsx — root, orchestrazione UI    │
-│  • components/ — OnAirButton, VuMeter,  │
-│    SettingsPanel, Timer, Toast          │
+│  • components/ — OnAirButton,           │
+│    LevelMeter, SettingsPanel, Timer     │
 │  • hooks/ — useAudioDevices,            │
 │    useAudioVisualizer                   │
 │  • store/ — Zustand (persist)           │
@@ -105,9 +105,11 @@ Lo store Zustand usa `partialize` per separare stato persistente da stato volati
 - `isStreaming`, `streamStatus`
 - `errorMessage`
 
-## Visualizzatore Audio (VU Meter)
+## Visualizzatore Audio (barre di livello)
 
-Il VU Meter usa Web Audio API nel renderer, indipendente da FFmpeg:
+Le barre L/R (`LevelMeter.tsx`, dalla 0.10 al posto del VU ad ago) usano Web Audio
+API nel renderer, indipendente da FFmpeg. Il loop scrive la copertura della parte
+spenta (`setLevel` in `hooks/levelMeter.ts`), senza re-render React:
 
 ```
 getUserMedia(deviceId)
