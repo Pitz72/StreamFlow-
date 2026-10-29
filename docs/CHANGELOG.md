@@ -5,6 +5,25 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.9.0] — 2026-10-29 · Solid Snake
+
+Prima versione con il sorgente pubblico e l'aggiornamento automatico. Dettagli in [log/0.9.0.md](./log/0.9.0.md).
+
+### Added
+- **Aggiornamento automatico dalle release GitHub** (`electron-updater`). StreamFlow controlla all'avvio e ogni 6 ore, scarica in sottofondo e installa **alla chiusura**, in silenzio. Durante una diretta non cerca aggiornamenti e non installa niente. Quando una versione è pronta compare il pulsante «Aggiorna a v…», che la installa subito e riapre l'app; è disattivato durante la diretta.
+- **Rilascio manuale**: il workflow «Build & Release» parte solo a mano da GitHub (Actions → Run workflow), mai a un push. Pubblica nella stessa repo, con le note prese da questo changelog, e si rifiuta di sovrascrivere una versione già uscita.
+
+### Changed
+- **Repository spostato a `Pitz72/StreamFlow-` e reso pubblico.** Le release non passano più dal repository ponte `Ecosystem-Runtime/StreamFlow-Releases`.
+- **Nome dell'edizione: «Solid Snake»** (era «Deborah Edition»). Sta in un solo punto, `streamflowEdition` in `package.json`, accanto alla versione (era L5).
+- **MIX MODE spiega cosa manda in onda davvero**: tutto quello che il PC suona, regia compresa ma anche notifiche, browser e altri programmi. G4 chiusa come comportamento voluto.
+
+### Note
+- Le versioni fino alla 0.8.7 non hanno l'aggiornamento automatico: la 0.9.0 va installata a mano, un'ultima volta, su ogni studio.
+- L'installer resta non firmato (L9): SmartScreen può avvisare al primo avvio.
+
+---
+
 ## [0.8.7] — 2026-10-29
 
 Le criticità dell'[analisi del 29 ottobre](./ANALISI-2026-10-29.md), senza funzioni nuove. Prove e misure in [log/0.8.7.md](./log/0.8.7.md).

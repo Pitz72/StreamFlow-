@@ -1,20 +1,24 @@
 name: Build & Release
 
-# Trigger esclusivamente manuale (workflow_dispatch).
-# Nessun build su push o tag — la pubblicazione è una decisione esplicita.
-# Modello identico a Runtime TelegramBot Desktop / FeedDownloader Pro:
-# solo Windows. macOS escluso di proposito — richiederebbe firma Developer ID +
+# Trigger esclusivamente manuale (workflow_dispatch): GitHub → Actions →
+# "Build & Release" → Run workflow. Nessun build su push o tag — un rilascio
+# arriva a tutti i DJ con l'aggiornamento automatico, quindi è una decisione
+# esplicita, mai un effetto collaterale di un commit.
+#
+# Solo Windows. macOS escluso di proposito — richiederebbe firma Developer ID +
 # notarizzazione Apple (a pagamento), altrimenti Gatekeeper segnala l'app come
 # "danneggiata" sui Mac altrui. Linux sospeso dalla 0.8.6 (27/09/2026): la build
 # si produceva ma non poteva trasmettere (elenco dispositivi solo DirectShow,
 # loopback della MIX MODE inesistente su Linux). Torna quando funzionerà davvero.
-# Poi il job `release` pubblica sul bridge repo pubblico.
+#
+# La release va su questa stessa repo (pubblica dalla 0.9.0): è da qui che
+# l'app installata legge latest.yml e scarica l'aggiornamento.
 
 on:
   workflow_dispatch:
     inputs:
       publish_release:
-        description: 'Publish release to bridge repo after build'
+        description: 'Pubblica la release (e quindi l''aggiornamento ai DJ) dopo la build'
         required: false
         default: 'true'
         type: choice
@@ -55,6 +59,8 @@ jobs:
     needs: [build-windows]
     runs-on: ubuntu-latest
     if: ${{ github.event.inputs.publish_release == 'true' }}
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -62,32 +68,47 @@ jobs:
         id: version
         run: echo "tag=v$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
 
+      # Una versione già pubblicata non si sovrascrive: i DJ che l'hanno già
+      # scaricata avrebbero un file diverso da quello dichiarato in latest.yml.
+      - name: Refuse an existing version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${{ steps.version.outputs.tag }}" --repo "${{ github.repository }}" > /dev/null 2>&1; then
+            echo "::error::La release ${{ steps.version.outputs.tag }} esiste già: alza la versione in package.json."
+            exit 1
+          fi
+
+      # Note di rilascio = la sezione della versione in docs/CHANGELOG.md.
+      - name: Extract release notes
+        run: |
+          v="${{ steps.version.outputs.tag }}"; v="${v#v}"
+          awk -v v="$v" '
+            $0 ~ "^## \\[" v "\\]" { on = 1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' docs/CHANGELOG.md > notes.md
+          cat >> notes.md <<'EOF'
+
+          ---
+          Chi ha già StreamFlow dalla 0.9.0 in poi riceve questa versione da solo: si scarica in sottofondo e si installa alla chiusura dell'app.
+
+          > L'installer non è firmato: al primo avvio SmartScreen può mostrare un avviso ("Ulteriori informazioni" → "Esegui comunque").
+          EOF
+
       - name: Download Windows artifacts
         uses: actions/download-artifact@v4
         with:
           name: windows-artifacts
           path: artifacts/windows
 
-      - name: Publish release to bridge repo
+      - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          repository: Ecosystem-Runtime/StreamFlow-Releases
-          token: ${{ secrets.RELEASE_TOKEN }}
           tag_name: ${{ steps.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
           name: "Runtime StreamFlow ${{ steps.version.outputs.tag }}"
-          body: |
-            ## Runtime StreamFlow ${{ steps.version.outputs.tag }}
-
-            Client desktop per streaming audio radiofonico.
-
-            Scarica l'installer per la tua piattaforma:
-
-            | Piattaforma | File |
-            |-------------|------|
-            | **Windows** | `*.exe` |
-
-            > La build Windows non è firmata: al primo avvio SmartScreen può
-            > mostrare un avviso ("Ulteriori informazioni" → "Esegui comunque").
+          body_path: notes.md
           files: |
             artifacts/windows/**/*.exe
             artifacts/windows/**/*.blockmap

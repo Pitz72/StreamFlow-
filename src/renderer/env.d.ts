@@ -1,5 +1,12 @@
 /** Versione app iniettata da Vite (define __APP_VERSION__ ← package.json) */
 declare const __APP_VERSION__: string;
+/** Nome dell'edizione (package.json → streamflowEdition), accanto alla versione */
+declare const __APP_EDITION__: string;
+
+type UpdateStatus =
+    | { state: 'idle' }
+    | { state: 'downloading'; version: string }
+    | { state: 'ready'; version: string };
 
 interface ElectronAPI {
     startStream: (config: {
@@ -40,6 +47,9 @@ interface ElectronAPI {
     deleteDjPassword: (args: { username: string }) => Promise<void>;
     openLogFolder: () => Promise<{ ok: boolean; dir: string | null }>;
     writeLog: (level: 'info' | 'success' | 'error', message: string) => void;
+    getUpdateStatus: () => Promise<UpdateStatus>;
+    onUpdateStatus: (callback: (s: UpdateStatus) => void) => () => void;
+    installUpdate: () => Promise<{ ok: boolean; message?: string }>;
     runConnectionTest: (config: {
         host: string;
         port: string;

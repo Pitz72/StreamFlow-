@@ -17,7 +17,21 @@ npm install
 | Comando | Descrizione |
 |---|---|
 | `npm run electron:dev` | Avvia in modalità sviluppo con live reload |
-| `npm run electron:build` | Genera installer NSIS in `builds/` |
+| `npm run electron:build` | Genera installer NSIS in `builds/` (solo locale, non pubblica niente) |
+
+## Rilascio (aggiornamento ai DJ)
+
+Un rilascio arriva a tutti gli studi con l'aggiornamento automatico, quindi parte solo a mano:
+
+1. alzare `version` in `package.json` (una versione già pubblicata viene rifiutata);
+2. scrivere la sezione `## [x.y.z]` in `docs/CHANGELOG.md`: diventa la nota di rilascio;
+3. commit e push su `main`;
+4. GitHub → **Actions** → **Build & Release** → **Run workflow**.
+
+Il workflow fa test e build su Windows e pubblica la release in `Pitz72/StreamFlow-` con
+`.exe`, `.blockmap` e `latest.yml`. Le app installate la trovano entro 6 ore (o al
+prossimo avvio), la scaricano e la installano alla chiusura. Con `publish_release = false`
+fa solo la build, scaricabile dagli artifact del workflow.
 
 ## Struttura Cartelle
 

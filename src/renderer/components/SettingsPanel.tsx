@@ -197,8 +197,10 @@ const SettingsPanel = () => {
                     Manda in onda microfono <strong className="text-deco-brass">+</strong> musica del computer
                 </label>
                 <p className="text-deco-inkDim text-[11px] leading-snug">
-                    Per chi non ha un mixer: StreamFlow somma la tua voce a quello che il PC
-                    sta suonando (Runtime Live Machine Pro). Non serve installare niente.
+                    Per chi non ha un mixer: StreamFlow somma la tua voce a tutto quello che
+                    il PC sta suonando. Quindi la regia di Runtime Live Machine Pro, ma anche
+                    ogni altro suono del computer: notifiche, browser, altri programmi.
+                    Non serve installare niente.
                 </p>
                 {mixMode && (
                     <>

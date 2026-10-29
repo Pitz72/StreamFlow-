@@ -27,6 +27,7 @@ export default defineConfig({
   publicDir: path.resolve(__dirname, 'public'),
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
+    __APP_EDITION__: JSON.stringify(pkg.streamflowEdition ?? ''),
   },
   resolve: {
     alias: {

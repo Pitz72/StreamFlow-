@@ -70,6 +70,16 @@ function App() {
         localStorage.setItem('streamflow-theme', theme);
     }, [theme]);
 
+    // Aggiornamento automatico: il main scarica in sottofondo e avvisa quando è
+    // pronto. Si installa alla chiusura; "Aggiorna ora" solo fuori dalla diretta.
+    const [update, setUpdate] = useState<UpdateStatus>({ state: 'idle' });
+    useEffect(() => {
+        const api = window.electronAPI;
+        if (!api?.onUpdateStatus) return;
+        void api.getUpdateStatus().then(setUpdate).catch(() => {});
+        return api.onUpdateStatus(setUpdate);
+    }, []);
+
     // Guard sincrono anti doppio-GO: il disabled del pulsante arriva solo quando
     // lo status 'connecting' torna dal main via IPC — nel frattempo un secondo
     // click avvierebbe un secondo stream.
@@ -363,8 +373,22 @@ function App() {
                             style={{ left: theme === 'light' ? '17px' : '2px' }}
                         ></span>
                     </button>
+                    {update.state === 'ready' && (
+                        <button
+                            onClick={() => {
+                                void window.electronAPI.installUpdate().then((r) => {
+                                    if (!r.ok && r.message) appendLog({ level: 'info', source: 'system', message: r.message });
+                                });
+                            }}
+                            disabled={sessionActive || streamStatus === 'connecting'}
+                            title={`La versione ${update.version} è scaricata: si installa da sola quando chiudi StreamFlow. Il pulsante la installa subito e riapre l'app (non durante la diretta).`}
+                            className="font-mono text-[10px] uppercase px-2 py-0.5 rounded-[3px] border border-deco-brass text-deco-brass hover:bg-deco-brass/10 disabled:opacity-40 disabled:cursor-not-allowed ml-2"
+                        >
+                            Aggiorna a v{update.version}
+                        </button>
+                    )}
                     <span className="text-deco-brass/60 text-[10px] font-mono ml-2">
-                        v{__APP_VERSION__} · Deborah Edition
+                        v{__APP_VERSION__}{__APP_EDITION__ ? ` · ${__APP_EDITION__}` : ''}
                     </span>
                 </div>
             </header>

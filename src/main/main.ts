@@ -1,6 +1,7 @@
 import { app, BrowserWindow, desktopCapturer, dialog, session } from 'electron';
 import path from 'path';
 import { initializeIpc, shutdownIpc, isStreamSessionActive, logSystem } from './ipcp';
+import { initUpdater, setUpdaterWindow } from './updater';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -151,6 +152,7 @@ function createWindow() {
     // initializeIpc è idempotente: registra gli handler una sola volta e
     // ricollega la finestra corrente a StreamManager/log sink a ogni chiamata.
     initializeIpc(mainWindow);
+    setUpdaterWindow(mainWindow);
 }
 
 // Una sola istanza: due StreamFlow si contenderebbero il device audio e il harbor.
@@ -168,6 +170,7 @@ if (!gotSingleInstanceLock) {
     app.whenReady().then(() => {
         enableSystemAudioLoopback();
         createWindow();
+        initUpdater(isStreamSessionActive, logSystem);
 
         app.on('activate', () => {
             if (BrowserWindow.getAllWindows().length === 0) {

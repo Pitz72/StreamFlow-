@@ -44,6 +44,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     /** Evento nato nel renderer (MIX MODE) da scrivere nel file di log. */
     writeLog: (level: 'info' | 'success' | 'error', message: string) =>
         ipcRenderer.send('renderer-log', level, message),
+    /** Aggiornamento automatico: stato corrente, avvisi dal main, installazione su richiesta. */
+    getUpdateStatus: () => ipcRenderer.invoke('get-update-status'),
+    onUpdateStatus: (callback: (s: { state: string; version?: string }) => void) => {
+        const handler = (_event: IpcRendererEvent, s: { state: string; version?: string }) => callback(s);
+        ipcRenderer.on('UPDATE_STATUS', handler);
+        return () => { ipcRenderer.removeListener('UPDATE_STATUS', handler); };
+    },
+    installUpdate: () => ipcRenderer.invoke('install-update'),
     runConnectionTest: (config: {
         host: string;
         port: string;

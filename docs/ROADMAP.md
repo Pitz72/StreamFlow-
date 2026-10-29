@@ -1,7 +1,8 @@
 # Roadmap — Runtime StreamFlow
 
 Documento ripristinato dalla conversazione strategica originale (Gemini AI Studio, 5 Mar 2026).
-Aggiornato al 27 settembre 2026 (v0.8.6): StreamFlow è un programma a sé e diventerà software libero (vedi sotto).
+Aggiornato al 29 ottobre 2026 (v0.9.0 · Solid Snake): repository pubblico e aggiornamento automatico fatti; restano licenza, preset e le lievi dell'analisi (vedi sotto).
+Prima: 27 settembre 2026 (v0.8.6), StreamFlow programma a sé e futuro software libero.
 Precedente cambio di direzione: 24 luglio 2026 (v0.7.0), client interno Runtime Radio.
 
 ---
@@ -31,13 +32,17 @@ Come già fatto con *Runtime TelegramBot Desktop Titan Edition* (12–13 agosto 
 *Runtime FeedDownloader Pro* (18 agosto 2026) e *Runtime Live Machine Pro* (13 settembre
 2026). Obiettivi:
 
-- **repository pubblico**, con licenza libera (gli altri tre sono MIT);
-- **release pubblicate nello stesso repository**, con il token integrato di GitHub;
-- **aggiornamento automatico** che legge le release dal repository pubblico — oggi
-  StreamFlow **non ce l'ha**: va costruito (Live Machine usa `electron-updater`);
-- **eliminazione del repository ponte** `Ecosystem-Runtime/StreamFlow-Releases`.
+- ✅ **repository pubblico** — fatto il 29/10/2026: `Pitz72/StreamFlow-`, su richiesta
+  diretta di Simone, prima della sessione dedicata. **Manca la licenza** (gli altri tre
+  sono MIT): finché non c'è, il codice è visibile ma non riutilizzabile;
+- ✅ **release pubblicate nello stesso repository**, con il token integrato di GitHub —
+  workflow «Build & Release», solo manuale (0.9.0);
+- ✅ **aggiornamento automatico** con `electron-updater` (0.9.0): scarica in sottofondo,
+  installa alla chiusura, mai durante una diretta;
+- **eliminazione del repository ponte** `Ecosystem-Runtime/StreamFlow-Releases` — ancora
+  da fare: non serve più a niente (nessuna versione lo interroga).
 
-**Quando:** in una sessione dedicata, una fase per sessione come per gli altri progetti.
+**Quando:** quello che resta (licenza, preset, repository ponte) in una sessione dedicata.
 Il modello da seguire è `docs/PIANO-APERTURA.md` del repository di Live Machine Pro
 (`Pitz72/RRLMP`). Primo atto di quella sessione: scrivere il `PIANO-APERTURA.md` di
 StreamFlow.
@@ -48,15 +53,35 @@ StreamFlow.
   un indirizzo email) sono nel codice, nella storia git e nei log di `docs/log/`. Va deciso
   cosa diventa pubblico e come: preset configurabile, storia conservata o no. La direzione
   «client interno» del 24 luglio (sezione qui sotto) va ridefinita.
-- **Aggiornamento automatico da costruire.** Nessuna versione installata oggi si aggiorna
-  da sola: gli studi dovranno installare a mano, un'ultima volta, la prima versione aperta.
+- ✅ **Aggiornamento automatico costruito** (0.9.0). Le versioni fino alla 0.8.7 non lo
+  hanno: gli studi installano a mano, un'ultima volta, la 0.9.0.
 - **Repo ponte senza traghetto?** Pubblica solo la v0.6.0 e nessuna versione installata la
   interroga (non esiste un updater): con ogni probabilità si può cancellare subito, come per
   FeedDownloader. Da verificare.
-- **Destinazione e nome.** Oggi `Ecosystem-Runtime/StreamFlow-`, privato (il vecchio
-  `Pitz72/StreamFlow-` reindirizza lì). Gli altri progetti aperti stanno in `Pitz72/<nome>`;
-  il trattino finale del nome è da decidere.
+- ✅ **Destinazione:** `Pitz72/StreamFlow-`, pubblico dal 29/10/2026. Il trattino finale
+  del nome è rimasto: cambiarlo ora sposterebbe anche l'indirizzo da cui l'app installata
+  legge gli aggiornamenti (`build.publish` in `package.json`).
+- ⚠️ **Il preset è già pubblico**: con la repo aperta, host, porta e nomi utente dei DJ
+  (codice, storia, log) sono visibili a tutti. Le password no. Resta da decidere se
+  togliere i nomi dal codice o cambiarli su AzuraCast.
 - **File di licenza assente**; `package.json` è `"private": true` e senza campo `license`.
+
+### 3. Lievi rimaste dall'analisi del 29 ottobre 2026
+
+Dall'[analisi](./ANALISI-2026-10-29.md), messe in roadmap da Simone il 29/10:
+
+- **L4 — Password negli argomenti di FFmpeg.** Altri programmi dello stesso utente
+  Windows possono leggerla dall'elenco dei processi. Da verificare se il FFmpeg incluso
+  (`ffmpeg-static`) supporta la lettura di un'opzione da file (`-/opzione file`, FFmpeg 7):
+  in MIX MODE lo stdin è già occupato dall'audio.
+- **L6 — README fermo alla 0.5.6.** Con la repo pubblica è la prima cosa che si vede.
+- **L8 — Costo di `PresentazioneContinua`.** Scelta documentata in
+  [SFARFALLIO_FAST_SYNC.md](./SFARFALLIO_FAST_SYNC.md): misurare ed eventualmente
+  alleggerire, senza toglierla.
+- **L9 — Installer non firmato.** Certificato a pagamento, oppure firma gratuita per
+  progetti open source (SignPath Foundation), che richiede una licenza libera.
+- **L10 — Password con lettere accentate.** UTF-8 o latin-1 verso l'harbor: serve una prova
+  sul server vero con un account di test.
 - **Solo Windows** all'apertura: Linux è sospeso dalla 0.8.6.
 - **Credito ai modelli.** Trailer `Co-Authored-By` contati il 27/09: Claude Opus 5 (17),
   Sonnet 4.6 (12), Opus 4.7 (11), Fable 5 (10), Opus 5.5 (4), Opus 4.8 (4). La fase di marzo
