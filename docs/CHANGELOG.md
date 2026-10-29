@@ -5,6 +5,15 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.10.2] — 2026-10-29 · Solid Snake
+
+Una correzione sola, sulla MIX MODE. Dettagli e prove in [log/0.10.2.md](./log/0.10.2.md).
+
+### Fixed
+- **MIX MODE: la musica del computer poteva sparire dalla diretta, lasciando in onda solo la voce.** È successo a Deborah, che ha dovuto chiudere e riaprire StreamFlow. L'audio del computer veniva agganciato una volta sola, all'uscita audio predefinita di Windows del momento. Se poi l'uscita cambiava (cuffie, microfono USB con presa cuffie, Bluetooth, HDMI) o il computer andava in standby, Live Machine Pro suonava altrove e StreamFlow ascoltava un'uscita muta, senza errori. Ora l'aggancio si rifà da solo quando l'uscita predefinita cambia davvero, quando la cattura si interrompe, al risveglio dallo standby e dopo un silenzio lungo della musica (al massimo due tentativi per silenzio). La voce non si ferma mai: al peggio manca un attimo di musica. Ogni riaggancio è scritto nel registro eventi e nel log, con l'uscita che StreamFlow sta ascoltando.
+
+---
+
 ## [0.10.1] — 2026-10-29 · Solid Snake
 
 Le lievi rimaste dall'[analisi del 29 ottobre](./ANALISI-2026-10-29.md), e la prima versione che arriva con l'aggiornamento automatico. Dettagli e misure in [log/0.10.1.md](./log/0.10.1.md).

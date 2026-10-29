@@ -78,6 +78,64 @@ const dbToMul = (db: number) => Math.pow(10, db / 20);
 const MUSIC_GRACE_MS = 4000;
 
 /**
+ * RIAGGANCIO DELL'AUDIO DI SISTEMA. Il loopback di Windows è legato all'uscita
+ * su cui nasce: se dopo l'avvio l'uscita predefinita cambia (cuffie, microfono
+ * USB con presa cuffie, Bluetooth, HDMI) o il computer va in standby, Live
+ * Machine Pro suona altrove e StreamFlow continua ad ascoltare un'uscita muta.
+ * In onda resta solo la voce, senza un errore. Successo davvero (Deborah):
+ * chiudere e riaprire StreamFlow rifaceva l'aggancio. Ora lo rifà da sé.
+ */
+/** Silenzio della musica dopo cui si riaggancia: un tentativo per soglia, poi basta fino al ritorno della musica. */
+const SILENCE_REATTACH_AFTER_MS = [20_000, 120_000];
+/** Un salto dell'orologio così lungo fra due controlli vuol dire standby. */
+const SUSPEND_GAP_MS = 10_000;
+/** Windows manda più avvisi di fila quando un dispositivo entra o esce. */
+const DEVICECHANGE_DEBOUNCE_MS = 1_500;
+/** Attese fra i tentativi quando la cattura si interrompe da sola. */
+const ENDED_RETRY_MS = [1_000, 3_000, 10_000, 30_000];
+
+/** I vincoli della cattura: vedi il commento in start(), punto 1. */
+const SYSTEM_AUDIO_CONSTRAINTS: MediaTrackConstraints = {
+    echoCancellation: false,
+    noiseSuppression: false,
+    autoGainControl: false,
+};
+
+/**
+ * Cattura l'audio di sistema. La traccia video esiste solo perché
+ * getDisplayMedia la pretende: la si ferma subito, così Windows non cattura
+ * davvero nessuno schermo.
+ */
+const captureSystemAudio = async (): Promise<MediaStream> => {
+    const stream = await navigator.mediaDevices.getDisplayMedia({ audio: SYSTEM_AUDIO_CONSTRAINTS, video: true });
+    stream.getVideoTracks().forEach((t) => {
+        stream.removeTrack(t);
+        t.stop();
+    });
+    if (!stream.getAudioTracks()[0]) {
+        stream.getTracks().forEach((t) => t.stop());
+        throw new Error('Windows non ha fornito l\'audio di sistema');
+    }
+    return stream;
+};
+
+/**
+ * Identità dell'uscita predefinita di Windows ("Predefinito - Cuffie (…)").
+ * Serve a riagganciare solo quando cambia davvero: un avviso di dispositivi
+ * cambiati può riguardare una webcam, e un riaggancio inutile costa un attimo
+ * di musica in onda. Stringa vuota se non si riesce a leggerla.
+ */
+const readDefaultOutput = async (): Promise<{ key: string; label: string }> => {
+    try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const d = devices.find((x) => x.kind === 'audiooutput' && x.deviceId === 'default');
+        return d ? { key: `${d.groupId}|${d.label}`, label: d.label || 'senza nome' } : { key: '', label: '' };
+    } catch {
+        return { key: '', label: '' };
+    }
+};
+
+/**
  * Sorgente del worklet. Vive come stringa e viene caricata da un blob URL:
  * un file .js separato non è caricabile come modulo da file:// in produzione
  * (origine opaca), il blob eredita invece l'origine del documento.
@@ -141,6 +199,19 @@ export const useMixEngine = ({ enabled, micDeviceName, levels }: MixEngineOption
         let musicTimer: ReturnType<typeof setInterval> | null = null;
         let unsubscribeGains: (() => void) | null = null;
         let workletUrl: string | null = null;
+        // Riaggancio dell'audio di sistema (vedi SILENCE_REATTACH_AFTER_MS).
+        let systemSource: MediaStreamAudioSourceNode | null = null;
+        let musicInput: GainNode | null = null;
+        let defaultOutputKey = '';
+        let reattaching = false;
+        let pendingReason: string | null = null;
+        let awaitingMusic = false;
+        let deviceTimer: ReturnType<typeof setTimeout> | null = null;
+        const timers = new Set<ReturnType<typeof setTimeout>>();
+        const later = (ms: number, fn: () => void) => {
+            const id = setTimeout(() => { timers.delete(id); fn(); }, ms);
+            timers.add(id);
+        };
 
         const { appendLog, setErrorMessage, setMusicDetected, setMixReady } = useStore.getState();
 
@@ -171,10 +242,86 @@ export const useMixEngine = ({ enabled, micDeviceName, levels }: MixEngineOption
             });
         };
 
+        /**
+         * Collega una cattura nuova al canale musica e stacca la vecchia. Il resto
+         * del grafo (voce, limitatore, uscita verso FFmpeg) non si ferma mai: al
+         * massimo in onda manca un attimo di musica.
+         */
+        const plugSystem = (stream: MediaStream) => {
+            if (!ctx || !musicInput) return;
+            const oldSource = systemSource;
+            const oldStream = systemStream;
+            systemStream = stream;
+            systemSource = ctx.createMediaStreamSource(stream);
+            systemSource.connect(musicInput);
+            oldSource?.disconnect();
+            // stop() non fa scattare 'ended': il vecchio ascoltatore resta muto.
+            if (oldStream && oldStream !== stream) oldStream.getTracks().forEach((t) => t.stop());
+            const track = stream.getAudioTracks()[0];
+            track.addEventListener('ended', () => {
+                if (cancelled || systemStream !== stream) return;
+                log('error', 'MIX MODE: la cattura dell\'audio di sistema si è interrotta: provo a riagganciarla');
+                recoverEnded(0);
+            });
+        };
+
+        /** Rifà l'aggancio dell'audio di sistema. true se è riuscito. */
+        const reattach = async (reason: string): Promise<boolean> => {
+            if (cancelled || !ctx || !musicInput) return false;
+            if (reattaching) { pendingReason = reason; return false; }
+            reattaching = true;
+            let ok = false;
+            try {
+                log('info', `MIX MODE: riaggancio l'audio di sistema (${reason})`);
+                const stream = await captureSystemAudio();
+                if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return false; }
+                plugSystem(stream);
+                const out = await readDefaultOutput();
+                defaultOutputKey = out.key;
+                awaitingMusic = true;
+                ok = true;
+                log('success', `MIX MODE: audio di sistema riagganciato${out.label ? ` — uscita: ${out.label}` : ''}`);
+            } catch (err) {
+                log('error', `MIX MODE: riaggancio dell'audio di sistema non riuscito (${err instanceof Error ? err.message : String(err)})`);
+            } finally {
+                reattaching = false;
+                if (pendingReason && !cancelled) {
+                    const next = pendingReason;
+                    pendingReason = null;
+                    void reattach(next);
+                }
+            }
+            return ok;
+        };
+
+        /** Cattura interrotta: si riprova con attese crescenti, poi si avvisa il DJ. */
+        const recoverEnded = (attempt: number) => {
+            if (attempt >= ENDED_RETRY_MS.length) {
+                const msg = 'l\'audio di sistema (la musica) si è interrotto e non riesco a riagganciarlo: non va in onda. Spegni e riaccendi MIX MODE a diretta ferma.';
+                log('error', `MIX MODE: ${msg}`);
+                setErrorMessage(`MIX MODE: ${msg}`);
+                return;
+            }
+            later(ENDED_RETRY_MS[attempt], () => {
+                if (cancelled) return;
+                void reattach('cattura interrotta').then((ok) => { if (!ok && !cancelled) recoverEnded(attempt + 1); });
+            });
+        };
+
+        /** Windows ha aggiunto, tolto o cambiato un dispositivo audio. */
+        const onDeviceChange = () => {
+            if (deviceTimer) clearTimeout(deviceTimer);
+            deviceTimer = setTimeout(() => {
+                deviceTimer = null;
+                void readDefaultOutput().then((out) => {
+                    if (cancelled || !out.key || out.key === defaultOutputKey) return;
+                    void reattach(`l'uscita audio predefinita di Windows è cambiata: ${out.label}`);
+                });
+            }, DEVICECHANGE_DEBOUNCE_MS);
+        };
+
         const start = async () => {
-            // 1) AUDIO DI SISTEMA. La traccia video esiste solo perché
-            // getDisplayMedia la pretende: la fermiamo subito, così Windows non
-            // cattura davvero nessuno schermo.
+            // 1) AUDIO DI SISTEMA (captureSystemAudio).
             //
             // I tre vincoli non sono decorativi. Con `audio: true` e basta,
             // Chromium applica alla cattura il suo trattamento da videochiamata,
@@ -182,29 +329,16 @@ export const useMixEngine = ({ enabled, micDeviceName, levels }: MixEngineOption
             // dinamica propria — veniva inseguito e gonfiato fino a coprire la
             // voce. E siccome l'AGC agisce a monte di `musicGain`, abbassare il
             // cursore della musica non serviva a niente: il livello si rialzava.
-            systemStream = await navigator.mediaDevices.getDisplayMedia({
-                audio: {
-                    echoCancellation: false,
-                    noiseSuppression: false,
-                    autoGainControl: false,
-                },
-                video: true,
-            });
-            systemStream.getVideoTracks().forEach((t) => {
-                systemStream?.removeTrack(t);
-                t.stop();
-            });
-            if (cancelled) return;
-            const systemTrack = systemStream.getAudioTracks()[0];
-            if (!systemTrack) {
-                throw new Error('Windows non ha fornito l\'audio di sistema');
-            }
+            const firstSystem = await captureSystemAudio();
+            // Subito in systemStream: se il resto dell'avvio fallisce, la pulizia la ferma.
+            systemStream = firstSystem;
+            if (cancelled) { firstSystem.getTracks().forEach((t) => t.stop()); return; }
+            const systemTrack = firstSystem.getAudioTracks()[0];
 
             // Un vincolo su getDisplayMedia può essere ignorato senza che nessuno
             // se ne lamenti: dipende da Chromium e dal driver. Questa riga è
             // l'unico modo di sapere, leggendo il log di una diretta vera, se
             // sulla macchina della DJ l'AGC è davvero spento.
-            watchTrack(systemTrack, 'l\'audio di sistema (la musica)');
             const sys = systemTrack.getSettings();
             const flag = (v: boolean | undefined) =>
                 v === undefined ? 'non riportato' : v ? 'ACCESO' : 'spento';
@@ -270,7 +404,14 @@ export const useMixEngine = ({ enabled, micDeviceName, levels }: MixEngineOption
             musicGain.gain.value = pctToMul(initial.musicGain);
 
             ctx.createMediaStreamSource(micStream).connect(micGain).connect(bus);
-            ctx.createMediaStreamSource(systemStream).connect(musicGain).connect(bus);
+            musicGain.connect(bus);
+            musicInput = musicGain;
+            plugSystem(firstSystem);
+            const firstOutput = await readDefaultOutput();
+            if (cancelled) return;
+            defaultOutputKey = firstOutput.key;
+            if (firstOutput.label) log('info', `MIX MODE: ascolto l'uscita predefinita di Windows — ${firstOutput.label}`);
+            navigator.mediaDevices.addEventListener('devicechange', onDeviceChange);
 
             // I due cursori agiscono in diretta. setTargetAtTime invece di
             // un'assegnazione secca: un salto di guadagno a campione si sente
@@ -377,18 +518,43 @@ export const useMixEngine = ({ enabled, micDeviceName, levels }: MixEngineOption
             const musicBuf = new Uint8Array(musicAnalyser.frequencyBinCount);
             let lastSoundAt = performance.now();
             let lastReported: boolean | null = null;
+            let lastTick = Date.now();
+            let silenceAttempts = 0;
 
             musicTimer = setInterval(() => {
+                // Standby: il timer non gira mentre il computer dorme, quindi al
+                // risveglio il primo controllo vede un salto dell'orologio.
+                const wall = Date.now();
+                if (wall - lastTick > SUSPEND_GAP_MS) void reattach('il computer è uscito dallo standby');
+                lastTick = wall;
+
                 musicAnalyser.getByteFrequencyData(musicBuf);
                 let peak = 0;
                 for (let i = 0; i < musicBuf.length; i++) if (musicBuf[i] > peak) peak = musicBuf[i];
 
                 const now = performance.now();
-                if (peak > MUSIC_SILENCE_THRESHOLD) lastSoundAt = now;
+                if (peak > MUSIC_SILENCE_THRESHOLD) {
+                    lastSoundAt = now;
+                    silenceAttempts = 0;
+                    if (awaitingMusic) {
+                        awaitingMusic = false;
+                        log('success', 'MIX MODE: la musica del computer arriva di nuovo');
+                    }
+                }
                 const detected = now - lastSoundAt < MUSIC_GRACE_MS;
                 if (detected !== lastReported) {
                     lastReported = detected;
                     setMusicDetected(detected);
+                }
+
+                // Silenzio lungo: può essere una pausa vera (parlato) o un aggancio
+                // rimasto su un'uscita muta. Riagganciare non costa niente se è
+                // silenzio comunque; al massimo due tentativi per silenzio.
+                const silentFor = now - lastSoundAt;
+                if (silenceAttempts < SILENCE_REATTACH_AFTER_MS.length
+                    && silentFor >= SILENCE_REATTACH_AFTER_MS[silenceAttempts]) {
+                    silenceAttempts++;
+                    void reattach(`nessuna musica dal computer da ${Math.round(silentFor / 1000)} s`);
                 }
             }, 250);
 
@@ -404,6 +570,10 @@ export const useMixEngine = ({ enabled, micDeviceName, levels }: MixEngineOption
 
         return () => {
             cancelled = true;
+            navigator.mediaDevices.removeEventListener('devicechange', onDeviceChange);
+            if (deviceTimer) clearTimeout(deviceTimer);
+            timers.forEach((id) => clearTimeout(id));
+            timers.clear();
             if (rafId !== null) cancelAnimationFrame(rafId);
             if (musicTimer !== null) clearInterval(musicTimer);
             unsubscribeGains?.();
