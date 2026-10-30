@@ -1,0 +1,241 @@
+<title>Marchio StreamFlow</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Archivo:wdth,wght@112,800&family=Sora:wght@600&family=Chakra+Petch:wght@700&family=Manrope:wght@800&family=Lexend:wght@500&family=Figtree:wght@800&display=swap">
+<style>
+/* Layout: tavola di scelta, schede numerate (il numero è quello che Simone dirà in chat),
+   due colonne larghe, una sul telefono. Un solo mondo visivo: scuro come l'app. */
+:root {
+  --bg: #040B0A;        /* verde Runtime quasi nero, fondo dell'app */
+  --surface: #0A1513;
+  --line: #1C332E;
+  --ink: #F4F8F6;
+  --ink-soft: #C9D6D2;
+  --ink-dim: #93A8A2;
+  --green: #3FD69B;
+  --mint: #A8F0CE;
+  --red: #EF4A3C;
+  --chip-light: #EEF1F2;  /* barra delle applicazioni chiara di Windows */
+  --chip-dark: #1B1F22;   /* barra scura */
+  --font-ui: 'Atkinson Hyperlegible', 'Segoe UI', system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-ui);
+  font-size: 19px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 40px 64px;
+}
+.wrap { max-width: 1240px; margin: 0 auto; display: grid; gap: 40px; }
+header { display: grid; gap: 12px; max-width: 70ch; }
+.eyebrow { font-size: 15px; letter-spacing: .16em; text-transform: uppercase; color: var(--green); font-weight: 700; }
+h1 { font-size: clamp(34px, 5vw, 52px); line-height: 1.08; margin: 0; text-wrap: balance; }
+header p { margin: 0; color: var(--ink-soft); font-size: 20px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 540px), 1fr)); gap: 24px; }
+.card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 20px;
+  padding: 24px; display: grid; gap: 20px; min-width: 0;
+}
+.head { display: flex; gap: 16px; align-items: flex-start; }
+.num {
+  flex: none; width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--green); color: var(--bg); font-size: 30px; font-weight: 700;
+}
+.head h2 { margin: 0; font-size: 28px; line-height: 1.15; }
+.head p { margin: 4px 0 0; color: var(--ink-soft); }
+.show { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px; align-items: center; }
+.big { width: 100%; max-width: 300px; aspect-ratio: 1; justify-self: center; }
+.big svg, .ico svg { display: block; width: 100%; height: 100%; }
+.sizes { display: grid; gap: 10px; }
+.chip { display: flex; align-items: center; gap: 14px; padding: 10px 14px; border-radius: 12px; }
+.chip.dark { background: var(--chip-dark); }
+.chip.light { background: var(--chip-light); }
+.ico.s64 { width: 64px; height: 64px; }
+.ico.s32 { width: 32px; height: 32px; }
+.ico.s16 { width: 16px; height: 16px; }
+.sizes small { font-size: 14px; color: var(--ink-dim); text-align: center; }
+.lockup {
+  display: flex; align-items: center; gap: 18px; padding: 20px 22px; border-radius: 14px;
+  background: var(--bg); border: 1px solid var(--line); overflow: hidden; min-width: 0;
+}
+.lockup .ico { width: 84px; height: 84px; flex: none; }
+.wm { font-size: clamp(30px, 4.4vw, 48px); line-height: 1; white-space: nowrap; color: var(--ink); }
+.wm .a { color: var(--green); }
+.w1 { font-family: 'Archivo', sans-serif; font-weight: 800; font-stretch: 112%; letter-spacing: -0.02em; }
+.w2 { font-family: 'Sora', sans-serif; font-weight: 600; letter-spacing: -0.03em; }
+.w2 .a { background: linear-gradient(100deg, #C2F7DF, #3FD69B 60%, #1E9E72); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.w3 { font-family: 'Chakra Petch', sans-serif; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.w4 { font-family: 'Manrope', sans-serif; font-weight: 800; letter-spacing: -0.03em; }
+.w5 { font-family: 'Lexend', sans-serif; font-weight: 500; letter-spacing: -0.02em; }
+.w5 .a { color: var(--mint); }
+.w6 { font-family: 'Figtree', sans-serif; font-weight: 800; letter-spacing: -0.02em; }
+.o-live { display: inline-block; width: .56em; height: .56em; vertical-align: -0.02em; margin: 0 .02em; }
+.o-live svg { width: 100%; height: 100%; display: block; }
+.slogans { display: grid; gap: 16px; }
+.slogans h2 { margin: 0; font-size: 28px; }
+.slogans > p { margin: 0; color: var(--ink-soft); }
+.sl { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 16px; }
+.sl div { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 20px 22px; display: grid; gap: 6px; }
+.sl b { font-size: 15px; letter-spacing: .14em; color: var(--green); }
+.sl span { font-size: 28px; line-height: 1.2; }
+.sl em { font-style: normal; color: var(--green); font-weight: 700; }
+.sl small { color: var(--ink-dim); font-size: 16px; }
+@media (max-width: 560px) {
+  .show { grid-template-columns: 1fr; }
+  .sizes { grid-template-columns: 1fr 1fr; }
+  .sizes small { grid-column: 1 / -1; }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">Runtime StreamFlow · marchio</span>
+    <h1>Sei strade per il marchio di StreamFlow</h1>
+    <p>Ogni scheda ha il simbolo, la prova a 64, 32 e 16 pixel sulla barra delle applicazioni scura e chiara, e un'idea di logotipo. Nessuna usa lo schema lettera più orbita di Titan e FeedDownloader. Scrivimi il numero che preferisci, oppure due da mescolare.</p>
+  </header>
+
+  <section class="grid">
+    <article class="card">
+      <div class="head"><span class="num">1</span><div><h2>Tre corsie</h2><p>Una S fatta di tre corsie parallele che scorrono senza interrompersi, come un flusso a più canali. Il punto rosso corre davanti: è la diretta.</p></div></div>
+      <div class="show"><div class="big" data-icon="1"></div>
+        <div class="sizes"><div class="chip dark"><span class="ico s64" data-icon="1"></span><span class="ico s32" data-icon="1"></span><span class="ico s16" data-icon="1"></span></div><div class="chip light"><span class="ico s64" data-icon="1"></span><span class="ico s32" data-icon="1"></span><span class="ico s16" data-icon="1"></span></div><small>64 · 32 · 16 px</small></div></div>
+      <div class="lockup"><span class="ico" data-icon="1"></span><span class="wm w1">Stream<span class="a">Flow</span></span></div>
+    </article>
+
+    <article class="card">
+      <div class="head"><span class="num">2</span><div><h2>Onda</h2><p>La S è un'onda sonora morbida, con una sfumatura dal verde chiaro al verde profondo e un leggero alone, nello spirito ricco di Live Machine. Il punto rosso è il segnale che parte.</p></div></div>
+      <div class="show"><div class="big" data-icon="2"></div>
+        <div class="sizes"><div class="chip dark"><span class="ico s64" data-icon="2"></span><span class="ico s32" data-icon="2"></span><span class="ico s16" data-icon="2"></span></div><div class="chip light"><span class="ico s64" data-icon="2"></span><span class="ico s32" data-icon="2"></span><span class="ico s16" data-icon="2"></span></div><small>64 · 32 · 16 px</small></div></div>
+      <div class="lockup"><span class="ico" data-icon="2"></span><span class="wm w2">Stream<span class="a">Flow</span></span></div>
+    </article>
+
+    <article class="card">
+      <div class="head"><span class="num">3</span><div><h2>Livelli</h2><p>La S è disegnata dalle barre di livello orizzontali dell'app: verdi a sinistra, ambra e rosse dove il segnale arriva al picco. È il marchio che più somiglia allo schermo di StreamFlow.</p></div></div>
+      <div class="show"><div class="big" data-icon="3"></div>
+        <div class="sizes"><div class="chip dark"><span class="ico s64" data-icon="3"></span><span class="ico s32" data-icon="3"></span><span class="ico s16" data-icon="3"></span></div><div class="chip light"><span class="ico s64" data-icon="3"></span><span class="ico s32" data-icon="3"></span><span class="ico s16" data-icon="3"></span></div><small>64 · 32 · 16 px</small></div></div>
+      <div class="lockup"><span class="ico" data-icon="3"></span><span class="wm w3">Stream<span class="a">Flow</span></span></div>
+    </article>
+
+    <article class="card">
+      <div class="head"><span class="num">4</span><div><h2>Un microfono</h2><p>La ragione d'essere di StreamFlow: uno speaker, un microfono USB, in onda. Le fessure della griglia escono dal microfono come linee di flusso; la spia rossa dice che sei in diretta.</p></div></div>
+      <div class="show"><div class="big" data-icon="4"></div>
+        <div class="sizes"><div class="chip dark"><span class="ico s64" data-icon="4"></span><span class="ico s32" data-icon="4"></span><span class="ico s16" data-icon="4"></span></div><div class="chip light"><span class="ico s64" data-icon="4"></span><span class="ico s32" data-icon="4"></span><span class="ico s16" data-icon="4"></span></div><small>64 · 32 · 16 px</small></div></div>
+      <div class="lockup"><span class="ico" data-icon="4"></span><span class="wm w4">Stream<span class="a">Flow</span></span></div>
+    </article>
+
+    <article class="card">
+      <div class="head"><span class="num">5</span><div><h2>Flusso continuo</h2><p>Un nastro senza fine: la diretta che non cade, la promessa delle 0.6 e 0.10 collaudate in onda. Il punto rosso viaggia sul nastro.</p></div></div>
+      <div class="show"><div class="big" data-icon="5"></div>
+        <div class="sizes"><div class="chip dark"><span class="ico s64" data-icon="5"></span><span class="ico s32" data-icon="5"></span><span class="ico s16" data-icon="5"></span></div><div class="chip light"><span class="ico s64" data-icon="5"></span><span class="ico s32" data-icon="5"></span><span class="ico s16" data-icon="5"></span></div><small>64 · 32 · 16 px</small></div></div>
+      <div class="lockup"><span class="ico" data-icon="5"></span><span class="wm w5">stream<span class="a">flow</span></span></div>
+    </article>
+
+    <article class="card">
+      <div class="head"><span class="num">6</span><div><h2>Faro</h2><p>L'evoluzione del marchio di oggi: il punto rosso resta al centro, l'anello verde diventa onde che si aprono in diagonale, come una S che trasmette. Nel logotipo la «o» è la spia della diretta.</p></div></div>
+      <div class="show"><div class="big" data-icon="6"></div>
+        <div class="sizes"><div class="chip dark"><span class="ico s64" data-icon="6"></span><span class="ico s32" data-icon="6"></span><span class="ico s16" data-icon="6"></span></div><div class="chip light"><span class="ico s64" data-icon="6"></span><span class="ico s32" data-icon="6"></span><span class="ico s16" data-icon="6"></span></div><small>64 · 32 · 16 px</small></div></div>
+      <div class="lockup"><span class="ico" data-icon="6"></span><span class="wm w6">Stream<span class="a">Fl<span class="o-live"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="37" fill="none" stroke="#3FD69B" stroke-width="26"/><circle cx="50" cy="50" r="12" fill="#EF4A3C"/></svg></span>w</span></span></div>
+    </article>
+  </section>
+
+  <section class="slogans">
+    <h2>Lo slogan del banner</h2>
+    <p>Come «On Air. In Control.» di Live Machine: due frasi brevi in inglese, la seconda in verde. Scegli la lettera.</p>
+    <div class="sl">
+      <div><b>A</b><span>Plug In. <em>Go Live.</em></span><small>Collega il microfono, sei in onda. Zero configurazioni.</small></div>
+      <div><b>B</b><span>One Mic. <em>On Air.</em></span><small>Basta un microfono USB per andare in diretta.</small></div>
+      <div><b>C</b><span>Your Voice. <em>Never Drops.</em></span><small>La diretta che non cade, anche se la rete vacilla.</small></div>
+    </div>
+  </section>
+</div>
+
+<script>
+const BG = (id) => `<defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#10261F"/><stop offset="1" stop-color="#050C0A"/></linearGradient></defs>
+  <rect x="40" y="40" width="944" height="944" rx="220" fill="url(#${id})"/>
+  <rect x="41.5" y="41.5" width="941" height="941" rx="218.5" fill="none" stroke="#FFFFFF" stroke-opacity=".08" stroke-width="3"/>`;
+
+// 1 · Tre corsie: tre percorsi concentrici della stessa S, sfalsati alle estremità
+function lane(o, topEnd, botEnd) {
+  return `M${topEnd} ${256 - o} H437 A${128 + o} ${128 + o} 0 0 0 437 ${512 + o} H587 A${128 - o} ${128 - o} 0 0 1 587 ${768 - o} H${botEnd}`;
+}
+const I1 = `${BG('g1')}
+  <g fill="none" stroke-width="32" stroke-linecap="round">
+    <path d="${lane(-46, 577, 387)}" stroke="#1C9F72"/>
+    <path d="${lane(0, 617, 427)}" stroke="#3FD69B"/>
+    <path d="${lane(46, 657, 467)}" stroke="#A8F0CE"/>
+  </g>
+  <circle cx="702" cy="256" r="30" fill="#EF4A3C"/>`;
+
+// 2 · Onda: S morbida a sfumatura con alone
+const S2 = 'M676 300 C620 228 470 214 396 262 C318 312 330 416 430 456 L590 520 C700 564 716 690 640 752 C566 812 412 808 344 730';
+const I2 = `${BG('g2')}
+  <defs>
+    <linearGradient id="w2" gradientUnits="userSpaceOnUse" x1="700" y1="220" x2="330" y2="800"><stop offset="0" stop-color="#C8F8E2"/><stop offset=".45" stop-color="#3FD69B"/><stop offset="1" stop-color="#11785B"/></linearGradient>
+    <filter id="f2" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="26"/></filter>
+  </defs>
+  <g transform="translate(512 506) scale(.9) translate(-510 -515)">
+    <path d="${S2}" fill="none" stroke="url(#w2)" stroke-width="132" stroke-linecap="round" opacity=".55" filter="url(#f2)"/>
+    <path d="${S2}" fill="none" stroke="url(#w2)" stroke-width="132" stroke-linecap="round"/>
+    <circle cx="778" cy="236" r="44" fill="#EF4A3C" opacity=".6" filter="url(#f2)"/>
+    <circle cx="778" cy="236" r="40" fill="#EF4A3C"/>
+  </g>`;
+
+// 3 · Livelli: righe di barre che disegnano la S, colore da livello (verde → ambra → rosso)
+// griglia 7 colonne × 10 righe: ogni riga è una o due barre (colonna iniziale, colonna finale)
+const rows = [[[1,5]],[[0,1],[5,6]],[[0,1]],[[0,2]],[[1,4]],[[2,5]],[[4,6]],[[5,6]],[[0,1],[5,6]],[[1,5]]];
+let bars = '';
+rows.forEach((segs, i) => {
+  const y = 219 + i * 60;
+  segs.forEach(([c0, c1]) => {
+    const x0 = 260 + c0 * 72 + 5, x1 = 260 + (c1 + 1) * 72 - 5;
+    bars += `<rect x="${x0}" y="${y}" width="${x1 - x0}" height="46" rx="23"/>`;
+  });
+});
+const I3 = `${BG('g3')}
+  <defs><linearGradient id="v3" gradientUnits="userSpaceOnUse" x1="260" y1="0" x2="770" y2="0"><stop offset="0" stop-color="#1C9F72"/><stop offset=".55" stop-color="#3FD69B"/><stop offset=".8" stop-color="#F2B33D"/><stop offset="1" stop-color="#EF4A3C"/></linearGradient></defs>
+  <g fill="url(#v3)">${bars}</g>`;
+
+// 4 · Microfono: capsula, griglia che esce come linee di flusso, spia rossa
+const slots = [262, 316, 370, 424];
+const ends = [830, 790, 750, 710];
+const I4 = `${BG('g4')}
+  <defs>
+    <linearGradient id="m4" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4BE0A6"/><stop offset="1" stop-color="#16946A"/></linearGradient>
+    <linearGradient id="l4" gradientUnits="userSpaceOnUse" x1="586" y1="0" x2="840" y2="0"><stop offset="0" stop-color="#A8F0CE"/><stop offset="1" stop-color="#A8F0CE" stop-opacity=".12"/></linearGradient>
+  </defs>
+  <g transform="translate(-36 0)">
+    <rect x="318" y="178" width="232" height="380" rx="116" fill="url(#m4)"/>
+    ${slots.map((y) => `<rect x="362" y="${y}" width="144" height="22" rx="11" fill="#081613"/>`).join('')}
+    ${slots.map((y, i) => `<rect x="586" y="${y}" width="${ends[i] - 586}" height="22" rx="11" fill="url(#l4)"/>`).join('')}
+    <circle cx="434" cy="218" r="20" fill="#EF4A3C"/>
+    <path d="M262 466 V500 A172 172 0 0 0 606 500 V466 M434 672 V776 M344 792 H524" fill="none" stroke="#A8F0CE" stroke-width="34" stroke-linecap="round"/>
+  </g>`;
+
+// 5 · Flusso continuo: nastro a otto con incrocio sopra/sotto e punto rosso in viaggio
+const S5 = 'M512 512 C596 404 812 360 812 512 C812 664 596 620 512 512 C428 404 212 360 212 512 C212 664 428 620 512 512 Z';
+const I5 = `${BG('g5')}
+  <defs><linearGradient id="r5" gradientUnits="userSpaceOnUse" x1="160" y1="0" x2="864" y2="0"><stop offset="0" stop-color="#149068"/><stop offset=".5" stop-color="#3FD69B"/><stop offset="1" stop-color="#B4F3D6"/></linearGradient></defs>
+  <path d="${S5}" fill="none" stroke="url(#r5)" stroke-width="100" stroke-linejoin="round"/>
+  <path d="M477.6 556.2 L546.4 467.8" stroke="#0A1914" stroke-width="128"/>
+  <path d="M470 566 L554 458" stroke="url(#r5)" stroke-width="100"/>
+  <circle cx="777" cy="433" r="40" fill="#0A1914"/>
+  <circle cx="777" cy="433" r="29" fill="#EF4A3C"/>`;
+
+// 6 · Faro: punto rosso al centro, onde in diagonale a simmetria rotatoria
+const I6 = `${BG('g6')}
+  <g fill="none" stroke-width="52" stroke-linecap="round">
+    <path d="M351.3 561.1 A168 168 0 0 1 446.4 357.4" stroke="#3FD69B"/>
+    <path d="M261.4 588.6 A262 262 0 0 1 409.6 270.8" stroke="#A8F0CE"/>
+    <path d="M672.7 462.9 A168 168 0 0 1 577.6 666.6" stroke="#3FD69B"/>
+    <path d="M762.6 435.4 A262 262 0 0 1 614.4 753.2" stroke="#A8F0CE"/>
+  </g>
+  <circle cx="512" cy="512" r="80" fill="#EF4A3C"/>`;
+
+const ICONS = { 1: I1, 2: I2, 3: I3, 4: I4, 5: I5, 6: I6 };
+document.querySelectorAll('[data-icon]').forEach((el) => {
+  el.innerHTML = `<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Proposta ${el.dataset.icon}">${ICONS[el.dataset.icon]}</svg>`;
+});
+</script>
