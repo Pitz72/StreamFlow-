@@ -5,6 +5,16 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.10.3] — 2026-10-30 · Solid Snake
+
+Il nuovo marchio. Dettagli in [log/0.10.3.md](./log/0.10.3.md).
+
+### Changed
+- **StreamFlow ha un marchio suo.** Il pallino rosso e verde lascia il posto alla proposta «Onda», scelta da Simone fra sei: una S a onda sonora, sfumata dal verde chiaro al verde profondo, con il punto rosso della diretta. È la nuova icona del programma, dell'installer e della barra delle applicazioni, ed è il segno nell'intestazione. Per 16, 24 e 32 pixel c'è un disegno apposta, con il tratto più spesso e il punto rosso più grande, così resta riconoscibile anche piccolo.
+- Logotipo, banner (slogan «One Mic. On Air.») e sorgenti del marchio sono nella cartella `branding/`. Il banner apre anche il README.
+
+---
+
 ## [0.10.2] — 2026-10-29 · Solid Snake
 
 Una correzione sola, sulla MIX MODE. Dettagli e prove in [log/0.10.2.md](./log/0.10.2.md).

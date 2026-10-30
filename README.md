@@ -1,3 +1,5 @@
+![Runtime StreamFlow — One Mic. On Air.](branding/png/banner-streamflow-v1.png)
+
 # Runtime StreamFlow
 
 Il programma con cui i DJ di **Runtime Radio** vanno in onda. Prende l'audio del

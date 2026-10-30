@@ -13,6 +13,7 @@ import PresentazioneContinua from './components/PresentazioneContinua'
 import UpdateDialog from './components/UpdateDialog'
 import { useStore } from './store/useStore'
 import { STATION_PRESET } from './config/stationPreset'
+import brandIcon from '../../branding/streamflow-icon-small.svg'
 
 type OpenModal = null | 'settings' | 'nowplaying';
 
@@ -331,12 +332,8 @@ function App() {
             <PresentazioneContinua />
 
             <header className="h-[76px] shrink-0 flex items-center gap-4 px-7">
-                <div className="w-11 h-11 rounded-xl bg-sf-greenDeep border border-sf-green/40 flex items-center justify-center shrink-0">
-                    <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
-                        <circle cx="12" cy="12" r="9" fill="none" stroke="rgb(var(--sf-green))" strokeWidth="2" />
-                        <circle cx="12" cy="12" r="4.5" fill="#E5483A" />
-                    </svg>
-                </div>
+                {/* Il marchio «Onda» (branding/): a 44 px il disegno per le piccole misure */}
+                <img src={brandIcon} width={44} height={44} alt="" className="shrink-0" draggable={false} />
                 <div className="flex flex-col leading-tight min-w-0">
                     <span className="text-[18px] font-extrabold truncate">{djName}</span>
                     <span className="text-[13px] text-sf-inkDim">
