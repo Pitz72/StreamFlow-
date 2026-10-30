@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><defs><linearGradient id="sm-wave" gradientUnits="userSpaceOnUse" x1="700" y1="220" x2="330" y2="800"><stop offset="0" stop-color="#C8F8E2"/><stop offset=".45" stop-color="#3FD69B"/><stop offset="1" stop-color="#11785B"/></linearGradient><filter id="sm-glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="26"/></filter>
+<linearGradient id="sm-bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#10261F"/><stop offset="1" stop-color="#050C0A"/></linearGradient>
+</defs>
+<rect x="40" y="40" width="944" height="944" rx="220" fill="url(#sm-bg)"/>
+<rect x="41.5" y="41.5" width="941" height="941" rx="218.5" fill="none" stroke="#FFFFFF" stroke-opacity=".08" stroke-width="3"/>
+<g transform="translate(512 506) scale(.9) translate(-510 -515)">
+<path d="M676 300 C620 228 470 214 396 262 C318 312 330 416 430 456 L590 520 C700 564 716 690 640 752 C566 812 412 808 344 730" fill="none" stroke="url(#sm-wave)" stroke-width="150" stroke-linecap="round"/><circle cx="800" cy="222" r="62" fill="#EF4A3C"/></g></svg>

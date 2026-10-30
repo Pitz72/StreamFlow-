@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><defs><linearGradient id="mk-wave" gradientUnits="userSpaceOnUse" x1="700" y1="220" x2="330" y2="800"><stop offset="0" stop-color="#C8F8E2"/><stop offset=".45" stop-color="#3FD69B"/><stop offset="1" stop-color="#11785B"/></linearGradient><filter id="mk-glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="26"/></filter>
+</defs>
+<g transform="translate(512 506) scale(.9) translate(-510 -515)">
+<path d="M676 300 C620 228 470 214 396 262 C318 312 330 416 430 456 L590 520 C700 564 716 690 640 752 C566 812 412 808 344 730" fill="none" stroke="url(#mk-wave)" stroke-width="132" stroke-linecap="round" opacity=".55" filter="url(#mk-glow)"/><circle cx="790" cy="226" r="44" fill="#EF4A3C" opacity=".6" filter="url(#mk-glow)"/>
+<path d="M676 300 C620 228 470 214 396 262 C318 312 330 416 430 456 L590 520 C700 564 716 690 640 752 C566 812 412 808 344 730" fill="none" stroke="url(#mk-wave)" stroke-width="132" stroke-linecap="round"/><circle cx="790" cy="226" r="40" fill="#EF4A3C"/></g></svg>
