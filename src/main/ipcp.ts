@@ -2,7 +2,7 @@ import { ipcMain, BrowserWindow } from 'electron';
 import { StreamManager } from './streaming/ffmpeg-manager';
 import { MetadataManager } from './streaming/metadata-manager';
 import { savePassword, loadPassword, deletePassword } from './credentials';
-import { initFileLogger, writeLog, getLogDir, openLogFolder } from './file-logger';
+import { initFileLogger, writeLog, getLogDir, openLogFolder, exportLogs } from './file-logger';
 import { runConnectionDiagnostic, DiagnosticConfig } from './streaming/connection-diagnostic';
 
 let streamManager: StreamManager | null = null;
@@ -167,6 +167,13 @@ export const initializeIpc = (mainWindow: BrowserWindow) => {
     ipcMain.handle('open-log-folder', async () => {
         const dir = await openLogFolder();
         return { ok: dir !== null, dir };
+    });
+
+    ipcMain.handle('export-logs', async () => {
+        const result = exportLogs();
+        if (result.ok) emitLog('success', 'system', `log esportati → ${result.file}`);
+        else emitLog('error', 'system', `esportazione dei log non riuscita: ${result.error}`);
+        return result;
     });
 
     // D2: diagnostica attiva. Occupa il mount per una ventina di secondi, quindi

@@ -114,6 +114,51 @@ export function writeRaw(tag: string, text: string) {
     } catch { /* vedi writeLog */ }
 }
 
+export type ExportResult = { ok: true; file: string } | { ok: false; error: string };
+
+/**
+ * Raccoglie i log degli ultimi giorni (RETENTION_DAYS) in un solo file di testo sul
+ * Desktop e lo mostra selezionato in Esplora risorse: lo speaker lo trascina in
+ * WhatsApp o in una mail senza cercare cartelle. Nasce dalla diretta del 6/11/2026,
+ * dove l'unico indizio (audio scartato dal microfono) stava nel file e non a video.
+ * Giorni in ordine, dal più vecchio. Le credenziali non ci sono (vedi `redact`).
+ * Se il Desktop non è scrivibile ripiega su Download, poi sulla cartella dei log.
+ */
+export function exportLogs(): ExportResult {
+    try {
+        const dir = getLogDir();
+        const days = fs.existsSync(dir)
+            ? fs.readdirSync(dir).filter((n) => n.startsWith('streamflow-') && n.endsWith('.log')).sort()
+            : [];
+        if (days.length === 0) return { ok: false, error: 'non c\'è ancora nessun log da esportare' };
+
+        const now = new Date();
+        const parts = [
+            `Log di Runtime StreamFlow ${app.getVersion()}, esportati il ${dayKey(now)} alle ${stamp(now).slice(0, 5)}`,
+            `${days.length} ${days.length === 1 ? 'giorno' : 'giorni'}: ${days.join(', ')}`,
+        ];
+        for (const name of days) {
+            parts.push('', `########## ${name} ##########`, fs.readFileSync(path.join(dir, name), 'utf8'));
+        }
+        const fileName = `StreamFlow-log-${dayKey(now)}-${pad(now.getHours())}${pad(now.getMinutes())}.txt`;
+
+        for (const target of ['desktop', 'downloads'] as const) {
+            try {
+                const dest = path.join(app.getPath(target), fileName);
+                fs.writeFileSync(dest, parts.join('\n'), 'utf8');
+                shell.showItemInFolder(dest);
+                return { ok: true, file: dest };
+            } catch { /* prova la cartella successiva */ }
+        }
+        const dest = path.join(dir, fileName);
+        fs.writeFileSync(dest, parts.join('\n'), 'utf8');
+        shell.showItemInFolder(dest);
+        return { ok: true, file: dest };
+    } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+}
+
 /** Apre la cartella dei log in Esplora risorse. @returns percorso aperto, o null. */
 export async function openLogFolder(): Promise<string | null> {
     try {

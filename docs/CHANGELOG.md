@@ -5,9 +5,15 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
-## [0.10.3] — 2026-10-30 · Solid Snake
+## [0.10.3] — 2026-11-06 · Solid Snake
 
-Il nuovo marchio. Dettagli in [log/0.10.3.md](./log/0.10.3.md).
+Il nuovo marchio e un registro che racconta di più. Dettagli in [log/0.10.3.md](./log/0.10.3.md).
+
+### Added
+- **Pulsante «Esporta log»** nella barra del registro eventi, in basso, e in Configurazione → Diagnostica. Mette in un solo file di testo i log degli ultimi giorni, lo salva sul Desktop con un nome che dice data e ora, e apre Esplora risorse con il file già selezionato: si trascina in WhatsApp o in una mail. Le password non ci sono mai.
+- **Avviso quando il microfono perde un pezzo d'audio.** Succede se per qualche secondo l'audio non esce abbastanza in fretta verso il server. Nella diretta del 6 novembre è capitato una volta e l'unica traccia era una riga in inglese nel file; ora compare anche a video, in italiano, al massimo una volta ogni 30 secondi.
+- **Avviso quando l'invio verso il server si ferma** per più di 3 secondi e poi riparte, con la durata della pausa.
+- **Una riga al minuto nel file di log** con il tempo in onda, i dati inviati, il bitrate, il ritardo accumulato, le pause e l'audio perso. Serve a capire dopo, per esempio, se un salto è stato colpa della rete.
 
 ### Changed
 - **StreamFlow ha un marchio suo.** Il pallino rosso e verde lascia il posto alla proposta «Onda», scelta da Simone fra sei: una S a onda sonora, sfumata dal verde chiaro al verde profondo, con il punto rosso della diretta. È la nuova icona del programma, dell'installer e della barra delle applicazioni, ed è il segno nell'intestazione. Per 16, 24 e 32 pixel c'è un disegno apposta, con il tratto più spesso e il punto rosso più grande, così resta riconoscibile anche piccolo.

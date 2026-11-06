@@ -4,7 +4,8 @@ import { app, BrowserWindow, powerSaveBlocker } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import { sendFilterCommand, isPortFree } from './zmq-command';
-import { writeRaw } from '../file-logger';
+import { writeLog, writeRaw } from '../file-logger';
+import { SendMonitor, isDshowDrop, parseProgress, stallMessage, type Progress } from './send-monitor';
 import { deletePassword } from '../credentials';
 import { httpAuthCheck } from './connection-diagnostic';
 import { classifyExit } from './exit-classifier';
@@ -453,6 +454,8 @@ export class StreamManager {
         let forcedReason: string | null = null;
         /** Istante della chiusura forzata: la diretta è finita lì, non quando arriva il 'close'. */
         let abortedAt = 0;
+        /** Pause nell'invio, riga al minuto nel file, audio scartato da dshow. */
+        const sendMonitor = new SendMonitor();
 
         const cancelConnectionTimeout = () => {
             if (connectionTimeoutId !== null) {
@@ -508,6 +511,25 @@ export class StreamManager {
                 lastErrorLog += diagnostic + '\n';
                 if (lastErrorLog.length > 2000) lastErrorLog = lastErrorLog.substring(lastErrorLog.length - 2000);
                 writeRaw('ffmpeg', diagnostic);
+            }
+
+            // dshow scarta audio quando FFmpeg non lo legge in tempo, cioè quando l'invio
+            // si inceppa: prima finiva solo nel file, in inglese (diretta del 6/11/2026).
+            if (diagnostic && isDshowDrop(diagnostic)) {
+                const notice = sendMonitor.drop(Date.now());
+                if (notice) this.log('error', notice);
+            }
+
+            // Righe di progresso: pause nell'invio e riga al minuto nel file.
+            if (liveConfirmed) {
+                const progressLines = String(message).split(/\r\n|\r|\n/).map(parseProgress)
+                    .filter((p): p is Progress => p !== null);
+                const now = Date.now();
+                for (const p of progressLines) {
+                    const r = sendMonitor.progress(p, now, progressLines.length > 1);
+                    if (r.stallSec !== undefined) this.log('error', stallMessage(r.stallSec));
+                    if (r.summary) writeLog('stream', 'info', r.summary);
+                }
             }
 
             // Tee (registrazione locale): quando lo slave http (#0) fallisce — in

@@ -352,6 +352,13 @@ const SettingsPanel = () => {
                             </button>
                             <button
                                 type="button"
+                                onClick={() => window.electronAPI.exportLogs()}
+                                className="sf-btn"
+                            >
+                                Esporta i log sul Desktop
+                            </button>
+                            <button
+                                type="button"
                                 onClick={() => window.electronAPI.openLogFolder()}
                                 className="sf-btn"
                             >
@@ -365,9 +372,10 @@ const SettingsPanel = () => {
                             Segui l&apos;esito nel registro eventi in basso.
                         </p>
                         <p className="text-[14px] text-sf-inkDim leading-relaxed">
-                            <strong className="text-sf-ink">Apri la cartella dei log</strong> apre i file da
-                            allegare in caso di problemi. Contengono i dettagli tecnici; le password non
-                            vengono mai scritte nel log.
+                            <strong className="text-sf-ink">Esporta i log sul Desktop</strong> mette in un solo
+                            file i log degli ultimi giorni e lo mostra in Esplora risorse, pronto da mandare
+                            in caso di problemi (c&apos;è anche nella barra del registro eventi, in basso).
+                            Contengono i dettagli tecnici; le password non vengono mai scritte nel log.
                         </p>
                     </div>
                 )}

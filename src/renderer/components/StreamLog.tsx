@@ -24,10 +24,29 @@ const fmtTime = (ts: number) => {
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
 };
 
+const exportLabel = { idle: 'Esporta log', saving: 'Salvo…', done: 'Salvato ✓', error: 'Non riuscito' } as const;
+
 const StreamLog = () => {
     const { logEvents, clearLog } = useStore();
     const [expanded, setExpanded] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
+    const [exportState, setExportState] = useState<keyof typeof exportLabel>('idle');
+    const exportTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(() => () => {
+        if (exportTimerRef.current) clearTimeout(exportTimerRef.current);
+    }, []);
+
+    // Il file con i log degli ultimi giorni finisce sul Desktop e si apre Esplora
+    // risorse con il file selezionato: va trascinato in WhatsApp o in una mail.
+    const exportLogs = async () => {
+        if (!window.electronAPI?.exportLogs || exportState === 'saving') return;
+        setExportState('saving');
+        const result = await window.electronAPI.exportLogs();
+        setExportState(result.ok ? 'done' : 'error');
+        if (exportTimerRef.current) clearTimeout(exportTimerRef.current);
+        exportTimerRef.current = setTimeout(() => setExportState('idle'), 4000);
+    };
 
     // Autoscroll quando arriva un evento (solo se siamo già in fondo)
     useEffect(() => {
@@ -70,6 +89,17 @@ const StreamLog = () => {
                         <span className="text-sf-inkFaint">nessun evento</span>
                     )}
                 </div>
+                <button
+                    type="button"
+                    onClick={exportLogs}
+                    disabled={exportState === 'saving'}
+                    className={`h-8 px-3 rounded-lg border border-sf-lineStrong text-[13px] font-bold hover:bg-sf-raised disabled:opacity-60 shrink-0 ${
+                        exportState === 'done' ? 'text-sf-green' : exportState === 'error' ? 'text-sf-redInk' : 'text-sf-inkSoft hover:text-sf-ink'
+                    }`}
+                    title="Salva sul Desktop un file con i log degli ultimi giorni, da mandare in caso di problemi"
+                >
+                    {exportLabel[exportState]}
+                </button>
                 <button
                     type="button"
                     onClick={clearLog}

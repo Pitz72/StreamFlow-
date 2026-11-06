@@ -16,6 +16,7 @@ import { classifyExit, type ExitFacts } from '../exit-classifier';
 import { teeEscapeOptionValue, teeEscapePath } from '../ffmpeg-manager';
 import { evaluateResponse, parseRawHttpResponse } from '../metadata-manager';
 import { redact } from '../../file-logger';
+import { SendMonitor, isDshowDrop, parseProgress, stallMessage, SUMMARY_MS } from '../send-monitor';
 
 const RESET_LOG = 'Error muxing a packet\nError writing trailer: Error number -10054 occurred\nConversion failed!';
 
@@ -124,5 +125,54 @@ describe('redazione del file di log', () => {
 
     it('cancella le credenziali dentro un URL', () => {
         expect(redact('http://dj:segreta@host:8005/')).toBe('http://***REDACTED***@host:8005/');
+    });
+});
+
+describe("sorveglianza dell'invio (diretta del 6/11/2026)", () => {
+    const DROP_LINE = '[dshow @ 000002a56d46c000] real-time buffer [Microfono (RODECaster Pro II Main Multitrack)] [audio input] too full or near too full (63% of size: 3041280 [rtbufsize parameter])! frame dropped!';
+    const at = (outSec: number) => ({ kB: Math.round(outSec * 24), outSec, kbps: 192 });
+
+    it('legge le righe di progresso di FFmpeg', () => {
+        expect(parseProgress('size=     470kB time=00:00:19.98 bitrate= 192.5kbits/s speed=1.02x'))
+            .toEqual({ kB: 470, outSec: 19.98, kbps: 192.5 });
+        expect(parseProgress('size=   18003kB time=01:02:03.50 bitrate= 192.0kbits/s speed=   1x')?.outSec).toBeCloseTo(3723.5);
+        expect(parseProgress('size=       0kB time=N/A bitrate=N/A speed=N/A')).toBeNull();
+        expect(parseProgress('Press [q] to stop')).toBeNull();
+    });
+
+    it("riconosce l'audio scartato da dshow", () => {
+        expect(isDshowDrop(DROP_LINE)).toBe(true);
+        expect(isDshowDrop('Stream mapping: Stream #0:0 -> #0:0')).toBe(false);
+    });
+
+    it("segnala una pausa nell'invio, ma non un ritardo nostro", () => {
+        const m = new SendMonitor();
+        expect(m.progress(at(3), 0, false)).toEqual({});
+        expect(m.progress(at(3.5), 500, false).stallSec).toBeUndefined();
+        expect(m.progress(at(4), 9500, false).stallSec).toBe(9);
+        // righe arrivate nello stesso blocco: era occupato il processo principale
+        expect(m.progress(at(4.5), 20000, true).stallSec).toBeUndefined();
+        expect(stallMessage(9)).toContain('9,0 secondi');
+    });
+
+    it('scrive ogni minuto il riassunto con il ritardo accumulato', () => {
+        const m = new SendMonitor();
+        m.progress(at(3), 0, false);
+        expect(m.progress(at(30), 30000, false).summary).toBeUndefined();
+        const r = m.progress(at(60.5), SUMMARY_MS, false);
+        expect(r.summary).toContain('in onda da 1:00');
+        expect(r.summary).toContain('ritardo accumulato 2,5 s');
+        expect(r.summary).toContain('192 kbit/s');
+        expect(m.progress(at(61), SUMMARY_MS + 500, false).summary).toBeUndefined();
+    });
+
+    it("avvisa dell'audio scartato al massimo ogni 30 secondi, con il conto", () => {
+        const m = new SendMonitor();
+        expect(m.drop(0)).toContain("il microfono ha perso un pezzo d'audio");
+        expect(m.drop(1000)).toBeNull();
+        expect(m.drop(20000)).toBeNull();
+        expect(m.drop(31000)).toContain("3 pezzi persi dall'avviso precedente");
+        const r = (m.progress(at(0), 40000, false), m.progress(at(60), 40000 + SUMMARY_MS, false));
+        expect(r.summary).toContain('audio scartato 4 volte');
     });
 });
