@@ -92,6 +92,8 @@ const baseConfig = {
 };
 
 let statuses: Array<[string, string | undefined]>;
+/** Avvisi «l'audio non esce» mandati alla finestra: secondi, o null quando riparte. */
+let stalls: Array<number | null>;
 let logs: string[];
 let sm: StreamManager;
 
@@ -107,16 +109,23 @@ const startSession = async (extra: Partial<typeof baseConfig & { mixMode: boolea
     return lastProc();
 };
 
-/** Progresso, tenuta di 3s superata: la diretta è confermata. */
-const goLive = async (p: FakeProc) => {
-    say(p, PROGRESS);
-    await vi.advanceTimersByTimeAsync(3000);
+/**
+ * La trasmissione scorre per `ms`. FFmpeg scrive una riga di progresso ogni
+ * mezzo secondo: è da lì che il cane da guardia capisce che l'audio sta uscendo.
+ */
+const liveFor = async (p: FakeProc, ms: number) => {
+    for (let t = 0; t < ms; t += 500) {
+        say(p, PROGRESS);
+        await vi.advanceTimersByTimeAsync(Math.min(500, ms - t));
+    }
 };
+
+/** Progresso, tenuta di 3s superata: la diretta è confermata. */
+const goLive = (p: FakeProc) => liveFor(p, 3000);
 
 /** Il server chiude con un reset dopo `afterMs` di trasmissione. */
 const resetAfter = async (p: FakeProc, afterMs: number) => {
-    say(p, PROGRESS);
-    await vi.advanceTimersByTimeAsync(afterMs);
+    await liveFor(p, afterMs);
     say(p, RESET);
     p.emit('close', 1);
     await flush();
@@ -133,10 +142,16 @@ beforeEach(() => {
     h.portFree.mockClear();
     h.httpAuthCheck.mockResolvedValue({ status: 401, text: 'CREDENZIALI RIFIUTATE (401)' });
     statuses = [];
+    stalls = [];
     logs = [];
     const fakeWindow = {
         isDestroyed: () => false,
-        webContents: { send: (_ch: string, status: string, msg?: string) => statuses.push([status, msg]) },
+        webContents: {
+            send: (ch: string, a: unknown, b?: string) => {
+                if (ch === 'STREAM_STATUS') statuses.push([a as string, b]);
+                else if (ch === 'STREAM_STALL') stalls.push(a as number | null);
+            },
+        },
     };
     sm = new StreamManager(fakeWindow as never);
     sm.setLogSink((_lvl, msg) => logs.push(msg));
@@ -253,7 +268,7 @@ describe('riconnessione automatica', () => {
         await flush();
         const third = lastProc();
         await goLive(third);
-        await vi.advanceTimersByTimeAsync(60_000); // minuto stabile
+        await liveFor(third, 60_000); // minuto stabile
         say(third, RESET);
         third.emit('close', 1);
         await flush();
@@ -278,6 +293,103 @@ describe('MIX MODE', () => {
         await vi.advanceTimersByTimeAsync(8000);
 
         expect(statusNames()).toEqual(['connecting']);
+    });
+});
+
+// Misurato il 13/11/2026 con ffmpeg-static: se il PCM della MIX MODE si ferma
+// con stdin aperto, FFmpeg resta vivo, non scrive più righe di progresso e non
+// si accorge nemmeno che il server ha chiuso. «In onda» restava acceso.
+describe('cane da guardia sull\'audio in uscita (G12)', () => {
+    it('audio fermo a diretta confermata: avviso dopo 5s, chiusura e riconnessione dopo 20s', async () => {
+        const p = await startSession();
+        await goLive(p);                              // ultima riga di progresso a 2,5s
+        await vi.advanceTimersByTimeAsync(4000);
+        expect(stalls).toEqual([]);
+
+        await vi.advanceTimersByTimeAsync(1500);
+        expect(stalls.at(-1)).toBe(5);
+        expect(logs.join('\n')).toMatch(/l'audio non sta uscendo da 5 secondi/);
+        expect(statuses.at(-1)?.[0]).toBe('connected'); // la sessione c'è ancora
+        expect(p.stdin.write).not.toHaveBeenCalledWith('q');
+
+        await vi.advanceTimersByTimeAsync(15_000);
+        expect(p.stdin.write).toHaveBeenCalledWith('q');
+        expect(stalls.at(-1)).toBeNull();             // l'avviso lascia il posto alla riconnessione
+
+        p.emit('close', 0);
+        await flush();
+        expect(statuses.at(-1)?.[0]).toBe('reconnecting');
+        expect(logs.join('\n')).toMatch(/connessione persa: l'audio non usciva più da 20 secondi/);
+    });
+
+    it('se l\'audio riparte l\'avviso sparisce e il collegamento resta', async () => {
+        const p = await startSession();
+        await goLive(p);
+        await vi.advanceTimersByTimeAsync(8000);
+        expect(stalls.at(-1)).toBeGreaterThanOrEqual(5);
+
+        await liveFor(p, 30_000);
+        expect(stalls.at(-1)).toBeNull();
+        expect(p.stdin.write).not.toHaveBeenCalledWith('q');
+        expect(statuses.at(-1)?.[0]).toBe('connected');
+        expect(h.procs).toHaveLength(1);
+    });
+
+    it('una diretta che scorre non fa scattare niente', async () => {
+        const p = await startSession();
+        await goLive(p);
+        await liveFor(p, 120_000);
+
+        expect(stalls).toEqual([]);
+        expect(p.stdin.write).not.toHaveBeenCalledWith('q');
+    });
+
+    it('MIX MODE: il mixer che smette di consegnare audio viene chiamato per nome', async () => {
+        const p = await startSession({ mixMode: true });
+        sm.writeAudioChunk(Buffer.alloc(8192));
+        await goLive(p);
+        await vi.advanceTimersByTimeAsync(6000);      // niente PCM, niente progresso
+
+        expect(logs.join('\n')).toMatch(/dal mixer non arriva più audio/);
+    });
+
+    it('MIX MODE: se il mixer manda audio ma FFmpeg è fermo, il sospetto è la rete', async () => {
+        const p = await startSession({ mixMode: true });
+        sm.writeAudioChunk(Buffer.alloc(8192));
+        await goLive(p);
+        for (let i = 0; i < 6; i++) {                  // 6s di PCM che continua ad arrivare
+            sm.writeAudioChunk(Buffer.alloc(192_000));
+            await vi.advanceTimersByTimeAsync(1000);
+        }
+
+        expect(logs.join('\n')).toMatch(/il mixer manda audio ma non parte verso il server/);
+    });
+
+    it('un controllo arrivato in ritardo (standby del computer) non conta come audio fermo', async () => {
+        const p = await startSession();
+        await goLive(p);
+        // L'orologio salta di un minuto senza che i timer girino: è quello che
+        // vede il processo principale al risveglio dallo standby.
+        vi.setSystemTime(Date.now() + 60_000);
+        await vi.advanceTimersByTimeAsync(1000);
+
+        expect(stalls).toEqual([]);
+        expect(p.stdin.write).not.toHaveBeenCalledWith('q');
+    });
+
+    it('chi ascolta gli stati e le pause viene avvisato anche senza finestra', async () => {
+        const seenStatus: string[] = [];
+        const seenStall: Array<number | null> = [];
+        sm.setStatusSink((s) => seenStatus.push(s));
+        sm.setStallSink((s) => seenStall.push(s));
+        sm.setMainWindow({ isDestroyed: () => true } as never);
+
+        const p = await startSession();
+        await goLive(p);
+        await vi.advanceTimersByTimeAsync(6000);
+
+        expect(seenStatus).toEqual(['connecting', 'connected']);
+        expect(seenStall.at(-1)).toBeGreaterThanOrEqual(5);
     });
 });
 
@@ -352,7 +464,7 @@ describe('registrazione locale (muxer tee)', () => {
     it('caduta a diretta avviata: riconnessione, non ON AIR muto', async () => {
         const p = await startSession({ recordLocal: true });
         await goLive(p);
-        await vi.advanceTimersByTimeAsync(20_000);
+        await liveFor(p, 20_000);
         say(p, TEE_RESET);
         p.emit('close', 1);
         await flush();

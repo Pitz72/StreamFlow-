@@ -22,6 +22,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on('STREAM_STATUS', handler);
         return () => { ipcRenderer.removeListener('STREAM_STATUS', handler); };
     },
+    /** A diretta confermata: da quanti secondi l'audio non esce (null = è ripartito). */
+    onStreamStall: (callback: (seconds: number | null) => void) => {
+        const handler = (_event: IpcRendererEvent, seconds: number | null) => callback(seconds);
+        ipcRenderer.on('STREAM_STALL', handler);
+        return () => { ipcRenderer.removeListener('STREAM_STALL', handler); };
+    },
     /** Stato corrente della sessione, per riallinearsi dopo un ricaricamento dell'interfaccia. */
     getStreamStatus: () => ipcRenderer.invoke('get-stream-status'),
     onLogEvent: (callback: (e: { level: 'info' | 'success' | 'error'; source: 'stream' | 'metadata' | 'system'; message: string }) => void) => {
@@ -46,6 +52,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     /** Evento nato nel renderer (MIX MODE) da scrivere nel file di log. */
     writeLog: (level: 'info' | 'success' | 'error', message: string) =>
         ipcRenderer.send('renderer-log', level, message),
+    /** MIX MODE: problema grave nato nel renderer, da segnalare anche fuori dalla finestra. */
+    raiseAlert: (message: string) => ipcRenderer.send('renderer-alert', message),
     /** La finestra è stata ridotta a icona (true) o ripristinata (false). */
     onWindowMinimized: (callback: (minimized: boolean) => void) => {
         const handler = (_event: IpcRendererEvent, minimized: boolean) => callback(minimized);

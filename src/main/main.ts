@@ -20,6 +20,13 @@ const MAX_RENDERER_RELOADS_PER_MINUTE = 3;
  * Chiudere la finestra ferma la diretta all'istante. Una X o un Alt+F4 dati per
  * sbaglio non devono bastare: se c'è una sessione attiva si chiede conferma,
  * con "Resta in onda" come scelta predefinita (anche per Invio ed Esc).
+ *
+ * La domanda è ASINCRONA. Fino alla 0.10.3 era `showMessageBoxSync`, che ferma
+ * l'intero processo principale finché non si risponde (misurato il 13/11/2026:
+ * a finestra aperta 0 timer e 0 messaggi dall'interfaccia in 4,4 s). In MIX MODE
+ * l'audio passa proprio da qui, dal renderer a FFmpeg: una X data per sbaglio
+ * mandava il silenzio in onda per tutto il tempo della domanda. Ora la chiusura
+ * viene sempre fermata, e la si rifà dopo la risposta.
  */
 const guardCloseDuringLive = (win: BrowserWindow) => {
     // Arresto o disconnessione di Windows: nessun dialogo, che bloccherebbe lo
@@ -27,9 +34,17 @@ const guardCloseDuringLive = (win: BrowserWindow) => {
     let systemSessionEnding = false;
     win.on('session-end', () => { systemSessionEnding = true; });
 
+    /** La chiusura è già stata confermata: il secondo 'close' passa. */
+    let closeConfirmed = false;
+    /** La domanda è già a video: una seconda X non ne apre un'altra. */
+    let asking = false;
+
     win.on('close', (event) => {
-        if (systemSessionEnding || !isStreamSessionActive()) return;
-        const choice = dialog.showMessageBoxSync(win, {
+        if (systemSessionEnding || closeConfirmed || !isStreamSessionActive()) return;
+        event.preventDefault();
+        if (asking) return;
+        asking = true;
+        void dialog.showMessageBox(win, {
             type: 'warning',
             title: 'Sei in diretta',
             message: 'Sei ancora in diretta.',
@@ -38,12 +53,13 @@ const guardCloseDuringLive = (win: BrowserWindow) => {
             defaultId: 0,
             cancelId: 0,
             noLink: true,
-        });
-        if (choice !== 1) {
-            event.preventDefault();
-            return;
-        }
-        logSystem('info', 'finestra chiusa durante la diretta, confermato dall\'utente');
+        }).then(({ response }) => {
+            asking = false;
+            if (response !== 1 || win.isDestroyed()) return;
+            closeConfirmed = true;
+            logSystem('info', 'finestra chiusa durante la diretta, confermato dall\'utente');
+            win.close();
+        }).catch(() => { asking = false; });
     });
 };
 
@@ -177,6 +193,12 @@ if (!gotSingleInstanceLock) {
             mainWindow.focus();
         }
     });
+
+    // Le notifiche di Windows vogliono sapere di quale programma sono: lo stesso
+    // identificativo che l'installer mette sul collegamento nel menu Start.
+    if (process.platform === 'win32') {
+        app.setAppUserModelId(app.isPackaged ? 'com.runtimeradio.streamflow' : process.execPath);
+    }
 
     app.whenReady().then(() => {
         enableSystemAudioLoopback();

@@ -4,9 +4,38 @@ import { MetadataManager } from './streaming/metadata-manager';
 import { savePassword, loadPassword, deletePassword } from './credentials';
 import { initFileLogger, writeLog, getLogDir, openLogFolder, exportLogs } from './file-logger';
 import { runConnectionDiagnostic, DiagnosticConfig } from './streaming/connection-diagnostic';
+import { AlertPolicy, shortReason, type AlertAction } from './alert-policy';
+import { bindAlertWindow, clearAlert, raiseAlert, resolveAlert } from './alerts';
 
 let streamManager: StreamManager | null = null;
 const metadataManager = new MetadataManager();
+/** Decide quali passaggi di stato meritano un avviso fuori dalla finestra. */
+const alertPolicy = new AlertPolicy();
+
+/** Dalla decisione all'avviso vero: i testi che legge chi trasmette. */
+const applyAlert = (action: AlertAction) => {
+    switch (action.kind) {
+        case 'lost':
+            raiseAlert('warning', 'Diretta interrotta',
+                'Il collegamento con il server è caduto. StreamFlow sta riprovando da solo.');
+            break;
+        case 'restored':
+            resolveAlert('Di nuovo in onda', 'Il collegamento è ripartito.');
+            break;
+        case 'down':
+            raiseAlert('critical', 'Non sei in onda', shortReason(action.reason));
+            break;
+        case 'stall':
+            raiseAlert('warning', 'L\'audio non sta uscendo',
+                `Da ${action.seconds} secondi niente arriva al server. Se non riparte, StreamFlow chiude il collegamento e riprova.`);
+            break;
+        case 'clear':
+            clearAlert();
+            break;
+        case 'none':
+            break;
+    }
+};
 /**
  * Il test di connessione trasmette 20s sul mount vero. Mentre gira, una diretta
  * verrebbe rifiutata dal server (sorgente già collegata) e il rifiuto potrebbe
@@ -69,6 +98,11 @@ export const initializeIpc = (mainWindow: BrowserWindow) => {
 
     metadataManager.setLogSink((level, msg) => emitLog(level, 'metadata', msg));
     streamManager.setLogSink((level, msg) => emitLog(level, 'stream', msg));
+
+    // Allarmi fuori dalla finestra: caduta, fine della sessione per errore, audio fermo.
+    bindAlertWindow(mainWindow);
+    streamManager.setStatusSink((status, message) => applyAlert(alertPolicy.onStatus(status, message)));
+    streamManager.setStallSink((seconds) => applyAlert(alertPolicy.onStall(seconds)));
 
     // Evento iniziale: rende la barra log immediatamente visibile e conferma l'IPC up.
     // Atteso che la finestra abbia finito di caricare, altrimenti il send va perso.
@@ -204,5 +238,13 @@ export const initializeIpc = (mainWindow: BrowserWindow) => {
         if (typeof message !== 'string') return;
         const lvl = level === 'error' || level === 'success' ? level : 'info';
         writeLog('system', lvl, message.substring(0, 2000));
+    });
+
+    // MIX MODE: una sorgente persa a sessione attiva (microfono staccato, audio
+    // del computer non più agganciabile) lascia in onda mezza diretta senza che
+    // lo stato cambi. L'avviso nasce nel renderer; fuori sessione non interessa.
+    ipcMain.on('renderer-alert', (_event, message: unknown) => {
+        if (typeof message !== 'string' || !streamManager?.isSessionActive()) return;
+        raiseAlert('critical', 'Problema in MIX MODE', shortReason(message, 300));
     });
 };

@@ -5,6 +5,26 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.10.4] — 2026-11-13 · Solid Snake
+
+Le tre criticità gravi dell'[analisi del 13 novembre](./ANALISI-2026-11-13.md). Dettagli e misure in [log/0.10.4.md](./log/0.10.4.md).
+
+### Fixed
+- **MIX MODE: la domanda «Sei ancora in diretta» fermava l'audio in onda.** Chiudendo la finestra per sbaglio durante una diretta compare la richiesta di conferma. Quella finestrella bloccava tutto il programma finché non si rispondeva, e in MIX MODE l'audio passa proprio da lì: in onda andava il silenzio. Ora la domanda non blocca più niente. Testo e pulsanti sono gli stessi.
+- **«In onda» restava acceso anche quando l'audio non usciva più.** Se a diretta avviata il mixer della MIX MODE si fermava, o la rete si bloccava senza cadere, il programma non se ne accorgeva. Ora controlla ogni secondo: dopo 5 secondi senza audio in uscita lo scrive accanto a «In onda» («l'audio non esce da 7 s», in ambra) e nel registro, con la causa probabile; dopo 20 secondi chiude il collegamento e riprova da solo.
+
+### Added
+- **Avvisi che si vedono anche quando StreamFlow non è la finestra davanti.** Quando la diretta cade, quando l'audio smette di uscire, quando la riconnessione si arrende o la MIX MODE perde il microfono o la musica:
+  - arriva una notifica di Windows («Diretta interrotta», «Non sei in onda» con la causa, «Di nuovo in onda»); quella di «Non sei in onda» resta finché non la chiudi, e un clic porta StreamFlow in primo piano;
+  - il pulsante di StreamFlow sulla barra delle applicazioni lampeggia e prende un pallino colorato: ambra finché il problema è in corso, rosso quando non sei più in onda.
+
+  Nessun suono, per scelta: in MIX MODE ogni suono del computer va in onda. Se StreamFlow è già la finestra davanti non arriva nessuna notifica, perché il messaggio è già a video.
+
+### Note
+- Medie e lievi dell'analisi restano aperte: la più visibile è la finestra di diagnostica che non mostra l'esito del test.
+
+---
+
 ## [0.10.3] — 2026-11-06 · Solid Snake
 
 Il nuovo marchio e un registro che racconta di più. Dettagli in [log/0.10.3.md](./log/0.10.3.md).

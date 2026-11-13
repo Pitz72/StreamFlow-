@@ -1,7 +1,8 @@
 # Roadmap — Runtime StreamFlow
 
 Documento ripristinato dalla conversazione strategica originale (Gemini AI Studio, 5 Mar 2026).
-Aggiornato al 29 ottobre 2026 (v0.9.0 · Solid Snake): repository pubblico e aggiornamento automatico fatti; restano licenza, preset e le lievi dell'analisi (vedi sotto).
+Aggiornato al 13 novembre 2026 (v0.10.4 · Solid Snake): terza analisi, tre gravi corrette, nuova direzione «due strade» (vedi §4 qui sotto).
+Prima: 29 ottobre 2026 (v0.9.0), repository pubblico e aggiornamento automatico fatti; restano licenza, preset e le lievi dell'analisi.
 Prima: 27 settembre 2026 (v0.8.6), StreamFlow programma a sé e futuro software libero.
 Precedente cambio di direzione: 24 luglio 2026 (v0.7.0), client interno Runtime Radio.
 
@@ -94,6 +95,22 @@ Lavorate nella 0.10.1 ([log](./log/0.10.1.md)):
   Sonnet 4.6 (12), Opus 4.7 (11), Fable 5 (10), Opus 5.5 (4), Opus 4.8 (4). La fase di marzo
   con Gemini non ha trailer. Elenco da confermare con Simone.
 - **Audit dei segreti** su tutta la storia, da fare.
+
+### 4. Dall'analisi del 13 novembre 2026
+
+[Terza analisi](./ANALISI-2026-11-13.md), sulla 0.10.3. Le tre gravi (G11, G12, G13) sono
+corrette nella 0.10.4 ([log](./log/0.10.4.md)). Restano, in attesa del via di Simone:
+
+- **Diagnostica** — l'esito del test dentro la finestra (M11); poi la diagnostica
+  irrobustita: pagella della linea a fine diretta, conferma dal server, controllo rapido che
+  non va in onda, prova lunga solo su una stazione di prova (analisi, §5).
+- **Medie** M12–M16 e **lievi**: elenco nell'analisi, §3 e §4.
+- ⛔ **Nuova direzione (13/11/2026): due strade.** StreamFlow tiene le preconfigurazioni per
+  gli speaker di Runtime Radio **e** offre una configurazione generale per chi trasmette su
+  un proprio server, con una schermata di benvenuto e il riconoscimento dello speaker
+  Runtime. Supera «generalizzazione archiviata» (24 luglio) e «niente generalizzazione finché
+  non sono completi» (27 settembre). Proposta nell'analisi, §7; da approvare.
+- **Aggiornamento che chiede prima di scaricare** (chiesto il 6/11): ancora in coda.
 
 ---
 

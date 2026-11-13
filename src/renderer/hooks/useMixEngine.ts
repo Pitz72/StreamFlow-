@@ -223,10 +223,20 @@ export const useMixEngine = ({ enabled, micDeviceName, levels }: MixEngineOption
             window.electronAPI?.writeLog?.(level, message);
         };
 
+        /**
+         * Avviso a video e, se c'è una sessione attiva, anche fuori dalla finestra
+         * (notifica e pulsante rosso sulla barra): chi trasmette guarda la regia,
+         * non StreamFlow. Fuori sessione il main lo lascia cadere.
+         */
+        const alarm = (message: string) => {
+            setErrorMessage(message);
+            window.electronAPI?.raiseAlert?.(message);
+        };
+
         const fail = (message: string) => {
             setMixReady(false);
             log('error', `MIX MODE: ${message}`);
-            setErrorMessage(`MIX MODE non attiva — ${message}`);
+            alarm(`MIX MODE non attiva — ${message}`);
         };
 
         /**
@@ -238,7 +248,7 @@ export const useMixEngine = ({ enabled, micDeviceName, levels }: MixEngineOption
             track.addEventListener('ended', () => {
                 if (cancelled) return;
                 log('error', `MIX MODE: ${what} si è interrotto e non va più in onda. Ricollegalo, poi spegni e riaccendi MIX MODE a diretta ferma.`);
-                setErrorMessage(`MIX MODE: ${what} si è interrotto e non va più in onda.`);
+                alarm(`MIX MODE: ${what} si è interrotto e non va più in onda.`);
             });
         };
 
@@ -299,7 +309,7 @@ export const useMixEngine = ({ enabled, micDeviceName, levels }: MixEngineOption
             if (attempt >= ENDED_RETRY_MS.length) {
                 const msg = 'l\'audio di sistema (la musica) si è interrotto e non riesco a riagganciarlo: non va in onda. Spegni e riaccendi MIX MODE a diretta ferma.';
                 log('error', `MIX MODE: ${msg}`);
-                setErrorMessage(`MIX MODE: ${msg}`);
+                alarm(`MIX MODE: ${msg}`);
                 return;
             }
             later(ENDED_RETRY_MS[attempt], () => {

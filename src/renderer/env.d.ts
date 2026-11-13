@@ -25,6 +25,7 @@ interface ElectronAPI {
     onStreamStatus: (
         callback: (status: 'disconnected' | 'connecting' | 'connected' | 'error' | 'reconnecting', message?: string) => void
     ) => () => void;
+    onStreamStall: (callback: (seconds: number | null) => void) => () => void;
     getStreamStatus: () => Promise<{
         status: 'disconnected' | 'connecting' | 'connected' | 'error' | 'reconnecting';
         message?: string;
@@ -48,6 +49,7 @@ interface ElectronAPI {
     openLogFolder: () => Promise<{ ok: boolean; dir: string | null }>;
     exportLogs: () => Promise<{ ok: true; file: string } | { ok: false; error: string }>;
     writeLog: (level: 'info' | 'success' | 'error', message: string) => void;
+    raiseAlert: (message: string) => void;
     onWindowMinimized: (callback: (minimized: boolean) => void) => () => void;
     getUpdateStatus: () => Promise<UpdateStatus>;
     onUpdateStatus: (callback: (s: UpdateStatus) => void) => () => void;

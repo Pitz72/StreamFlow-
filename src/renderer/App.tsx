@@ -64,6 +64,11 @@ function App() {
     const [openModal, setOpenModal] = useState<OpenModal>(null);
     // Dettaglio mostrato accanto allo status (countdown riconnessione dal main)
     const [statusDetail, setStatusDetail] = useState<string | null>(null);
+    // A diretta confermata: da quanti secondi l'audio non esce (cane da guardia
+    // del main). null = tutto regolare. Fino alla 0.10.3 «In onda» restava
+    // acceso anche con l'audio fermo.
+    const [stallSeconds, setStallSeconds] = useState<number | null>(null);
+    useEffect(() => window.electronAPI?.onStreamStall?.(setStallSeconds), []);
 
     // Solo tema scuro dalla 0.10 (decisione di Simone, 29/10/2026). La scelta
     // salvata dalle versioni precedenti non serve più: la si toglie.
@@ -167,6 +172,8 @@ function App() {
                 startInFlightRef.current = false;
                 setStreamStatus(status);
                 setStatusDetail(status === 'reconnecting' ? (message || null) : null);
+                // La pausa riguarda il collegamento che c'era: a ogni cambio di stato si riparte puliti.
+                setStallSeconds(null);
 
                 if (status === 'reconnecting') {
                     setIsStreaming(false);
@@ -320,7 +327,12 @@ function App() {
 
     const dj = STATION_PRESET.djs.find((d) => d.username === streamConfig.icecastUser);
     const djName = dj?.displayName || streamConfig.icecastUser || 'Scegli il tuo studio in Configurazione';
-    const word = statusWord[streamStatus] || statusWord.disconnected;
+    // Audio fermo a diretta confermata: lo stato resta «In onda» (la sessione c'è),
+    // ma passa all'ambra e dice da quanto non esce niente.
+    const stalled = streamStatus === 'connected' && stallSeconds !== null;
+    const baseWord = statusWord[streamStatus] || statusWord.disconnected;
+    const word = stalled ? { ...baseWord, cls: 'text-sf-amberInk' } : baseWord;
+    const detail = stalled ? `l'audio non esce da ${stallSeconds} s` : statusDetail;
     const nowPlaying = [streamMetadata.artist, streamMetadata.title].filter(Boolean).join(' · ');
 
     return (
@@ -372,8 +384,8 @@ function App() {
                         aria-hidden="true"
                     />
                     <span>{word.text}</span>
-                    {statusDetail && (
-                        <span className="text-[18px] font-bold normal-case tracking-normal">· {statusDetail}</span>
+                    {detail && (
+                        <span className="text-[18px] font-bold normal-case tracking-normal">· {detail}</span>
                     )}
                 </div>
 

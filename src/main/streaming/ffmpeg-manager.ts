@@ -92,12 +92,38 @@ export class StreamManager {
     private static readonly CONNECT_TIMEOUT_MS = 15000;
     /** Arresto pulito ('q' o fine di stdin): oltre questo tempo si uccide. */
     private static readonly GRACEFUL_STOP_MS = 3000;
+    /**
+     * CANE DA GUARDIA sulla diretta confermata. FFmpeg scrive una riga di
+     * progresso ogni mezzo secondo finché l'audio entra ed esce; quando la
+     * sorgente si ferma (PCM della MIX MODE interrotto, dispositivo muto) o la
+     * rete si blocca senza cadere, resta vivo e non scrive più niente. Misurato
+     * il 13/11/2026 con ffmpeg-static: PCM fermo su stdin aperto → 0 righe in
+     * 12 s, processo vivo, nemmeno la chiusura del server viene notata. Fino
+     * alla 0.10.3 «In onda» restava acceso per tutto quel tempo.
+     */
+    private static readonly WATCHDOG_TICK_MS = 1000;
+    /** Silenzio di FFmpeg oltre il quale si avvisa chi trasmette. */
+    private static readonly STALL_WARN_MS = 5000;
+    /** Silenzio oltre il quale il collegamento si chiude e si riprova. */
+    private static readonly STALL_ABORT_MS = 20000;
+    /**
+     * Un controllo arrivato con più di questo ritardo vuol dire che era fermo il
+     * processo principale (standby del computer, blocco): in quel tempo non
+     * leggeva nemmeno lo stderr, quindi non prova niente su FFmpeg.
+     */
+    private static readonly WATCHDOG_LATE_MS = 2000;
+    /** MIX MODE: sotto un secondo di PCM dall'ultimo progresso, a essere fermo è il mixer. */
+    private static readonly MIX_STALL_BYTES = MIX_PCM.sampleRate * MIX_PCM.channels * 2;
 
     private ffmpegProcess: ChildProcess | null = null;
     /** Processi fermati dall'utente che stanno ancora chiudendo file e connessione. */
     private drainingProcs = new Set<ChildProcess>();
     private mainWindow: BrowserWindow | null = null;
     private logSink: ((level: 'info' | 'success' | 'error', msg: string) => void) | null = null;
+    /** Chi vuole sapere dei cambi di stato oltre alla finestra (allarmi fuori dalla finestra). */
+    private statusSink: ((status: StreamStatus, message?: string) => void) | null = null;
+    /** Chi vuole sapere quando l'audio smette di uscire (secondi) e quando riparte (null). */
+    private stallSink: ((seconds: number | null) => void) | null = null;
 
     /** Config dell'ultimo start richiesto dall'utente — serve ai retry. null = nessuna sessione attiva. */
     private currentConfig: StreamConfig | null = null;
@@ -137,9 +163,30 @@ export class StreamManager {
         this.logSink = sink;
     }
 
+    public setStatusSink(sink: (status: StreamStatus, message?: string) => void) {
+        this.statusSink = sink;
+    }
+
+    public setStallSink(sink: (seconds: number | null) => void) {
+        this.stallSink = sink;
+    }
+
     private log(level: 'info' | 'success' | 'error', msg: string) {
         if (this.logSink) this.logSink(level, msg);
         console.log(`[StreamManager] ${level}: ${msg}`);
+    }
+
+    /**
+     * Da quanti secondi l'audio non esce (null = è ripartito, o la sessione è
+     * finita). Va alla finestra, che lo scrive accanto a «In onda», e a chi
+     * alza gli allarmi fuori dalla finestra.
+     */
+    private sendStall(seconds: number | null) {
+        try { this.stallSink?.(seconds); } catch { /* un allarme rotto non ferma la diretta */ }
+        if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
+        try {
+            this.mainWindow.webContents.send('STREAM_STALL', seconds);
+        } catch { /* finestra in chiusura */ }
     }
 
     /**
@@ -255,6 +302,8 @@ export class StreamManager {
         // Prima dell'invio: il blocco dello standby non dipende dall'esistenza
         // della finestra (un'interfaccia in crash non deve lasciar dormire il PC).
         this.updatePowerBlock(status);
+        // Anche gli allarmi fuori dalla finestra non dipendono dall'interfaccia.
+        try { this.statusSink?.(status, message); } catch { /* un allarme rotto non ferma la diretta */ }
         // La finestra può essere già distrutta (quit mentre si è ON AIR):
         // inviare su webContents distrutto lancia "Object has been destroyed".
         if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
@@ -456,6 +505,13 @@ export class StreamManager {
         let abortedAt = 0;
         /** Pause nell'invio, riga al minuto nel file, audio scartato da dshow. */
         const sendMonitor = new SendMonitor();
+        /** Istante dell'ultima riga di progresso: finché avanza, l'audio sta uscendo. */
+        let lastProgressAt = 0;
+        /** MIX MODE: PCM consegnato fino all'ultima riga di progresso (mixer fermo o rete ferma?). */
+        let mixBytesAtProgress = 0;
+        let watchdogTimer: ReturnType<typeof setInterval> | null = null;
+        /** L'avviso «l'audio non esce» è a video: va tolto quando riparte o il processo finisce. */
+        let stallShown = false;
 
         const cancelConnectionTimeout = () => {
             if (connectionTimeoutId !== null) {
@@ -473,6 +529,8 @@ export class StreamManager {
             if (liveConfirmTimer !== null) { clearTimeout(liveConfirmTimer); liveConfirmTimer = null; }
             if (stableTimer !== null) { clearTimeout(stableTimer); stableTimer = null; }
             if (abortKillTimer !== null) { clearTimeout(abortKillTimer); abortKillTimer = null; }
+            if (watchdogTimer !== null) { clearInterval(watchdogTimer); watchdogTimer = null; }
+            if (stallShown) { stallShown = false; this.sendStall(null); }
         };
         /**
          * Chiude QUESTO processo lasciando il verdetto al suo 'close' (riconnessione
@@ -494,10 +552,56 @@ export class StreamManager {
             }, StreamManager.GRACEFUL_STOP_MS);
         };
 
+        /**
+         * Parte alla conferma della diretta. Ogni secondo guarda da quanto manca
+         * una riga di progresso: oltre STALL_WARN_MS lo dice (registro, accanto a
+         * «In onda», allarme fuori dalla finestra), oltre STALL_ABORT_MS chiude il
+         * processo e lascia al 'close' la riconnessione, come per ogni caduta.
+         */
+        const startWatchdog = () => {
+            let lastTick = Date.now();
+            watchdogTimer = setInterval(() => {
+                const now = Date.now();
+                const late = now - lastTick - StreamManager.WATCHDOG_TICK_MS;
+                lastTick = now;
+                if (this.ffmpegProcess !== proc || aborting) return;
+                if (late > StreamManager.WATCHDOG_LATE_MS) lastProgressAt += late;
+
+                const silentMs = now - lastProgressAt;
+                if (silentMs < StreamManager.STALL_WARN_MS) return;
+                const sec = Math.floor(silentMs / 1000);
+                const cause = !mixMode
+                    ? 'rete ferma, oppure il dispositivo audio ha smesso di dare segnale (scollegato?)'
+                    : this.mixBytesWritten - mixBytesAtProgress < StreamManager.MIX_STALL_BYTES
+                        ? 'dal mixer non arriva più audio (motore audio fermo o interfaccia bloccata)'
+                        : 'il mixer manda audio ma non parte verso il server (rete ferma?)';
+
+                if (!stallShown) {
+                    stallShown = true;
+                    const left = Math.round((StreamManager.STALL_ABORT_MS - silentMs) / 1000);
+                    this.log('error', `l'audio non sta uscendo da ${sec} secondi: ${cause}. Chi ascolta sente una pausa. `
+                        + `Se non riparte, fra ${left} secondi chiudo il collegamento e riprovo.`);
+                }
+                this.sendStall(sec);
+
+                if (silentMs >= StreamManager.STALL_ABORT_MS) {
+                    this.log('error', `✗ audio fermo da ${sec} secondi: chiudo il collegamento e riprovo`);
+                    abortProcess(`l'audio non usciva più da ${sec} secondi: ${cause}`);
+                }
+            }, StreamManager.WATCHDOG_TICK_MS);
+        };
+
         proc.stderr?.on('data', (data) => {
             if (this.ffmpegProcess !== proc || aborting) return; // processo sostituito, fermato o in chiusura
 
             const message = data.toString();
+            // Una riga di progresso è la prova che l'audio sta uscendo: azzera il
+            // conto del cane da guardia e toglie l'avviso, se c'era.
+            if (/size=|time=/.test(message)) {
+                lastProgressAt = Date.now();
+                mixBytesAtProgress = this.mixBytesWritten;
+                if (stallShown) { stallShown = false; this.sendStall(null); }
+            }
             // Riga per riga: un blocco di stderr mescola spesso un errore e le righe
             // di progresso, e scartarlo intero (com'era) perdeva proprio la riga con
             // la causa, sia nel file di log sia nella spiegazione dell'uscita.
@@ -591,6 +695,7 @@ export class StreamManager {
                     this.sessionWasLive = true;
                     this.log('success', `✓ stream live (audio in transito verso ${host}:${port}${cleanMount})`);
                     this.sendStatus('connected');
+                    startWatchdog();
 
                     stableTimer = setTimeout(() => {
                         stableTimer = null;
