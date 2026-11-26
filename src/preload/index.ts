@@ -28,6 +28,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on('STREAM_STALL', handler);
         return () => { ipcRenderer.removeListener('STREAM_STALL', handler); };
     },
+    /** Da quanti secondi manca il dispositivo audio (null = è tornato). */
+    onStreamSource: (callback: (seconds: number | null) => void) => {
+        const handler = (_event: IpcRendererEvent, seconds: number | null) => callback(seconds);
+        ipcRenderer.on('STREAM_SOURCE', handler);
+        return () => { ipcRenderer.removeListener('STREAM_SOURCE', handler); };
+    },
+    /** Avvio fermato dall'interfaccia: va scritto nel registro. */
+    startRefused: (message: string) => ipcRenderer.send('start-refused', message),
     /** Stato corrente della sessione, per riallinearsi dopo un ricaricamento dell'interfaccia. */
     getStreamStatus: () => ipcRenderer.invoke('get-stream-status'),
     onLogEvent: (callback: (e: { level: 'info' | 'success' | 'error'; source: 'stream' | 'metadata' | 'system'; message: string }) => void) => {

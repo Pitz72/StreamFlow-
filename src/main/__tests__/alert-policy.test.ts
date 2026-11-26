@@ -84,3 +84,26 @@ describe('testo breve per la notifica', () => {
         expect(shortReason('   ')).toMatch(/Apri StreamFlow/);
     });
 });
+
+describe('dispositivo audio staccato', () => {
+    it('un distacco breve non disturba', () => {
+        const p = new AlertPolicy();
+        expect(p.onSource(0).kind).toBe('none');
+        expect(p.onSource(2).kind).toBe('none');
+        expect(p.onSource(null).kind).toBe('none');
+    });
+
+    it('oltre tre secondi avvisa una volta, e al ritorno lo dice', () => {
+        const p = new AlertPolicy();
+        expect(p.onSource(3).kind).toBe('sourceLost');
+        expect(p.onSource(4).kind).toBe('none');
+        expect(p.onSource(null).kind).toBe('sourceBack');
+    });
+
+    it('se intanto la diretta cade, non annuncia un ritorno', () => {
+        const p = new AlertPolicy();
+        p.onSource(5);
+        expect(p.onStatus('reconnecting').kind).toBe('lost');
+        expect(p.onSource(null).kind).toBe('none');
+    });
+});

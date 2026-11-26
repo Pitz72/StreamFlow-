@@ -23,18 +23,40 @@ export type AlertAction =
     | { kind: 'down'; reason?: string }
     /** A diretta confermata l'audio non esce da `seconds` secondi. */
     | { kind: 'stall'; seconds: number }
+    /** Il dispositivo audio manca da `seconds` secondi (in onda va silenzio). */
+    | { kind: 'sourceLost'; seconds: number }
+    /** Il dispositivo audio segnalato come perso è tornato. */
+    | { kind: 'sourceBack' }
     /** Tutto regolare (arresto voluto, nuovo avvio, pausa finita): via gli avvisi. */
     | { kind: 'clear' };
 
 const NONE: AlertAction = { kind: 'none' };
+
+/** Distacchi più brevi si riparano da soli: restano nel registro, senza notifica. */
+export const SOURCE_ALERT_S = 3;
 
 export class AlertPolicy {
     /** Caduta in corso: i tentativi di riconnessione non avvisano di nuovo. */
     private outage = false;
     /** Pausa dell'audio già segnalata: un solo avviso per pausa. */
     private stalled = false;
+    /** Dispositivo perso già segnalato. */
+    private sourceAlerted = false;
+
+    onSource(seconds: number | null): AlertAction {
+        if (seconds === null) {
+            if (!this.sourceAlerted) return NONE;
+            this.sourceAlerted = false;
+            return this.outage ? NONE : { kind: 'sourceBack' };
+        }
+        if (this.sourceAlerted || seconds < SOURCE_ALERT_S) return NONE;
+        this.sourceAlerted = true;
+        return { kind: 'sourceLost', seconds };
+    }
 
     onStatus(status: SessionStatus, message?: string): AlertAction {
+        // Caduta, fine o nuovo avvio: il discorso sul dispositivo si chiude lì.
+        if (status !== 'connected') this.sourceAlerted = false;
         switch (status) {
             case 'reconnecting':
                 // Arriva una volta al secondo (conto alla rovescia) e a ogni tentativo fallito.

@@ -5,6 +5,22 @@ Formato basato su [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.10.5] — 2026-11-26 · Solid Snake
+
+Il mixer che si stacca per un attimo non fa più cadere la diretta. Dettagli e misure in [log/0.10.5.md](./log/0.10.5.md).
+
+### Fixed
+- **Un micro-distacco USB fermava la diretta.** Nelle dirette del 16 e 23 novembre il mixer è sparito per meno di un secondo ed è tornato, ma StreamFlow non si riagganciava più. Ora la cattura dell'audio è separata dall'invio: se il dispositivo si stacca, il collegamento al server resta, in onda va silenzio e StreamFlow lo riaggancia da solo (nelle prove, 2 secondi circa per un distacco breve).
+- **Gli indicatori di livello restavano fermi** dopo che il dispositivo era tornato.
+- L'avviso di pausa nell'invio non dice più «poi è ripartito» quando subito dopo il collegamento cade.
+
+### Added
+- Accanto a «In onda» compare «dispositivo audio assente: in onda silenzio da N s». Se l'assenza supera i 3 secondi arriva anche la notifica di Windows. Dopo 60 secondi StreamFlow chiude e riprova a collegarsi.
+- Il registro conta i distacchi della diretta: serve a capire se cavo o porta stanno cedendo.
+- Quando «Avvia» non parte, il motivo viene scritto anche nel registro.
+
+---
+
 ## [0.10.4] — 2026-11-13 · Solid Snake
 
 Le tre criticità gravi dell'[analisi del 13 novembre](./ANALISI-2026-11-13.md). Dettagli e misure in [log/0.10.4.md](./log/0.10.4.md).

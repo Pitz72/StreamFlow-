@@ -121,5 +121,5 @@ export class SendMonitor {
 
 /** Avviso a video per una pausa nell'invio. */
 export const stallMessage = (sec: number) =>
-    `l'invio verso il server si è fermato per ${it1(sec)} secondi, poi è ripartito: `
+    `l'invio verso il server si è fermato per ${it1(sec)} secondi: `
     + 'rete lenta o interrotta. Chi ascolta può aver sentito una pausa';

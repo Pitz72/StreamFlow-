@@ -29,6 +29,13 @@ const applyAlert = (action: AlertAction) => {
             raiseAlert('warning', 'L\'audio non sta uscendo',
                 `Da ${action.seconds} secondi niente arriva al server. Se non riparte, StreamFlow chiude il collegamento e riprova.`);
             break;
+        case 'sourceLost':
+            raiseAlert('warning', 'Il dispositivo audio non risponde',
+                `Da ${action.seconds} secondi in onda va silenzio. Controlla il cavo: appena torna, StreamFlow lo riaggancia da solo.`);
+            break;
+        case 'sourceBack':
+            resolveAlert('Dispositivo audio riagganciato', 'L\'audio è tornato in onda.');
+            break;
         case 'clear':
             clearAlert();
             break;
@@ -103,6 +110,7 @@ export const initializeIpc = (mainWindow: BrowserWindow) => {
     bindAlertWindow(mainWindow);
     streamManager.setStatusSink((status, message) => applyAlert(alertPolicy.onStatus(status, message)));
     streamManager.setStallSink((seconds) => applyAlert(alertPolicy.onStall(seconds)));
+    streamManager.setSourceSink((seconds) => applyAlert(alertPolicy.onSource(seconds)));
 
     // Evento iniziale: rende la barra log immediatamente visibile e conferma l'IPC up.
     // Atteso che la finestra abbia finito di caricare, altrimenti il send va perso.
@@ -238,6 +246,14 @@ export const initializeIpc = (mainWindow: BrowserWindow) => {
         if (typeof message !== 'string') return;
         const lvl = level === 'error' || level === 'success' ? level : 'info';
         writeLog('system', lvl, message.substring(0, 2000));
+    });
+
+    // Avvio fermato dall'interfaccia prima di arrivare a FFmpeg: fino alla 0.10.4
+    // restava solo a video, e dai log delle dirette non si capiva perché «Avvia»
+    // non fosse partito.
+    ipcMain.on('start-refused', (_event, message: unknown) => {
+        if (typeof message !== 'string') return;
+        emitLog('error', 'stream', `avvio non partito: ${message.substring(0, 500)}`);
     });
 
     // MIX MODE: una sorgente persa a sessione attiva (microfono staccato, audio

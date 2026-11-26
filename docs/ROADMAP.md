@@ -1,7 +1,8 @@
 # Roadmap — Runtime StreamFlow
 
 Documento ripristinato dalla conversazione strategica originale (Gemini AI Studio, 5 Mar 2026).
-Aggiornato al 13 novembre 2026 (v0.10.4 · Solid Snake): terza analisi, tre gravi corrette, nuova direzione «due strade» (vedi §4 qui sotto).
+Aggiornato al 26 novembre 2026 (v0.10.5 · Solid Snake): riaggancio automatico del dispositivo audio ([log](./log/0.10.5.md)).
+Prima: 13 novembre 2026 (v0.10.4): terza analisi, tre gravi corrette, nuova direzione «due strade» (vedi §4 qui sotto).
 Prima: 29 ottobre 2026 (v0.9.0), repository pubblico e aggiornamento automatico fatti; restano licenza, preset e le lievi dell'analisi.
 Prima: 27 settembre 2026 (v0.8.6), StreamFlow programma a sé e futuro software libero.
 Precedente cambio di direzione: 24 luglio 2026 (v0.7.0), client interno Runtime Radio.

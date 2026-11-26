@@ -15,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 interface FakeProc extends EventEmitter {
     stderr: EventEmitter;
+    stdout: EventEmitter;
     stdin: EventEmitter & { writable: boolean; destroyed: boolean; writableLength: number; write: ReturnType<typeof vi.fn>; end: ReturnType<typeof vi.fn> };
     pid: number;
     args: string[];
@@ -24,6 +25,7 @@ interface FakeProc extends EventEmitter {
 
 const h = vi.hoisted(() => ({
     procs: [] as unknown[],
+    captures: [] as unknown[],
     powerStart: vi.fn(() => 42),
     powerStop: vi.fn(),
     deletePassword: vi.fn(),
@@ -50,6 +52,7 @@ vi.mock('child_process', async () => {
             const p = new EE() as FakeProc;
             p.args = args;
             p.stderr = new EE();
+            p.stdout = new EE();
             const stdin = new EE() as FakeProc['stdin'];
             stdin.writable = true;
             stdin.destroyed = false;
@@ -57,10 +60,12 @@ vi.mock('child_process', async () => {
             stdin.write = vi.fn();
             stdin.end = vi.fn();
             p.stdin = stdin;
-            p.pid = 1000 + h.procs.length;
+            // La cattura del dispositivo scrive PCM su stdout; `procs` sono quelli che spediscono.
+            const isCapture = args.at(-1) === 'pipe:1';
+            p.pid = isCapture ? 5000 + h.captures.length : 1000 + h.procs.length;
             p.killed = false;
             p.kill = vi.fn();
-            h.procs.push(p);
+            (isCapture ? h.captures : h.procs).push(p);
             return p;
         },
         exec: h.exec,
@@ -92,6 +97,8 @@ const baseConfig = {
 };
 
 let statuses: Array<[string, string | undefined]>;
+/** Avvisi «dispositivo assente» mandati alla finestra: secondi, o null quando torna. */
+let sources: Array<number | null>;
 /** Avvisi «l'audio non esce» mandati alla finestra: secondi, o null quando riparte. */
 let stalls: Array<number | null>;
 let logs: string[];
@@ -134,6 +141,7 @@ const resetAfter = async (p: FakeProc, afterMs: number) => {
 beforeEach(() => {
     vi.useFakeTimers();
     h.procs.length = 0;
+    h.captures.length = 0;
     h.powerStart.mockClear();
     h.powerStop.mockClear();
     h.deletePassword.mockClear();
@@ -143,6 +151,7 @@ beforeEach(() => {
     h.httpAuthCheck.mockResolvedValue({ status: 401, text: 'CREDENZIALI RIFIUTATE (401)' });
     statuses = [];
     stalls = [];
+    sources = [];
     logs = [];
     const fakeWindow = {
         isDestroyed: () => false,
@@ -150,6 +159,7 @@ beforeEach(() => {
             send: (ch: string, a: unknown, b?: string) => {
                 if (ch === 'STREAM_STATUS') statuses.push([a as string, b]);
                 else if (ch === 'STREAM_STALL') stalls.push(a as number | null);
+                else if (ch === 'STREAM_SOURCE') sources.push(a as number | null);
             },
         },
     };
@@ -310,10 +320,10 @@ describe('cane da guardia sull\'audio in uscita (G12)', () => {
         expect(stalls.at(-1)).toBe(5);
         expect(logs.join('\n')).toMatch(/l'audio non sta uscendo da 5 secondi/);
         expect(statuses.at(-1)?.[0]).toBe('connected'); // la sessione c'è ancora
-        expect(p.stdin.write).not.toHaveBeenCalledWith('q');
+        expect(p.stdin.end).not.toHaveBeenCalled();
 
         await vi.advanceTimersByTimeAsync(15_000);
-        expect(p.stdin.write).toHaveBeenCalledWith('q');
+        expect(p.stdin.end).toHaveBeenCalled();
         expect(stalls.at(-1)).toBeNull();             // l'avviso lascia il posto alla riconnessione
 
         p.emit('close', 0);
@@ -330,7 +340,7 @@ describe('cane da guardia sull\'audio in uscita (G12)', () => {
 
         await liveFor(p, 30_000);
         expect(stalls.at(-1)).toBeNull();
-        expect(p.stdin.write).not.toHaveBeenCalledWith('q');
+        expect(p.stdin.end).not.toHaveBeenCalled();
         expect(statuses.at(-1)?.[0]).toBe('connected');
         expect(h.procs).toHaveLength(1);
     });
@@ -341,7 +351,7 @@ describe('cane da guardia sull\'audio in uscita (G12)', () => {
         await liveFor(p, 120_000);
 
         expect(stalls).toEqual([]);
-        expect(p.stdin.write).not.toHaveBeenCalledWith('q');
+        expect(p.stdin.end).not.toHaveBeenCalled();
     });
 
     it('MIX MODE: il mixer che smette di consegnare audio viene chiamato per nome', async () => {
@@ -374,7 +384,7 @@ describe('cane da guardia sull\'audio in uscita (G12)', () => {
         await vi.advanceTimersByTimeAsync(1000);
 
         expect(stalls).toEqual([]);
-        expect(p.stdin.write).not.toHaveBeenCalledWith('q');
+        expect(p.stdin.end).not.toHaveBeenCalled();
     });
 
     it('chi ascolta gli stati e le pause viene avvisato anche senza finestra', async () => {
@@ -390,6 +400,138 @@ describe('cane da guardia sull\'audio in uscita (G12)', () => {
 
         expect(seenStatus).toEqual(['connecting', 'connected']);
         expect(seenStall.at(-1)).toBeGreaterThanOrEqual(5);
+    });
+});
+
+// Le dirette del 16 e 23/11/2026: il mixer sparisce per meno di un secondo e la
+// cattura non si riprende. La diretta non deve cadere.
+describe('dispositivo audio staccato a diretta avviata', () => {
+    const lastCapture = () => h.captures[h.captures.length - 1] as FakeProc;
+    /** Diretta in cui anche il dispositivo consegna audio ogni mezzo secondo. */
+    const run = async (p: FakeProc, ms: number, device = true) => {
+        for (let t = 0; t < ms; t += 500) {
+            if (device) lastCapture().stdout.emit('data', Buffer.alloc(96_000));
+            say(p, PROGRESS);
+            await vi.advanceTimersByTimeAsync(500);
+        }
+    };
+    const written = (p: FakeProc) => p.stdin.write.mock.calls.reduce((n, [b]) => n + (b as Buffer).length, 0);
+
+    it('l\'audio della cattura arriva a chi spedisce, che legge PCM e non il dispositivo', async () => {
+        const p = await startSession();
+        await run(p, 3000);
+
+        expect(p.args.join(' ')).toContain('-f s16le -ar 48000 -ac 2 -i pipe:0');
+        expect(p.args).not.toContain('dshow');
+        expect(lastCapture().args.join(' ')).toContain('-f dshow -i audio=Microfono USB');
+        expect(written(p)).toBe(6 * 96_000);
+    });
+
+    it('i blocchi arrivati a metà campione si ricompongono prima di spedirli', async () => {
+        const p = await startSession();
+        const cap = lastCapture();
+        for (const size of [7, 2, 11, 4]) cap.stdout.emit('data', Buffer.alloc(size));
+        const sizes = p.stdin.write.mock.calls.map(([b]) => (b as Buffer).length);
+
+        expect(sizes.every((n) => n % 4 === 0)).toBe(true);
+        expect(written(p)).toBe(24);
+    });
+
+    it('cattura muta: silenzio al ritmo giusto, cattura nuova, stesso collegamento, poi riaggancio', async () => {
+        const p = await startSession();
+        await run(p, 3000);
+        const first = lastCapture();
+        const before = written(p);
+
+        await run(p, 4000, false);                       // il dispositivo non consegna più
+        expect(h.captures.length).toBeGreaterThan(1);
+        expect(taskkills().some(([c]) => String(c).includes(`/pid ${first.pid} `))).toBe(true);
+        expect(sources.at(-1)).toBeGreaterThanOrEqual(3);
+
+        await run(p, 1000);                              // è tornato
+        expect(sources.at(-1)).toBeNull();
+        expect(h.procs).toHaveLength(1);
+        expect(p.stdin.end).not.toHaveBeenCalled();
+        expect(statuses.at(-1)?.[0]).toBe('connected');
+        // Cinque secondi e mezzo passati dall'ultimo conteggio: altrettanto audio spedito.
+        const seconds = (written(p) - before) / 192_000;
+        expect(seconds).toBeGreaterThan(4.8);
+        expect(seconds).toBeLessThan(6.2);
+        expect(logs.join('\n')).toMatch(/riagganciato dopo/);
+    });
+
+    it('cattura che muore: si riapre senza far cadere la diretta', async () => {
+        const p = await startSession();
+        await run(p, 3000);
+        lastCapture().emit('close', 1);
+        await vi.advanceTimersByTimeAsync(600);
+
+        expect(h.captures).toHaveLength(2);
+        expect(h.procs).toHaveLength(1);
+        expect(statuses.at(-1)?.[0]).toBe('connected');
+    });
+
+    it('assente per un minuto: chiude e passa alla riconnessione', async () => {
+        const p = await startSession();
+        await run(p, 3000);
+        await run(p, 62_000, false);
+
+        expect(p.stdin.end).toHaveBeenCalled();
+        p.emit('close', 0);
+        await flush();
+        expect(statuses.at(-1)?.[0]).toBe('reconnecting');
+        expect(logs.join('\n')).toMatch(/non risponde da 60 secondi/);
+        expect(sources.at(-1)).toBeNull();
+    });
+
+    it('dispositivo che non si apre al primo avvio: errore che lo dice', async () => {
+        const p = await startSession();
+        lastCapture().stderr.emit('data', Buffer.from('Could not find audio only device with name [Microfono USB]'));
+        lastCapture().emit('close', 1);
+        // Niente audio consegnato: si chiude subito, senza far collegare al server.
+        expect(p.stdin.end).not.toHaveBeenCalled();
+        expect(senderKills()).toHaveLength(1);
+        p.emit('close', 1);
+        await flush();
+
+        expect(statuses.at(-1)?.[0]).toBe('error');
+        expect(statuses.at(-1)?.[1]).toMatch(/non si apre \(Could not find audio only device/);
+    });
+
+    it('rete ferma con il dispositivo che consegna: la colpa è della rete', async () => {
+        const p = await startSession();
+        await run(p, 3000);
+        for (let i = 0; i < 14; i++) {                   // audio che arriva, niente progresso
+            lastCapture().stdout.emit('data', Buffer.alloc(96_000));
+            await vi.advanceTimersByTimeAsync(500);
+        }
+
+        expect(logs.join('\n')).toMatch(/il dispositivo manda audio ma non parte verso il server/);
+        expect(h.captures).toHaveLength(1);
+    });
+
+    it('rete intasata: l\'audio in eccesso si scarta e lo si dice', async () => {
+        const p = await startSession();
+        await run(p, 3000);
+        p.stdin.writableLength = 4 * 1024 * 1024;
+        const before = p.stdin.write.mock.calls.length;
+        await run(p, 1000);
+
+        expect(p.stdin.write.mock.calls.length).toBe(before);
+        expect(logs.join('\n')).toMatch(/ha perso un pezzo d'audio/);
+    });
+
+    it('lo stop ferma anche la cattura, e non ne riapre', async () => {
+        const p = await startSession();
+        await run(p, 3000);
+        const cap = lastCapture();
+        sm.stop();
+        cap.emit('close', 1);
+        await vi.advanceTimersByTimeAsync(10_000);
+
+        expect(taskkills().some(([c]) => String(c).includes(`/pid ${cap.pid} `))).toBe(true);
+        expect(h.captures).toHaveLength(1);
+        expect(p.stdin.end).toHaveBeenCalled();
     });
 });
 
@@ -439,6 +581,8 @@ const TEE_UNREACHABLE = [
     'size=       0kB time=N/A bitrate=N/A speed=N/A',
 ].join('\n');
 const taskkills = () => h.exec.mock.calls.filter(([cmd]) => String(cmd).startsWith('taskkill'));
+/** Solo le chiusure di chi spedisce: le catture (pid 5000+) si chiudono subito, per scelta. */
+const senderKills = () => taskkills().filter(([cmd]) => !/\/pid 5\d{3} /.test(String(cmd)));
 
 describe('registrazione locale (muxer tee)', () => {
     it('password errata: il tee che prosegue col solo file non diventa un ON AIR', async () => {
@@ -448,9 +592,9 @@ describe('registrazione locale (muxer tee)', () => {
         say(p, TEE_RESET);
         // Il processo viene chiuso, non lasciato a registrare: prima con le buone
         // (la registrazione fin lì resta integra), poi con il kill di riserva.
-        expect(p.stdin.write).toHaveBeenCalledWith('q');
+        expect(p.stdin.end).toHaveBeenCalled();
         await vi.advanceTimersByTimeAsync(3000);
-        expect(taskkills()).toHaveLength(1);
+        expect(senderKills()).toHaveLength(1);
 
         await vi.advanceTimersByTimeAsync(2000);
         p.emit('close', 0); // uscita pulita dopo il 'q': la causa è il reset già letto
@@ -507,7 +651,7 @@ describe('nessuno stato presunto', () => {
         expect(statusNames()).toEqual(['connecting']);
 
         await vi.advanceTimersByTimeAsync(10_000);
-        expect(p.stdin.write).toHaveBeenCalledWith('q');
+        expect(p.stdin.end).toHaveBeenCalled();
         p.emit('close', 0);
         await flush();
 
@@ -538,26 +682,26 @@ describe('uscita senza errori non richiesta', () => {
 });
 
 describe('arresto chiesto dall\'utente', () => {
-    it('pulito: "q" a FFmpeg, taskkill solo se non esce entro 3s', async () => {
+    it('pulito: fine di stdin a FFmpeg, taskkill solo se non esce entro 3s', async () => {
         const p = await startSession();
         await goLive(p);
         sm.stop();
 
-        expect(p.stdin.write).toHaveBeenCalledWith('q');
+        expect(p.stdin.end).toHaveBeenCalled();
         expect(statuses.at(-1)?.[0]).toBe('disconnected');
-        expect(taskkills()).toHaveLength(0);
+        expect(senderKills()).toHaveLength(0);
 
         await vi.advanceTimersByTimeAsync(3000);
-        expect(taskkills()).toHaveLength(1);
+        expect(senderKills()).toHaveLength(1);
     });
 
-    it('in MIX MODE basta la fine di stdin', async () => {
+    it('in MIX MODE non si apre nessuna cattura', async () => {
         const p = await startSession({ mixMode: true });
         sm.writeAudioChunk(Buffer.alloc(8192));
         sm.stop();
 
         expect(p.stdin.end).toHaveBeenCalled();
-        expect(p.stdin.write).not.toHaveBeenCalledWith('q');
+        expect(h.captures).toHaveLength(0);
     });
 
     it('un nuovo avvio chiude subito il processo ancora in chiusura', async () => {
@@ -613,14 +757,14 @@ describe("uscita dall'app", () => {
         let done = false;
         const quitting = sm.stopForQuit().then(() => { done = true; });
 
-        expect(p.stdin.write).toHaveBeenCalledWith('q');
+        expect(p.stdin.end).toHaveBeenCalled();
         await flush();
         expect(done).toBe(false);
 
         p.emit('close', 0);
         await quitting;
         expect(done).toBe(true);
-        expect(taskkills()).toHaveLength(0);
+        expect(senderKills()).toHaveLength(0);
     });
 
     it('se FFmpeg non esce, lo chiude comunque dopo 3s', async () => {
@@ -630,6 +774,6 @@ describe("uscita dall'app", () => {
         await vi.advanceTimersByTimeAsync(3000);
         await quitting;
 
-        expect(p.stdin.write).toHaveBeenCalledWith('q');
+        expect(p.stdin.end).toHaveBeenCalled();
     });
 });

@@ -26,6 +26,8 @@ interface ElectronAPI {
         callback: (status: 'disconnected' | 'connecting' | 'connected' | 'error' | 'reconnecting', message?: string) => void
     ) => () => void;
     onStreamStall: (callback: (seconds: number | null) => void) => () => void;
+    onStreamSource: (callback: (seconds: number | null) => void) => () => void;
+    startRefused: (message: string) => void;
     getStreamStatus: () => Promise<{
         status: 'disconnected' | 'connecting' | 'connected' | 'error' | 'reconnecting';
         message?: string;

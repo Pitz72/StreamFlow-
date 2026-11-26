@@ -9,6 +9,7 @@ import { SendMonitor, isDshowDrop, parseProgress, stallMessage, type Progress } 
 import { deletePassword } from '../credentials';
 import { httpAuthCheck } from './connection-diagnostic';
 import { classifyExit } from './exit-classifier';
+import { CaptureSource } from './capture-source';
 
 // In production (asar), ffmpeg-static resolves inside app.asar which cannot be spawned.
 // We replace 'app.asar' with 'app.asar.unpacked' to point to the extracted binary.
@@ -33,7 +34,10 @@ interface StreamConfig {
     mixMode?: boolean;
 }
 
-/** Formato del PCM che il mixer del renderer scrive su stdin. Deve combaciare con useMixEngine. */
+/**
+ * Formato del PCM che arriva su stdin al processo che spedisce: dal mixer del renderer
+ * in MIX MODE (deve combaciare con useMixEngine), dalla cattura del dispositivo altrimenti.
+ */
 export const MIX_PCM = { sampleRate: 48000, channels: 2 } as const;
 
 /**
@@ -112,6 +116,13 @@ export class StreamManager {
      * leggeva nemmeno lo stderr, quindi non prova niente su FFmpeg.
      */
     private static readonly WATCHDOG_LATE_MS = 2000;
+    /**
+     * Dispositivo assente oltre il quale si smette di mandare silenzio: si chiude, e la
+     * riconnessione ritenta finché il dispositivo torna o i tentativi finiscono.
+     */
+    private static readonly SOURCE_LOST_ABORT_S = 60;
+    /** Audio in attesa di partire oltre il quale si scarta (~16 s, come il vecchio buffer di dshow). */
+    private static readonly CAPTURE_BACKLOG_BYTES = 3 * 1024 * 1024;
     /** MIX MODE: sotto un secondo di PCM dall'ultimo progresso, a essere fermo è il mixer. */
     private static readonly MIX_STALL_BYTES = MIX_PCM.sampleRate * MIX_PCM.channels * 2;
 
@@ -124,6 +135,12 @@ export class StreamManager {
     private statusSink: ((status: StreamStatus, message?: string) => void) | null = null;
     /** Chi vuole sapere quando l'audio smette di uscire (secondi) e quando riparte (null). */
     private stallSink: ((seconds: number | null) => void) | null = null;
+    /** Chi vuole sapere quando il dispositivo audio manca (secondi) e quando torna (null). */
+    private sourceSink: ((seconds: number | null) => void) | null = null;
+    /** Cattura del dispositivo del processo corrente (null in MIX MODE). */
+    private capture: CaptureSource | null = null;
+    /** Quante volte il dispositivo si è staccato nella sessione: serve a giudicare cavo e porta. */
+    private sourceDrops = 0;
 
     /** Config dell'ultimo start richiesto dall'utente — serve ai retry. null = nessuna sessione attiva. */
     private currentConfig: StreamConfig | null = null;
@@ -169,6 +186,19 @@ export class StreamManager {
 
     public setStallSink(sink: (seconds: number | null) => void) {
         this.stallSink = sink;
+    }
+
+    public setSourceSink(sink: (seconds: number | null) => void) {
+        this.sourceSink = sink;
+    }
+
+    /** Da quanti secondi manca il dispositivo audio (null = è tornato, o la sessione è finita). */
+    private sendSource(seconds: number | null) {
+        try { this.sourceSink?.(seconds); } catch { /* un allarme rotto non ferma la diretta */ }
+        if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
+        try {
+            this.mainWindow.webContents.send('STREAM_SOURCE', seconds);
+        } catch { /* finestra in chiusura */ }
     }
 
     private log(level: 'info' | 'success' | 'error', msg: string) {
@@ -320,6 +350,7 @@ export class StreamManager {
         this.cancelReconnect();
         this.reconnectAttempt = 0;
         this.sessionWasLive = false;
+        this.sourceDrops = 0;
         // Un processo ancora in arresto pulito occupa il mount: il nuovo verrebbe rifiutato.
         this.killDraining();
         this.killCurrentProcess();
@@ -448,12 +479,10 @@ export class StreamManager {
             ];
         }
 
-        // MIX MODE: l'input è il PCM che il renderer scrive su stdin (già mixato),
-        // non più il singolo device dshow. Tutto il resto della catena — filtri,
-        // encoder, tee di registrazione, PUT BUTT-compat — resta identico.
-        const inputArgs = mixMode
-            ? ['-f', 's16le', '-ar', String(MIX_PCM.sampleRate), '-ac', String(MIX_PCM.channels), '-i', 'pipe:0']
-            : ['-f', 'dshow', '-i', `audio=${cleanDevice}`];
+        // L'input è sempre PCM su stdin: in MIX MODE lo scrive il mixer del renderer,
+        // altrimenti la cattura del dispositivo (CaptureSource). Chi spedisce non apre
+        // più il dispositivo: se questo si stacca, il collegamento al server resta.
+        const inputArgs = ['-f', 's16le', '-ar', String(MIX_PCM.sampleRate), '-ac', String(MIX_PCM.channels), '-i', 'pipe:0'];
 
         const args = [
             ...inputArgs,
@@ -478,7 +507,7 @@ export class StreamManager {
         this.mixBackpressureLogged = false;
         this.mixBytesWritten = 0;
 
-        // In MIX MODE stdin È la sorgente audio. Quando FFmpeg muore (server caduto,
+        // stdin È la sorgente audio. Quando FFmpeg muore (server caduto,
         // riconnessione, stop) una write già in volo emette EPIPE: senza questo
         // listener l'evento 'error' non gestito abbatterebbe il processo main,
         // cioè l'intera applicazione, in piena diretta.
@@ -512,6 +541,9 @@ export class StreamManager {
         let watchdogTimer: ReturnType<typeof setInterval> | null = null;
         /** L'avviso «l'audio non esce» è a video: va tolto quando riparte o il processo finisce. */
         let stallShown = false;
+        /** Cattura del dispositivo legata a QUESTO processo (null in MIX MODE). */
+        let capture: CaptureSource | null = null;
+        let sourceShown = false;
 
         const cancelConnectionTimeout = () => {
             if (connectionTimeoutId !== null) {
@@ -531,6 +563,8 @@ export class StreamManager {
             if (abortKillTimer !== null) { clearTimeout(abortKillTimer); abortKillTimer = null; }
             if (watchdogTimer !== null) { clearInterval(watchdogTimer); watchdogTimer = null; }
             if (stallShown) { stallShown = false; this.sendStall(null); }
+            capture?.stop();
+            if (sourceShown) { sourceShown = false; this.sendSource(null); }
         };
         /**
          * Chiude QUESTO processo lasciando il verdetto al suo 'close' (riconnessione
@@ -539,13 +573,19 @@ export class StreamManager {
          * Arresto pulito, con il kill come riserva: la registrazione locale fatta
          * fin lì va chiusa integra, non persa nel buffer del file.
          */
-        const abortProcess = (reason: string | null) => {
+        const abortProcess = (reason: string | null, immediate = false) => {
             if (aborting) return;
             aborting = true;
             abortedAt = Date.now();
             forcedReason = reason;
             cancelProcessTimers();
-            StreamManager.requestExit(proc, mixMode);
+            // Niente da salvare e niente da spedire: chiudere stdin farebbe aprire a
+            // FFmpeg una connessione al server solo per dirle addio.
+            if (immediate) {
+                StreamManager.forceKill(proc);
+                return;
+            }
+            StreamManager.requestExit(proc);
             abortKillTimer = setTimeout(() => {
                 abortKillTimer = null;
                 StreamManager.forceKill(proc);
@@ -571,7 +611,9 @@ export class StreamManager {
                 if (silentMs < StreamManager.STALL_WARN_MS) return;
                 const sec = Math.floor(silentMs / 1000);
                 const cause = !mixMode
-                    ? 'rete ferma, oppure il dispositivo audio ha smesso di dare segnale (scollegato?)'
+                    ? capture?.isDelivering
+                        ? 'il dispositivo manda audio ma non parte verso il server (rete ferma?)'
+                        : 'rete ferma, oppure il dispositivo audio ha smesso di dare segnale (scollegato?)'
                     : this.mixBytesWritten - mixBytesAtProgress < StreamManager.MIX_STALL_BYTES
                         ? 'dal mixer non arriva più audio (motore audio fermo o interfaccia bloccata)'
                         : 'il mixer manda audio ma non parte verso il server (rete ferma?)';
@@ -823,6 +865,57 @@ export class StreamManager {
             abortProcess(`nessuna trasmissione partita in ${s}s: il dispositivo audio non produce segnale, oppure il server non risponde (rete, firewall/antivirus, server spento)`);
         }, StreamManager.CONNECT_TIMEOUT_MS);
 
+        if (!mixMode) {
+            capture = new CaptureSource({
+                ffmpegPath,
+                device: cleanDevice,
+                format: MIX_PCM,
+                kill: (p, sync) => StreamManager.forceKill(p, sync),
+                events: {
+                    audio: (pcm) => {
+                        if (this.ffmpegProcess !== proc || aborting) return;
+                        if (this.writePcm(proc, pcm, StreamManager.CAPTURE_BACKLOG_BYTES)) return;
+                        const notice = sendMonitor.drop(Date.now());
+                        if (notice) this.log('error', notice);
+                    },
+                    failed: (reason) => {
+                        if (this.ffmpegProcess !== proc || aborting) return;
+                        abortProcess(`il dispositivo audio "${cleanDevice}" non si apre (${reason.substring(0, 160)}): controlla che sia collegato`, this.mixBytesWritten === 0);
+                    },
+                    lost: (seconds) => {
+                        if (this.ffmpegProcess !== proc || aborting) return;
+                        if (!sourceShown) {
+                            sourceShown = true;
+                            this.sourceDrops++;
+                            this.log('error', `il dispositivo audio "${cleanDevice}" ha smesso di mandare audio (scollegato? cavo?): `
+                                + 'resto collegato al server, mando silenzio e lo riaggancio da solo');
+                        }
+                        this.sendSource(seconds);
+                        if (seconds >= StreamManager.SOURCE_LOST_ABORT_S) {
+                            this.log('error', `✗ dispositivo audio assente da ${seconds} secondi: chiudo il collegamento e riprovo`);
+                            abortProcess(`il dispositivo audio "${cleanDevice}" non risponde da ${seconds} secondi`);
+                        }
+                    },
+                    restored: (seconds) => {
+                        if (this.ffmpegProcess !== proc || aborting) return;
+                        sourceShown = false;
+                        this.sendSource(null);
+                        const n = this.sourceDrops;
+                        this.log('success', `dispositivo audio riagganciato dopo ${seconds.toFixed(1).replace('.', ',')} secondi senza audio`
+                            + (n > 1 ? ` (è la ${n}ª volta in questa diretta: controlla cavo e porta USB)` : ''));
+                    },
+                    diagnostic: (text) => {
+                        writeRaw('cattura', text);
+                        if (this.ffmpegProcess !== proc || aborting || !isDshowDrop(text)) return;
+                        const notice = sendMonitor.drop(Date.now());
+                        if (notice) this.log('error', notice);
+                    },
+                },
+            });
+            this.capture = capture;
+            capture.start();
+        }
+
         return true;
     }
 
@@ -898,24 +991,29 @@ export class StreamManager {
     public writeAudioChunk(chunk: Buffer) {
         const proc = this.ffmpegProcess;
         if (!proc || !this.mixInputActive) return;
-        const stdin = proc.stdin;
-        if (!stdin || stdin.destroyed || !stdin.writable) return;
-
-        // Se FFmpeg non consuma (disco/rete bloccati) il buffer di Node cresce senza
-        // limite fino a mangiarsi la RAM. Oltre ~4 MB (≈20s di audio) scartiamo:
-        // in diretta l'audio vecchio non serve a nessuno, la memoria sì.
-        if (stdin.writableLength > 4 * 1024 * 1024) {
-            if (!this.mixBackpressureLogged) {
-                this.mixBackpressureLogged = true;
-                this.log('error', 'MIX MODE: FFmpeg non sta consumando l\'audio, blocchi scartati (possibile stallo di rete)');
-            }
-            return;
+        // ~4 MB sono circa 20 secondi di audio in attesa.
+        if (this.writePcm(proc, chunk, 4 * 1024 * 1024)) return;
+        if (!this.mixBackpressureLogged) {
+            this.mixBackpressureLogged = true;
+            this.log('error', 'MIX MODE: FFmpeg non sta consumando l\'audio, blocchi scartati (possibile stallo di rete)');
         }
+    }
 
+    /**
+     * Consegna PCM al processo che spedisce. Se non consuma (disco/rete bloccati) il
+     * buffer di Node cresce senza limite fino a mangiarsi la RAM: oltre `maxBacklog`
+     * si scarta, in diretta l'audio vecchio non serve a nessuno, la memoria sì.
+     * @returns false se il blocco è stato scartato per intasamento.
+     */
+    private writePcm(proc: ChildProcess, chunk: Buffer, maxBacklog: number): boolean {
+        const stdin = proc.stdin;
+        if (!stdin || stdin.destroyed || !stdin.writable) return true;
+        if (stdin.writableLength > maxBacklog) return false;
         try {
             stdin.write(chunk);
             this.mixBytesWritten += chunk.length;
         } catch { /* pipe chiusa tra il controllo e la write */ }
+        return true;
     }
 
     /**
@@ -990,19 +1088,16 @@ export class StreamManager {
     }
 
     /**
-     * Chiede a FFmpeg di chiudersi da sé, file e connessione compresi. In MIX MODE
-     * basta la fine di stdin, cioè l'EOF della sorgente PCM; altrimenti 'q', il
-     * comando da tastiera di FFmpeg, che arriva anche da una pipe (verificato con
-     * ffmpeg-static: uscita 0 in ~0,1s).
+     * Chiede a FFmpeg di chiudersi da sé, file e connessione compresi: basta la fine
+     * di stdin, cioè l'EOF della sorgente PCM.
      *
      * Serve alla registrazione locale: il file ha un buffer di 256 KB (misurato),
      * e un taskkill /f lo butta. Si perdono gli ultimi ~11s a 192 kbps, oppure
      * tutta la registrazione di una sessione breve (0 byte dopo 6s di diretta).
      */
-    private static requestExit(proc: ChildProcess, mixInput: boolean) {
+    private static requestExit(proc: ChildProcess) {
         try {
-            if (mixInput) proc.stdin?.end();
-            else proc.stdin?.write('q');
+            proc.stdin?.end();
         } catch { /* pipe già chiusa: ci pensa il kill di riserva */ }
     }
 
@@ -1012,17 +1107,19 @@ export class StreamManager {
      *                 dall'utente, con il kill dopo GRACEFUL_STOP_MS come riserva.
      */
     private killCurrentProcess(sync = false, graceful = false) {
+        // Prima la cattura: il dispositivo si libera e su stdin non arriva più niente.
+        this.capture?.stop(sync);
+        this.capture = null;
         const proc = this.ffmpegProcess;
         if (!proc) return;
         // Azzerare il riferimento PRIMA del kill: i listener del processo morente
         // vedono this.ffmpegProcess !== proc e non alterano lo stato (niente falso
         // 'error' da exit code 1 di taskkill, niente clobber del processo nuovo).
         this.ffmpegProcess = null;
-        const wasMix = this.mixInputActive;
         this.mixInputActive = false;
 
         if (graceful && !sync) {
-            StreamManager.requestExit(proc, wasMix);
+            StreamManager.requestExit(proc);
             this.drainingProcs.add(proc);
             const timer = setTimeout(() => {
                 if (this.drainingProcs.delete(proc)) StreamManager.forceKill(proc);
@@ -1034,7 +1131,7 @@ export class StreamManager {
             return;
         }
 
-        // MIX MODE: chiudiamo la sorgente PCM prima di uccidere il processo.
+        // Chiudiamo la sorgente PCM prima di uccidere il processo.
         try { proc.stdin?.end(); } catch { /* già chiusa */ }
         StreamManager.forceKill(proc, sync);
     }

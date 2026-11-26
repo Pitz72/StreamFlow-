@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store/useStore';
 import { readLevel, setLevel, type LevelRefs } from './levelMeter';
 import { resolveInputDeviceId } from './resolveInputDevice';
@@ -26,6 +26,9 @@ export const useAudioVisualizer = (deviceId: string, enabled: boolean): Visualiz
     const rightRef = useRef<HTMLDivElement | null>(null);
     const audioContextRef = useRef<AudioContext | null>(null);
     const requestRef = useRef<number | null>(null);
+    // Cambia quando la cattura va rifatta: un dispositivo staccato e ricollegato
+    // lasciava le barre ferme fino al riavvio.
+    const [epoch, setEpoch] = useState(0);
 
     // VU POST-GAIN: le barre riflettono il volume input impostato (anche live).
     // Web Audio legge il device grezzo (pre-gain); il guadagno reale è applicato
@@ -52,6 +55,18 @@ export const useAudioVisualizer = (deviceId: string, enabled: boolean): Visualiz
         // (cambio dispositivo rapido), tutte le operazioni async successive vengono abortite.
         let cancelled = false;
         let stream: MediaStream | null = null;
+        /** true = il dispositivo scelto non c'era e si legge il predefinito. */
+        let fallback = false;
+        let retryTimer: number | null = null;
+        const retry = () => {
+            if (cancelled || retryTimer !== null) return;
+            retryTimer = window.setTimeout(() => setEpoch((n) => n + 1), 1000);
+        };
+        const onDeviceChange = () => {
+            const track = stream?.getAudioTracks()[0];
+            if (!track || track.readyState === 'ended' || fallback) retry();
+        };
+        navigator.mediaDevices.addEventListener('devicechange', onDeviceChange);
 
         const initAudio = async () => {
             try {
@@ -61,6 +76,7 @@ export const useAudioVisualizer = (deviceId: string, enabled: boolean): Visualiz
                 const resolvedId = await resolveInputDeviceId(deviceId);
                 if (cancelled) return;
                 const targetDeviceId = resolvedId ? { exact: resolvedId } : undefined;
+                fallback = !resolvedId;
 
                 stream = await navigator.mediaDevices.getUserMedia({
                     audio: targetDeviceId ? { deviceId: targetDeviceId } : true
@@ -79,6 +95,7 @@ export const useAudioVisualizer = (deviceId: string, enabled: boolean): Visualiz
 
                 const source = ctx.createMediaStreamSource(stream);
                 const track = stream.getAudioTracks()[0];
+                track?.addEventListener('ended', retry);
                 const isStereo = (track?.getSettings().channelCount ?? 1) >= 2;
 
                 const analyserL = ctx.createAnalyser();
@@ -122,6 +139,8 @@ export const useAudioVisualizer = (deviceId: string, enabled: boolean): Visualiz
 
         return () => {
             cancelled = true;
+            if (retryTimer !== null) window.clearTimeout(retryTimer);
+            navigator.mediaDevices.removeEventListener('devicechange', onDeviceChange);
             if (requestRef.current) cancelAnimationFrame(requestRef.current);
             stream?.getTracks().forEach(track => track.stop());
             if (audioContextRef.current) {
@@ -131,7 +150,7 @@ export const useAudioVisualizer = (deviceId: string, enabled: boolean): Visualiz
             setLevel(leftRef, 0);
             setLevel(rightRef, 0);
         };
-    }, [deviceId, enabled]);
+    }, [deviceId, enabled, epoch]);
 
     return { leftRef, rightRef };
 };

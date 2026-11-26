@@ -69,6 +69,9 @@ function App() {
     // acceso anche con l'audio fermo.
     const [stallSeconds, setStallSeconds] = useState<number | null>(null);
     useEffect(() => window.electronAPI?.onStreamStall?.(setStallSeconds), []);
+    // Dispositivo audio staccato: il collegamento resta, in onda va silenzio.
+    const [sourceLostSeconds, setSourceLostSeconds] = useState<number | null>(null);
+    useEffect(() => window.electronAPI?.onStreamSource?.(setSourceLostSeconds), []);
 
     // Solo tema scuro dalla 0.10 (decisione di Simone, 29/10/2026). La scelta
     // salvata dalle versioni precedenti non serve più: la si toglie.
@@ -174,6 +177,8 @@ function App() {
                 setStatusDetail(status === 'reconnecting' ? (message || null) : null);
                 // La pausa riguarda il collegamento che c'era: a ogni cambio di stato si riparte puliti.
                 setStallSeconds(null);
+                // Il dispositivo perso invece si ripete ogni secondo: se manca ancora, torna da sé.
+                if (status !== 'connected') setSourceLostSeconds(null);
 
                 if (status === 'reconnecting') {
                     setIsStreaming(false);
@@ -250,6 +255,13 @@ function App() {
         && streamStatus !== 'connecting'
         && openModal === null;
 
+    /** Avvio che non parte: lo dice a video e lo lascia nel registro. */
+    const refuseStart = (message: string, openSettings = true) => {
+        setErrorMessage(message);
+        window.electronAPI?.startRefused?.(message);
+        if (openSettings) setOpenModal('settings');
+    };
+
     const toggleStream = async () => {
         if (!window.electronAPI) return;
 
@@ -261,36 +273,31 @@ function App() {
         if (startInFlightRef.current) return;
 
         if (selectedDeviceId === 'default' || !selectedDeviceLabel || selectedDeviceLabel === 'default') {
-            setErrorMessage('Seleziona un Audio Input Device specifico in Configurazione.');
-            setOpenModal('settings');
+            refuseStart('Seleziona un Audio Input Device specifico in Configurazione.');
             return;
         }
         if (!streamConfig.host.trim()) {
-            setErrorMessage('Host obbligatorio.');
-            setOpenModal('settings');
+            refuseStart('Host obbligatorio.');
             return;
         }
         if (!streamConfig.icecastUser.trim()) {
-            setErrorMessage('Scegli il tuo nome utente in Configurazione.');
-            setOpenModal('settings');
+            refuseStart('Scegli il tuo nome utente in Configurazione.');
             return;
         }
         const portNum = parseInt(streamConfig.port, 10);
         if (!streamConfig.port.trim() || isNaN(portNum) || portNum < 1 || portNum > 65535) {
-            setErrorMessage('La porta deve essere un numero tra 1 e 65535.');
-            setOpenModal('settings');
+            refuseStart('La porta deve essere un numero tra 1 e 65535.');
             return;
         }
         if (!streamConfig.password.trim()) {
-            setErrorMessage('Password obbligatoria.');
-            setOpenModal('settings');
+            refuseStart('Password obbligatoria.');
             return;
         }
         // MIX MODE: senza PCM dal mixer FFmpeg resterebbe in attesa e in onda non
         // andrebbe niente. Il main ha la sua rete di sicurezza, ma fermarsi qui
         // evita perfino di aprire la connessione.
         if (mixMode && !mixReady) {
-            setErrorMessage('MIX MODE non pronta: il mixer non sta producendo audio. Controlla microfono e audio di sistema nel pannello Log, poi riprova.');
+            refuseStart('MIX MODE non pronta: il mixer non sta producendo audio. Controlla microfono e audio di sistema nel pannello Log, poi riprova.', false);
             return;
         }
 
@@ -298,10 +305,15 @@ function App() {
         try {
             // Il device salvato in localStorage può essere stato scollegato:
             // meglio un messaggio chiaro ora che un errore dshow criptico da FFmpeg.
-            const available = await window.electronAPI.getAudioDevices();
+            // Un dispositivo appena ricollegato può metterci un momento a ricomparire:
+            // prima di rifiutare si guarda di nuovo per qualche secondo.
+            let available = await window.electronAPI.getAudioDevices();
+            for (let i = 0; i < 3 && available.length > 0 && !available.includes(selectedDeviceLabel); i++) {
+                await new Promise((resolve) => setTimeout(resolve, 1000));
+                available = await window.electronAPI.getAudioDevices();
+            }
             if (available.length > 0 && !available.includes(selectedDeviceLabel)) {
-                setErrorMessage(`Il dispositivo "${selectedDeviceLabel}" non è più disponibile. Selezionane un altro.`);
-                setOpenModal('settings');
+                refuseStart(`Il dispositivo "${selectedDeviceLabel}" non è collegato. Ricollegalo e riprova, oppure selezionane un altro.`);
                 startInFlightRef.current = false;
                 return;
             }
@@ -321,7 +333,7 @@ function App() {
             setTimeout(() => { startInFlightRef.current = false; }, 3000);
         } catch {
             startInFlightRef.current = false;
-            setErrorMessage('Errore di comunicazione con il processo principale.');
+            refuseStart('Errore di comunicazione con il processo principale.', false);
         }
     }
 
@@ -330,9 +342,14 @@ function App() {
     // Audio fermo a diretta confermata: lo stato resta «In onda» (la sessione c'è),
     // ma passa all'ambra e dice da quanto non esce niente.
     const stalled = streamStatus === 'connected' && stallSeconds !== null;
+    const sourceLost = streamStatus === 'connected' && sourceLostSeconds !== null;
     const baseWord = statusWord[streamStatus] || statusWord.disconnected;
-    const word = stalled ? { ...baseWord, cls: 'text-sf-amberInk' } : baseWord;
-    const detail = stalled ? `l'audio non esce da ${stallSeconds} s` : statusDetail;
+    const word = stalled || sourceLost ? { ...baseWord, cls: 'text-sf-amberInk' } : baseWord;
+    const detail = stalled
+        ? `l'audio non esce da ${stallSeconds} s`
+        : sourceLost
+            ? `dispositivo audio assente: in onda silenzio da ${sourceLostSeconds} s`
+            : statusDetail;
     const nowPlaying = [streamMetadata.artist, streamMetadata.title].filter(Boolean).join(' · ');
 
     return (

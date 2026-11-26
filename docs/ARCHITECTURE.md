@@ -147,3 +147,12 @@ Allo stop dello stream e alla chiusura dell'app (dalla 0.8.7):
   `SIGKILL` altrove. Subito, invece, se un nuovo avvio trova un processo ancora in chiusura.
 - **before-quit**: rimanda l'uscita finché l'arresto pulito non è concluso (al massimo
   3 s), poi chiude con un kill sincrono quello che resta.
+
+## Cattura separata dall'invio (dalla 0.10.5)
+
+In modalità normale girano due processi FFmpeg. `capture-source.ts` apre il dispositivo
+(dshow) e consegna PCM 48 kHz stereo al processo principale, che lo passa su stdin al
+processo che codifica e spedisce: la stessa strada del PCM della MIX MODE. Se il dispositivo
+sparisce, la cattura viene riaperta e il buco riempito di silenzio, senza toccare il
+collegamento al server. Dove questo documento descrive un solo FFmpeg con ingresso dshow,
+vale la versione di questo paragrafo.
